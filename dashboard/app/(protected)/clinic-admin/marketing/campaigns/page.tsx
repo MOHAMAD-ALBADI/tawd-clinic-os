@@ -1,16 +1,17 @@
 import { redirect } from "next/navigation";
 import { getUserClaims }             from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { CampaignLauncherTrigger } from "@/components/marketing/campaign-launcher";
 import { Radio, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 
 export const metadata = { title: "الحملات — التسويق — طود" };
 
 const STATUS: Record<string, { label: string; color: string; bg: string; border: string }> = {
   draft:     { label: "مسودة",  color: "#94A3B8", bg: "rgba(148,163,184,0.08)", border: "rgba(148,163,184,0.18)" },
-  scheduled: { label: "مجدول", color: "#818CF8", bg: "rgba(99,102,241,0.08)",  border: "rgba(99,102,241,0.18)"  },
-  running:   { label: "يُرسَل", color: "#38bdf8", bg: "rgba(56,189,248,0.08)",  border: "rgba(56,189,248,0.18)"  },
-  completed: { label: "مكتمل", color: "#4ADE80", bg: "rgba(34,197,94,0.07)",   border: "rgba(34,197,94,0.18)"   },
-  cancelled: { label: "ملغي",  color: "#F87171", bg: "rgba(239,68,68,0.07)",   border: "rgba(239,68,68,0.18)"   },
+  scheduled: { label: "مجدول", color: "#38bdf8", bg: "rgba(56,189,248,0.08)",  border: "rgba(56,189,248,0.18)"  },
+  running:   { label: "يُرسَل", color: "#2dd4bf", bg: "rgba(45,212,191,0.08)",  border: "rgba(45,212,191,0.18)"  },
+  completed: { label: "مكتمل", color: "#34d399", bg: "rgba(52,211,153,0.07)",  border: "rgba(52,211,153,0.18)"  },
+  cancelled: { label: "ملغي",  color: "#f43f5e", bg: "rgba(244,63,94,0.07)",   border: "rgba(244,63,94,0.18)"   },
 };
 
 export default async function MarketingCampaignsPage() {
@@ -37,13 +38,23 @@ export default async function MarketingCampaignsPage() {
   return (
     <div className="space-y-6 animate-fade-in">
 
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="eyebrow mb-1" style={{ color: "var(--color-brand-400)" }}>CAMPAIGNS</p>
+          <h2 className="text-2xl font-black text-white tracking-tight leading-none">الحملات التسويقية</h2>
+          <p className="text-[12px] mt-1" style={{ color: "var(--text-3)" }}>أطلق حملات واتساب لمرضاك — التحكم من هنا، والإرسال عبر سُرى</p>
+        </div>
+        <CampaignLauncherTrigger />
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "إجمالي الحملات",  value: count ?? 0,  color: "#818CF8", glow: "rgba(99,102,241,0.07)",  border: "rgba(99,102,241,0.16)",  Icon: Radio        },
-          { label: "تعمل الآن",        value: running,     color: "#38bdf8", glow: "rgba(56,189,248,0.07)",  border: "rgba(56,189,248,0.16)",  Icon: Clock        },
-          { label: "مكتملة",          value: completed,   color: "#4ADE80", glow: "rgba(34,197,94,0.07)",   border: "rgba(34,197,94,0.16)",   Icon: CheckCircle2 },
-          { label: "إجمالي المُرسَل", value: totalSent.toLocaleString("ar-SA"), color: "#5dd9cb", glow: "rgba(94,217,203,0.07)", border: "rgba(94,217,203,0.16)", Icon: AlertCircle },
+          { label: "إجمالي الحملات",  value: count ?? 0,  color: "#38bdf8", glow: "rgba(56,189,248,0.07)",  border: "rgba(56,189,248,0.16)",  Icon: Radio        },
+          { label: "تعمل الآن",        value: running,     color: "#2dd4bf", glow: "rgba(45,212,191,0.07)",  border: "rgba(45,212,191,0.16)",  Icon: Clock        },
+          { label: "مكتملة",          value: completed,   color: "#34d399", glow: "rgba(52,211,153,0.07)",  border: "rgba(52,211,153,0.16)",  Icon: CheckCircle2 },
+          { label: "إجمالي المُرسَل", value: totalSent.toLocaleString("en-US"), color: "#5dd9cb", glow: "rgba(94,217,203,0.07)", border: "rgba(94,217,203,0.16)", Icon: AlertCircle },
         ].map((s) => (
           <div
             key={s.label}
@@ -101,8 +112,8 @@ export default async function MarketingCampaignsPage() {
               <Radio className="w-7 h-7" style={{ color: "rgba(20,184,166,0.4)" }} />
             </div>
             <div className="text-center">
-              <p className="font-semibold text-white">لا توجد حملات مسجّلة</p>
-              <p className="text-sm mt-1" style={{ color: "#334155" }}>الحملات تُطلق عبر n8n</p>
+              <p className="font-semibold text-white">لا توجد حملات بعد</p>
+              <p className="text-sm mt-1" style={{ color: "var(--text-3)" }}>اضغط «حملة جديدة» لإطلاق أول حملة</p>
             </div>
           </div>
         ) : (
