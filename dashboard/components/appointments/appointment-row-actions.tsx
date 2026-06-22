@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useRef, useTransition } from "react";
 import { MoreHorizontal, Check, CalendarClock, XCircle } from "lucide-react";
 import { updateAppointmentStatus, rescheduleAppointment, cancelAppointment, type AppointmentStatus } from "@/app/actions/appointments";
 
@@ -12,15 +12,35 @@ const STATUS_OPTS: { value: AppointmentStatus; label: string }[] = [
   { value: "no_show", label: "لم يحضر" },
 ];
 
+type Pos = { right: number; top?: number; bottom?: number };
+
 export function AppointmentRowActions({ id, status, slotTime }: { id: string; status: string; slotTime: string }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"menu" | "reschedule">("menu");
+  const [pos, setPos] = useState<Pos | null>(null);
   const [pending, startTransition] = useTransition();
+  const btnRef = useRef<HTMLButtonElement>(null);
+
   const initial = slotTime ? new Date(slotTime) : new Date();
   const [date, setDate] = useState(initial.toISOString().split("T")[0]);
   const [time, setTime] = useState(initial.toTimeString().slice(0, 5));
 
+  function toggle() {
+    if (open) { close(); return; }
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) {
+      const openUp = window.innerHeight - r.bottom < 320;
+      setPos({
+        right: Math.round(window.innerWidth - r.right),
+        top: openUp ? undefined : Math.round(r.bottom + 6),
+        bottom: openUp ? Math.round(window.innerHeight - r.top + 6) : undefined,
+      });
+    }
+    setMode("menu");
+    setOpen(true);
+  }
   function close() { setOpen(false); setMode("menu"); }
+
   function change(s: AppointmentStatus) {
     startTransition(async () => { try { await updateAppointmentStatus(id, s); } finally { close(); } });
   }
@@ -33,15 +53,19 @@ export function AppointmentRowActions({ id, status, slotTime }: { id: string; st
   }
 
   return (
-    <div className="relative">
-      <button onClick={() => setOpen((o) => !o)} disabled={pending}
+    <>
+      <button ref={btnRef} onClick={toggle} disabled={pending}
         className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-white/[0.06]" style={{ color: "var(--text-3)" }} title="إجراءات">
         <MoreHorizontal className="w-4 h-4" />
       </button>
-      {open && (
+
+      {open && pos && (
         <>
-          <div className="fixed inset-0 z-40" onClick={close} />
-          <div className="absolute end-0 mt-1 z-50 w-52 panel py-1.5 animate-scale-in" style={{ background: "rgba(10,16,26,0.99)" }}>
+          <div className="fixed inset-0 z-[55]" onClick={close} />
+          <div
+            className="panel py-1.5 animate-scale-in"
+            style={{ position: "fixed", right: pos.right, top: pos.top, bottom: pos.bottom, width: 208, maxHeight: "70vh", overflowY: "auto", zIndex: 60, background: "rgba(12,18,28,0.99)" }}
+          >
             {mode === "menu" ? (
               <>
                 <p className="eyebrow px-3 py-1.5">تغيير الحالة</p>
@@ -75,6 +99,6 @@ export function AppointmentRowActions({ id, status, slotTime }: { id: string; st
           </div>
         </>
       )}
-    </div>
+    </>
   );
 }
