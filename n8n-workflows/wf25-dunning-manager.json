@@ -1,0 +1,149 @@
+{
+  "name": "TAWD — WF-25 Subscription Dunning Manager",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "days", "daysInterval": 1, "triggerAtHour": 9, "triggerAtMinute": 0 }
+          ]
+        }
+      },
+      "id": "wf25-n01",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 380]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH expired AS (UPDATE public.tawd_subscriptions SET status = 'past_due', grace_period_ends_at = NOW() + interval '7 days', dunning_alerts_sent = 0, updated_at = NOW() WHERE status = 'active' AND current_period_end IS NOT NULL AND current_period_end < NOW() RETURNING id), suspended AS (UPDATE public.tawd_subscriptions SET status = 'paused', updated_at = NOW() WHERE status = 'past_due' AND grace_period_ends_at IS NOT NULL AND grace_period_ends_at <= NOW() RETURNING id) SELECT ts.id AS sub_id, ts.clinic_id, ts.price_omr, ts.billing_cycle, ts.grace_period_ends_at, ts.dunning_alerts_sent, tc.name_ar AS clinic_name_ar, tc.name AS clinic_name, tc.phone AS clinic_phone FROM public.tawd_subscriptions ts JOIN public.tawd_clinics tc ON tc.id = ts.clinic_id WHERE ts.status = 'past_due' AND ts.grace_period_ends_at IS NOT NULL AND ts.grace_period_ends_at > NOW() ORDER BY ts.dunning_alerts_sent ASC, ts.grace_period_ends_at ASC;"
+      },
+      "id": "wf25-n02",
+      "name": "Dunning Engine",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [460, 380],
+      "credentials": {
+        "postgres": { "id": "NDrVeK2iQy3c33J3", "name": "TAWD Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const sub = $json;\nreturn [{ json: {\n  clinic_id:               sub.clinic_id,\n  is_subscription_renewal: true,\n  purpose:                 'subscription_renewal',\n  total:                   parseFloat(sub.price_omr) || 0,\n  custom_expires_at:       new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),\n  _dunning_ctx:            sub\n} }];"
+      },
+      "id": "wf25-n07",
+      "name": "Prep Renewal Link Params",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 380]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "MWuHI0l11A46keAp",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "wf25-n08",
+      "name": "Call WF-17 Renewal Link",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [900, 380],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const dunningCtx = $('Prep Renewal Link Params').item.json._dunning_ctx;\nconst linkResult  = $json;\nconst paymentUrl  = (linkResult && linkResult.payment_url) ? linkResult.payment_url : null;\nreturn [{ json: { ...dunningCtx, payment_url: paymentUrl } }];"
+      },
+      "id": "wf25-n09",
+      "name": "Merge Payment URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 380]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const sub = $json;\nconst daysLeft = Math.max(1, Math.ceil((new Date(sub.grace_period_ends_at) - Date.now()) / (1000 * 60 * 60 * 24)));\nconst billingLabel = sub.billing_cycle === 'annual' ? 'سنوياً' : 'شهرياً';\nconst clinicName = sub.clinic_name_ar || sub.clinic_name || 'العيادة';\nconst urgency = daysLeft <= 2 ? '🚨 عاجل جداً' : '⚠️ تنبيه';\nconst paymentLine = sub.payment_url\n  ? '\\n\\n🔗 للدفع الفوري وتجديد الاشتراك:\\n' + sub.payment_url\n  : '\\n\\nللتجديد أو للاستفسار تواصلوا مع فريق طود مباشرة.';\nconst body = urgency + ': اشتراك نظام طود\\n\\nعيادة ' + clinicName + '،\\n\\nاشتراككم في نظام طود قد انتهت مدة دفعه.\\n\\n📅 المتبقي قبل إيقاف الخدمة: ' + daysLeft + ' يوم\\n💰 مبلغ التجديد: ' + sub.price_omr + ' ريال عماني (' + billingLabel + ')' + paymentLine;\nreturn [{ json: { ...sub, to: sub.clinic_phone, body, clinic_id: sub.clinic_id, _days_left: daysLeft } }];"
+      },
+      "id": "wf25-n03",
+      "name": "Build Dunning Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 380]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-has-phone",
+              "leftValue": "={{ !!$json.clinic_phone }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf25-n04",
+      "name": "Has Phone?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1560, 380]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "0Aq11NOwPChsSzZ8",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "wf25-n05",
+      "name": "Send Dunning WhatsApp",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1780, 260]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.tawd_subscriptions SET dunning_alerts_sent = dunning_alerts_sent + 1, last_dunning_alert_at = NOW(), updated_at = NOW() WHERE id = '{{ $('Build Dunning Message').item.json.sub_id }}';"
+      },
+      "id": "wf25-n06",
+      "name": "Update Alert Count",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "continueOnFail": true,
+      "position": [2000, 260],
+      "credentials": {
+        "postgres": { "id": "NDrVeK2iQy3c33J3", "name": "TAWD Supabase Postgres" }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger":       { "main": [[{ "node": "Dunning Engine",          "type": "main", "index": 0 }]] },
+    "Dunning Engine":         { "main": [[{ "node": "Prep Renewal Link Params","type": "main", "index": 0 }]] },
+    "Prep Renewal Link Params":{ "main": [[{ "node": "Call WF-17 Renewal Link","type": "main", "index": 0 }]] },
+    "Call WF-17 Renewal Link":{ "main": [[{ "node": "Merge Payment URL",       "type": "main", "index": 0 }]] },
+    "Merge Payment URL":      { "main": [[{ "node": "Build Dunning Message",   "type": "main", "index": 0 }]] },
+    "Build Dunning Message":  { "main": [[{ "node": "Has Phone?",              "type": "main", "index": 0 }]] },
+    "Has Phone?": {
+      "main": [
+        [{ "node": "Send Dunning WhatsApp", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Send Dunning WhatsApp":  { "main": [[{ "node": "Update Alert Count",      "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Muscat" }
+}

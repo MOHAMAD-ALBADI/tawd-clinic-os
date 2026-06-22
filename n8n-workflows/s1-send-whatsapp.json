@@ -1,0 +1,135 @@
+{
+  "name": "TAWD — [SUB] S1 Send WhatsApp",
+  "nodes": [
+    {
+      "parameters": { "inputSource": "passthrough" },
+      "id": "s1-node-01",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "channel_configs",
+        "returnAll": false,
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            { "keyName": "clinic_id", "condition": "eq", "keyValue": "={{ $('Trigger').item.json.clinic_id }}" },
+            { "keyName": "channel",   "condition": "eq", "keyValue": "whatsapp" },
+            { "keyName": "is_active", "condition": "eq", "keyValue": "true" }
+          ]
+        }
+      },
+      "id": "s1-node-02",
+      "name": "Get Channel Config",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [460, 300],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const body = $('Trigger').item.json.body || $('Trigger').item.json.message_text || '';\nconst baseDelay   = 800;\nconst typingDelay = Math.floor(body.length * 12);\nconst randomDelay = Math.floor(Math.random() * 800);\nconst totalDelay  = Math.min(baseDelay + typingDelay + randomDelay, 6000);\nawait new Promise(resolve => setTimeout(resolve, totalDelay));\nreturn [{ json: { ...$json, _delay_ms: totalDelay } }];"
+      },
+      "id": "s1-node-07",
+      "name": "Human-like Delay",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [570, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v20.0/{{ $json.config.phone_number_id }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { messaging_product: 'whatsapp', to: $('Trigger').item.json.to, type: 'text', text: { body: $('Trigger').item.json.body || $('Trigger').item.json.message_text || '' } } }}",
+        "options": { "response": { "response": { "fullResponse": false } } }
+      },
+      "id": "s1-node-03",
+      "name": "WhatsApp API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300],
+      "credentials": {
+        "httpHeaderAuth": { "name": "TAWD WhatsApp API" }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-wa-success",
+              "leftValue": "={{ Array.isArray($json.messages) && $json.messages.length > 0 }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "s1-node-04",
+      "name": "Sent OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "fields": {
+          "values": [
+            { "name": "success",       "type": "booleanValue", "booleanValue": true },
+            { "name": "wa_message_id", "type": "stringValue",  "stringValue": "={{ $('WhatsApp API').item.json.messages[0].id }}" }
+          ]
+        }
+      },
+      "id": "s1-node-05",
+      "name": "Success",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1120, 180]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "fields": {
+          "values": [
+            { "name": "success", "type": "booleanValue", "booleanValue": false },
+            { "name": "error",   "type": "stringValue",  "stringValue": "={{ $('WhatsApp API').item.json.error?.message ?? 'WhatsApp API error' }}" }
+          ]
+        }
+      },
+      "id": "s1-node-06",
+      "name": "Failure",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1120, 420]
+    }
+  ],
+  "connections": {
+    "Trigger":            { "main": [[{ "node": "Get Channel Config", "type": "main", "index": 0 }]] },
+    "Get Channel Config": { "main": [[{ "node": "Human-like Delay",  "type": "main", "index": 0 }]] },
+    "Human-like Delay":   { "main": [[{ "node": "WhatsApp API",      "type": "main", "index": 0 }]] },
+    "WhatsApp API":       { "main": [[{ "node": "Sent OK?",          "type": "main", "index": 0 }]] },
+    "Sent OK?": {
+      "main": [
+        [{ "node": "Success", "type": "main", "index": 0 }],
+        [{ "node": "Failure", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}

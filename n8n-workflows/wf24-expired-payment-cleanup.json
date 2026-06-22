@@ -1,0 +1,240 @@
+{
+  "name": "TAWD — WF-24 Expired Payment Link Cleanup (every 5 min)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "minutes", "minutesInterval": 5 }] }
+      },
+      "id": "wf24-n01",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT public.tawd_release_expired_locks() AS released_count;",
+        "options": {}
+      },
+      "id": "wf24-n02",
+      "name": "Release Expired Locks",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [420, 300],
+      "credentials": {
+        "postgres": { "id": "NDrVeK2iQy3c33J3", "name": "TAWD Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "payment_links",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            { "keyName": "status",     "condition": "eq", "keyValue": "pending" },
+            { "keyName": "expires_at", "condition": "lt", "keyValue": "={{ new Date().toISOString() }}" }
+          ]
+        }
+      },
+      "id": "wf24-n03",
+      "name": "Get Expired Links",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [640, 300],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "has-id",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf24-n04",
+      "name": "Has Expired Links?",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [860, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "has-appt",
+              "leftValue": "={{ $json.appt_id }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf24-n05",
+      "name": "Has Appointment Link?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1080, 300]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "appointments",
+        "returnAll": false,
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            { "keyName": "id", "condition": "eq", "keyValue": "={{ $json.appt_id }}" }
+          ]
+        }
+      },
+      "id": "wf24-n06",
+      "name": "Get Appointment",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1300, 160],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const appt = $json;\nconst link  = $('Has Expired Links?').item.json;\nconst cancellable = !!appt.id && (appt.status === 'confirmed');\nreturn { json: { ...appt, cancellable, _link_id: link.id } };"
+      },
+      "id": "wf24-n07",
+      "name": "Evaluate Appointment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1520, 160]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "is-cancellable",
+              "leftValue": "={{ $json.cancellable }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf24-n08",
+      "name": "Cancellable?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1740, 160]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "appointments",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "status",              "fieldValue": "cancelled" },
+            { "fieldId": "cancellation_reason", "fieldValue": "deposit_payment_timeout" },
+            { "fieldId": "cancelled_at",        "fieldValue": "={{ new Date().toISOString() }}" }
+          ]
+        },
+        "filters": {
+          "conditions": [
+            { "keyName": "id", "condition": "eq", "keyValue": "={{ $json.id }}" }
+          ]
+        }
+      },
+      "id": "wf24-n09",
+      "name": "Cancel Appointment",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1960, 60],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "payment_links",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "status", "fieldValue": "expired" }
+          ]
+        },
+        "filters": {
+          "conditions": [
+            { "keyName": "id", "condition": "eq", "keyValue": "={{ $json._link_id ?? $json.id }}" }
+          ]
+        }
+      },
+      "id": "wf24-n10",
+      "name": "Expire Link",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2180, 300],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "fields": {
+          "values": [
+            { "name": "link_id",   "type": "stringValue",  "stringValue": "={{ $json.id }}" },
+            { "name": "processed", "type": "booleanValue", "booleanValue": true }
+          ]
+        }
+      },
+      "id": "wf24-n11",
+      "name": "Output",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [2400, 300]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger":        { "main": [[{ "node": "Release Expired Locks", "type": "main", "index": 0 }]] },
+    "Release Expired Locks":   { "main": [[{ "node": "Get Expired Links",     "type": "main", "index": 0 }]] },
+    "Get Expired Links":       { "main": [[{ "node": "Has Expired Links?",    "type": "main", "index": 0 }]] },
+    "Has Expired Links?":      { "main": [[{ "node": "Has Appointment Link?", "type": "main", "index": 0 }]] },
+    "Has Appointment Link?": {
+      "main": [
+        [{ "node": "Get Appointment", "type": "main", "index": 0 }],
+        [{ "node": "Expire Link",     "type": "main", "index": 0 }]
+      ]
+    },
+    "Get Appointment":    { "main": [[{ "node": "Evaluate Appointment", "type": "main", "index": 0 }]] },
+    "Evaluate Appointment":{ "main": [[{ "node": "Cancellable?",         "type": "main", "index": 0 }]] },
+    "Cancellable?": {
+      "main": [
+        [{ "node": "Cancel Appointment", "type": "main", "index": 0 }],
+        [{ "node": "Expire Link",        "type": "main", "index": 0 }]
+      ]
+    },
+    "Cancel Appointment": { "main": [[{ "node": "Expire Link", "type": "main", "index": 0 }]] },
+    "Expire Link":        { "main": [[{ "node": "Output",      "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Muscat" }
+}

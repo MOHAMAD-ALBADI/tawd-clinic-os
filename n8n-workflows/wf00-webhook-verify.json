@@ -1,0 +1,125 @@
+﻿{
+    "_n8n_id":  "CputKQi9Eu4NDcuI",
+    "_sync_date":  "2026-06-18",
+    "name":  "TAWD — WF-00 WhatsApp Webhook Verify",
+    "nodes":  [
+                  {
+                      "parameters":  {
+                                         "httpMethod":  "GET",
+                                         "path":  "sura-whatsapp",
+                                         "responseMode":  "responseNode",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "wf00-n01",
+                      "name":  "Verification Webhook",
+                      "type":  "n8n-nodes-base.webhook",
+                      "typeVersion":  2,
+                      "position":  [
+                                       200,
+                                       300
+                                   ],
+                      "webhookId":  "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "check-token",
+                                                                                   "leftValue":  "={{ $json.query[\u0027hub.verify_token\u0027] }}",
+                                                                                   "rightValue":  "TAWD_SURA_2026",
+                                                                                   "operator":  {
+                                                                                                    "type":  "string",
+                                                                                                    "operation":  "equals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        }
+                                     },
+                      "id":  "wf00-n02",
+                      "name":  "Token Valid?",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2,
+                      "position":  [
+                                       440,
+                                       300
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "text",
+                                         "responseBody":  "={{ $json.query[\u0027hub.challenge\u0027] }}",
+                                         "options":  {
+                                                         "responseCode":  200
+                                                     }
+                                     },
+                      "id":  "wf00-n03",
+                      "name":  "Respond Challenge",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1,
+                      "position":  [
+                                       680,
+                                       180
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "text",
+                                         "responseBody":  "Forbidden",
+                                         "options":  {
+                                                         "responseCode":  403
+                                                     }
+                                     },
+                      "id":  "wf00-n04",
+                      "name":  "Respond Forbidden",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1,
+                      "position":  [
+                                       680,
+                                       420
+                                   ]
+                  }
+              ],
+    "connections":  {
+                        "Verification Webhook":  {
+                                                     "main":  [
+                                                                  [
+                                                                      {
+                                                                          "node":  "Token Valid?",
+                                                                          "type":  "main",
+                                                                          "index":  0
+                                                                      }
+                                                                  ]
+                                                              ]
+                                                 },
+                        "Token Valid?":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "Respond Challenge",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ],
+                                                          [
+                                                              {
+                                                                  "node":  "Respond Forbidden",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ]
+                                                      ]
+                                         }
+                    },
+    "settings":  {
+                     "executionOrder":  "v1",
+                     "callerPolicy":  "workflowsFromSameOwner",
+                     "availableInMCP":  false
+                 }
+}

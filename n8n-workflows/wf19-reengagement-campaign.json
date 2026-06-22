@@ -1,0 +1,503 @@
+{
+  "name": "TAWD — WF-19 Re-engagement Campaign Engine",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "weeks", "weeksInterval": 1 }] }
+      },
+      "id": "wf19-n01",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [200, 380]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const cutoff = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();\nreturn [{ json: { cutoff_date: cutoff } }];"
+      },
+      "id": "wf19-n02",
+      "name": "Calc Cutoff",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 380]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "appointments",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            { "keyName": "slot_time", "condition": "lte", "keyValue": "={{ $json.cutoff_date }}" },
+            { "keyName": "status",    "condition": "eq",  "keyValue": "completed" }
+          ]
+        }
+      },
+      "id": "wf19-n03",
+      "name": "Get Completed Patients",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [640, 200],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "appointments",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            { "keyName": "slot_time", "condition": "lte", "keyValue": "={{ $json.cutoff_date }}" },
+            { "keyName": "status",    "condition": "eq",  "keyValue": "no_show" }
+          ]
+        }
+      },
+      "id": "wf19-n04",
+      "name": "Get NoShow Patients",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [640, 580],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const appts = $('Get Completed Patients').all();\nif (appts.length === 0 || !appts[0].json.id) {\n  return [{ json: { skipped: true } }];\n}\nconst map = {};\nfor (const a of appts) {\n  const pid = a.json.patient_id;\n  if (!pid) continue;\n  if (!map[pid] || new Date(a.json.slot_time) > new Date(map[pid].slot_time)) {\n    map[pid] = a.json;\n  }\n}\nconst unique = Object.values(map);\nreturn unique.map(a => ({ json: { patient_id: a.patient_id, clinic_id: a.clinic_id, last_appt: a.slot_time, message_type: 'completed' } }));"
+      },
+      "id": "wf19-n05",
+      "name": "Dedupe Completed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 200]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const appts = $('Get NoShow Patients').all();\nif (appts.length === 0 || !appts[0].json.id) {\n  return [{ json: { skipped: true } }];\n}\nconst map = {};\nfor (const a of appts) {\n  const pid = a.json.patient_id;\n  if (!pid) continue;\n  if (!map[pid] || new Date(a.json.slot_time) > new Date(map[pid].slot_time)) {\n    map[pid] = a.json;\n  }\n}\nconst unique = Object.values(map);\nreturn unique.map(a => ({ json: { patient_id: a.patient_id, clinic_id: a.clinic_id, last_appt: a.slot_time, message_type: 'no_show' } }));"
+      },
+      "id": "wf19-n06",
+      "name": "Dedupe NoShow",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 580]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const all = $input.all().map(i => i.json);\nif (!all.length || all[0].skipped) {\n  return [{ json: { skipped: true } }];\n}\nconst clinic_id = all[0].clinic_id;\nreturn [{ json: { clinic_id, patients: all, patient_count: all.length, message_type: 'completed' } }];"
+      },
+      "id": "wf19-n07",
+      "name": "Collect Completed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1080, 200]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const all = $input.all().map(i => i.json);\nif (!all.length || all[0].skipped) {\n  return [{ json: { skipped: true } }];\n}\nconst clinic_id = all[0].clinic_id;\nreturn [{ json: { clinic_id, patients: all, patient_count: all.length, message_type: 'no_show' } }];"
+      },
+      "id": "wf19-n08",
+      "name": "Collect NoShow",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1080, 580]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "not-skipped",
+              "leftValue": "={{ $json.skipped }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "notEquals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf19-n09",
+      "name": "Filter Completed",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1300, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "not-skipped",
+              "leftValue": "={{ $json.skipped }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "notEquals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf19-n10",
+      "name": "Filter NoShow",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1300, 580]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "marketing_campaigns",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "clinic_id",        "fieldValue": "={{ $json.clinic_id }}" },
+            { "fieldId": "name",             "fieldValue": "={{ 'إعادة تفاعل — ' + new Date().toLocaleDateString('ar-SA') }}" },
+            { "fieldId": "target_segment",   "fieldValue": "={{ JSON.stringify({ type: 'inactive_completed_60d', patient_count: $json.patient_count }) }}" },
+            { "fieldId": "channel",          "fieldValue": "whatsapp" },
+            { "fieldId": "template_body",    "fieldValue": "نشتاق لك! مضى وقت من آخر زيارتك. احجز موعدك الآن وفريقنا بانتظارك." },
+            { "fieldId": "template_body_ar", "fieldValue": "نشتاق لك! مضى وقت من آخر زيارتك. احجز موعدك الآن وفريقنا بانتظارك." },
+            { "fieldId": "status",           "fieldValue": "running" },
+            { "fieldId": "scheduled_at",     "fieldValue": "={{ new Date().toISOString() }}" },
+            { "fieldId": "started_at",       "fieldValue": "={{ new Date().toISOString() }}" }
+          ]
+        }
+      },
+      "id": "wf19-n11",
+      "name": "Create Campaign Completed",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1520, 200],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "marketing_campaigns",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "clinic_id",        "fieldValue": "={{ $json.clinic_id }}" },
+            { "fieldId": "name",             "fieldValue": "={{ 'متابعة الغياب — ' + new Date().toLocaleDateString('ar-SA') }}" },
+            { "fieldId": "target_segment",   "fieldValue": "={{ JSON.stringify({ type: 'no_show_apology_60d', patient_count: $json.patient_count }) }}" },
+            { "fieldId": "channel",          "fieldValue": "whatsapp" },
+            { "fieldId": "template_body",    "fieldValue": "نأسف لعدم تمكنك من الحضور في موعدك السابق. نود مساعدتك في إعادة الحجز — فريقنا مستعد لاستقبالك." },
+            { "fieldId": "template_body_ar", "fieldValue": "نأسف لعدم تمكنك من الحضور في موعدك السابق. نود مساعدتك في إعادة الحجز — فريقنا مستعد لاستقبالك." },
+            { "fieldId": "status",           "fieldValue": "running" },
+            { "fieldId": "scheduled_at",     "fieldValue": "={{ new Date().toISOString() }}" },
+            { "fieldId": "started_at",       "fieldValue": "={{ new Date().toISOString() }}" }
+          ]
+        }
+      },
+      "id": "wf19-n12",
+      "name": "Create Campaign NoShow",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1520, 580],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const campaign = $('Create Campaign Completed').first().json;\nconst allData  = $('Collect Completed').first().json;\nconst patients = allData.patients || [];\nreturn patients.map(p => ({ json: {\n  campaign_id:  campaign.id,\n  clinic_id:    p.clinic_id,\n  patient_id:   p.patient_id,\n  last_appt:    p.last_appt,\n  message_type: 'completed',\n  message:      'نشتاق لك! مضى وقت من آخر زيارتك. احجز موعدك الآن وفريقنا بانتظارك.'\n} }));"
+      },
+      "id": "wf19-n13",
+      "name": "Expand Patients Completed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1740, 200]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const campaign = $('Create Campaign NoShow').first().json;\nconst allData  = $('Collect NoShow').first().json;\nconst patients = allData.patients || [];\nreturn patients.map(p => ({ json: {\n  campaign_id:  campaign.id,\n  clinic_id:    p.clinic_id,\n  patient_id:   p.patient_id,\n  last_appt:    p.last_appt,\n  message_type: 'no_show',\n  message:      'نأسف لعدم تمكنك من الحضور في موعدك السابق. نود مساعدتك في إعادة الحجز — فريقنا مستعد لاستقبالك.'\n} }));"
+      },
+      "id": "wf19-n14",
+      "name": "Expand Patients NoShow",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1740, 580]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "patients",
+        "returnAll": false,
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            { "keyName": "id",          "condition": "eq", "keyValue": "={{ $json.patient_id }}" },
+            { "keyName": "is_archived", "condition": "eq", "keyValue": "={{ false }}" }
+          ]
+        }
+      },
+      "id": "wf19-n15",
+      "name": "Get Patient Phone Completed",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1960, 200],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "patients",
+        "returnAll": false,
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            { "keyName": "id",          "condition": "eq", "keyValue": "={{ $json.patient_id }}" },
+            { "keyName": "is_archived", "condition": "eq", "keyValue": "={{ false }}" }
+          ]
+        }
+      },
+      "id": "wf19-n16",
+      "name": "Get Patient Phone NoShow",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1960, 580],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const patient = $json;\nconst ctx     = $('Expand Patients Completed').itemMatching($itemIndex).json;\nif (!patient.id || !patient.phone) {\n  return { json: { ...ctx, skip: true, reason: 'no phone' } };\n}\nreturn { json: {\n  ...ctx,\n  phone:        patient.phone,\n  patient_name: patient.name || patient.name_ar || '',\n  message_text: ctx.message,\n  skip:         false\n} };"
+      },
+      "id": "wf19-n17",
+      "name": "Merge Patient Data Completed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2180, 200]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const patient = $json;\nconst ctx     = $('Expand Patients NoShow').itemMatching($itemIndex).json;\nif (!patient.id || !patient.phone) {\n  return { json: { ...ctx, skip: true, reason: 'no phone' } };\n}\nreturn { json: {\n  ...ctx,\n  phone:        patient.phone,\n  patient_name: patient.name || patient.name_ar || '',\n  message_text: ctx.message,\n  skip:         false\n} };"
+      },
+      "id": "wf19-n18",
+      "name": "Merge Patient Data NoShow",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2180, 580]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "has-phone",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf19-n19",
+      "name": "Has Phone?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2400, 380]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "campaign_logs",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "campaign_id", "fieldValue": "={{ $json.campaign_id }}" },
+            { "fieldId": "clinic_id",   "fieldValue": "={{ $json.clinic_id }}" },
+            { "fieldId": "patient_id",  "fieldValue": "={{ $json.patient_id }}" },
+            { "fieldId": "status",      "fieldValue": "sent" },
+            { "fieldId": "sent_at",     "fieldValue": "={{ new Date().toISOString() }}" }
+          ]
+        }
+      },
+      "id": "wf19-n20",
+      "name": "Log Campaign Entry",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2620, 320],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const min = 4000, max = 9000;\nconst delay = Math.floor(Math.random() * (max - min)) + min;\nawait new Promise(resolve => setTimeout(resolve, delay));\nreturn [{ json: { ...$json, _bulk_delay_ms: delay } }];"
+      },
+      "id": "wf19-n22",
+      "name": "Bulk Send Delay",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2730, 320]
+    },
+    {
+      "parameters": {
+        "workflowId": "0Aq11NOwPChsSzZ8"
+      },
+      "id": "wf19-n21",
+      "name": "S1 Send WhatsApp",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [2840, 320]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const d = $json;\nconst daysSince = Math.floor((Date.now() - new Date(d.last_appt)) / (1000*60*60*24));\nconst name = d.patient_name || 'عزيزي المريض';\nlet promptText;\nif (d.message_type === 'completed') {\n  promptText = 'أنت مساعد ودّي لعيادة طبية. اكتب رسالة واتساب قصيرة (3 جمل فقط) بالعربية الفصحى البسيطة لإعادة تواصل مع مريض. المريض: ' + name + '. آخر زيارة منذ ' + daysSince + ' يوماً (زيارة مكتملة). الرسالة تبدأ بتحية بالاسم، وتذكر مدة الغياب بشكل طبيعي، وتنتهي بدعوة واضحة للحجز. لا تتجاوز 40 كلمة ولا تستخدم إيموجي. اكتب الرسالة فقط:';\n} else {\n  promptText = 'أنت مساعد ودّي لعيادة طبية. اكتب رسالة واتساب قصيرة (3 جمل فقط) بالعربية الفصحى البسيطة لمريض فاته موعده. المريض: ' + name + '. الموعد الفائت منذ ' + daysSince + ' يوماً. الرسالة تبدأ بتحية بالاسم، وتُعبّر عن الأسف برفق دون لوم، وتعرض إعادة الحجز. لا تتجاوز 40 كلمة ولا تستخدم إيموجي. اكتب الرسالة فقط:';\n}\nreturn [{ json: { ...d, days_since: daysSince, _gemini_body: { contents: [{ parts: [{ text: promptText }] }], generationConfig: { temperature: 0.85, maxOutputTokens: 200, candidateCount: 1 } } } }];"
+      },
+      "id": "wf19-n23",
+      "name": "Prep AI Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2400, 380]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "googlePalmApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json._gemini_body }}",
+        "options": {}
+      },
+      "id": "wf19-n24",
+      "name": "Gemini Generate Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "continueOnFail": true,
+      "position": [2620, 380],
+      "credentials": {
+        "googlePalmApi": { "id": "s9N4V76Rwk6zW2lo", "name": "TAWD Gemini API" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const resp = $json;\nconst ctx  = $('Prep AI Prompt').item.json;\nlet msg = '';\ntry {\n  msg = resp.candidates[0].content.parts[0].text.trim();\n} catch(e) {\n  msg = ctx.message_type === 'completed'\n    ? 'أهلاً ' + (ctx.patient_name || '') + '، مضت ' + ctx.days_since + ' يوماً من آخر زيارتك. نرحب بك دائماً — احجز موعدك الآن.'\n    : 'أهلاً ' + (ctx.patient_name || '') + '، نأسف لتعذّر حضورك في موعدك السابق. يسعدنا مساعدتك في إعادة الحجز.';\n}\nreturn [{ json: { ...ctx, message_text: msg, _ai_generated: true } }];"
+      },
+      "id": "wf19-n25",
+      "name": "Extract AI Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2840, 380]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT public.clinic_has_feature('{{ $json.clinic_id }}'::uuid, 'marketing_campaigns_enabled') AS allowed;"
+      },
+      "id": "wf19-n26",
+      "name": "Check Campaigns",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "continueOnFail": true,
+      "position": [2960, 380],
+      "credentials": {
+        "postgres": { "id": "NDrVeK2iQy3c33J3", "name": "TAWD Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-campaigns-allowed",
+              "leftValue": "={{ $json.allowed }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf19-n27",
+      "name": "Campaigns Allowed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [3080, 380]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return [{ json: $('Extract AI Message').item.json }];"
+      },
+      "id": "wf19-n28",
+      "name": "Restore Patient Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3200, 380]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": { "main": [[{ "node": "Calc Cutoff", "type": "main", "index": 0 }]] },
+    "Calc Cutoff": {
+      "main": [[
+        { "node": "Get Completed Patients", "type": "main", "index": 0 },
+        { "node": "Get NoShow Patients",     "type": "main", "index": 0 }
+      ]]
+    },
+    "Get Completed Patients":      { "main": [[{ "node": "Dedupe Completed", "type": "main", "index": 0 }]] },
+    "Get NoShow Patients":         { "main": [[{ "node": "Dedupe NoShow",    "type": "main", "index": 0 }]] },
+    "Dedupe Completed":            { "main": [[{ "node": "Collect Completed", "type": "main", "index": 0 }]] },
+    "Dedupe NoShow":               { "main": [[{ "node": "Collect NoShow",    "type": "main", "index": 0 }]] },
+    "Collect Completed":           { "main": [[{ "node": "Filter Completed",  "type": "main", "index": 0 }]] },
+    "Collect NoShow":              { "main": [[{ "node": "Filter NoShow",     "type": "main", "index": 0 }]] },
+    "Filter Completed":            { "main": [[{ "node": "Create Campaign Completed", "type": "main", "index": 0 }]] },
+    "Filter NoShow":               { "main": [[{ "node": "Create Campaign NoShow",    "type": "main", "index": 0 }]] },
+    "Create Campaign Completed":   { "main": [[{ "node": "Expand Patients Completed", "type": "main", "index": 0 }]] },
+    "Create Campaign NoShow":      { "main": [[{ "node": "Expand Patients NoShow",    "type": "main", "index": 0 }]] },
+    "Expand Patients Completed":   { "main": [[{ "node": "Get Patient Phone Completed", "type": "main", "index": 0 }]] },
+    "Expand Patients NoShow":      { "main": [[{ "node": "Get Patient Phone NoShow",    "type": "main", "index": 0 }]] },
+    "Get Patient Phone Completed": { "main": [[{ "node": "Merge Patient Data Completed", "type": "main", "index": 0 }]] },
+    "Get Patient Phone NoShow":    { "main": [[{ "node": "Merge Patient Data NoShow",    "type": "main", "index": 0 }]] },
+    "Merge Patient Data Completed":{ "main": [[{ "node": "Prep AI Prompt",         "type": "main", "index": 0 }]] },
+    "Merge Patient Data NoShow":   { "main": [[{ "node": "Prep AI Prompt",         "type": "main", "index": 0 }]] },
+    "Prep AI Prompt":              { "main": [[{ "node": "Gemini Generate Message", "type": "main", "index": 0 }]] },
+    "Gemini Generate Message":     { "main": [[{ "node": "Extract AI Message",      "type": "main", "index": 0 }]] },
+    "Extract AI Message":          { "main": [[{ "node": "Check Campaigns",          "type": "main", "index": 0 }]] },
+    "Check Campaigns":             { "main": [[{ "node": "Campaigns Allowed?",       "type": "main", "index": 0 }]] },
+    "Campaigns Allowed?": {
+      "main": [
+        [{ "node": "Restore Patient Context", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Restore Patient Context":     { "main": [[{ "node": "Has Phone?",               "type": "main", "index": 0 }]] },
+    "Has Phone?": {
+      "main": [
+        [{ "node": "Log Campaign Entry", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Log Campaign Entry": { "main": [[{ "node": "Bulk Send Delay",  "type": "main", "index": 0 }]] },
+    "Bulk Send Delay":    { "main": [[{ "node": "S1 Send WhatsApp", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Muscat" }
+}

@@ -1,0 +1,258 @@
+{
+  "name": "TAWD — WF-07 Reminder Engine",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "hours", "hoursInterval": 1 }
+          ]
+        }
+      },
+      "id": "wf07-n01",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date();\nconst w24start = new Date(now.getTime() + 23 * 60 * 60 * 1000);\nconst w24end   = new Date(now.getTime() + 25 * 60 * 60 * 1000);\nconst w2start  = new Date(now.getTime() +  1 * 60 * 60 * 1000);\nconst w2end    = new Date(now.getTime() +  3 * 60 * 60 * 1000);\nreturn [{ json: {\n  window_24h_start: w24start.toISOString(),\n  window_24h_end:   w24end.toISOString(),\n  window_2h_start:  w2start.toISOString(),\n  window_2h_end:    w2end.toISOString(),\n  run_at:           now.toISOString()\n} }];"
+      },
+      "id": "wf07-n02",
+      "name": "Calc Time Windows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "appointments",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            { "keyName": "status", "condition": "eq", "keyValue": "confirmed" }
+          ]
+        }
+      },
+      "id": "wf07-n03",
+      "name": "Get Confirmed Appointments",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const appts = $('Get Confirmed Appointments').all();\nconst ctx   = $('Calc Time Windows').first().json;\nconst w24s  = new Date(ctx.window_24h_start);\nconst w24e  = new Date(ctx.window_24h_end);\nconst w2s   = new Date(ctx.window_2h_start);\nconst w2e   = new Date(ctx.window_2h_end);\nconst due = [];\nfor (const a of appts) {\n  if (!a.json.id) continue;\n  const t = new Date(a.json.slot_time);\n  let reminder_type = null;\n  if (t >= w24s && t < w24e) reminder_type = '24h';\n  else if (t >= w2s  && t < w2e)  reminder_type = '2h';\n  if (reminder_type) {\n    due.push({ json: { ...a.json, reminder_type } });\n  }\n}\nif (due.length === 0) return [{ json: { no_reminders: true } }];\nreturn due;"
+      },
+      "id": "wf07-n04",
+      "name": "Filter Due Reminders",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-no-reminders",
+              "leftValue": "={{ $json.no_reminders }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf07-n05",
+      "name": "Has Reminders?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { skipped: true, reason: 'no appointments due for reminder' } }];"
+      },
+      "id": "wf07-n06",
+      "name": "Skip — No Reminders",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 460]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "patients",
+        "returnAll": false,
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            { "keyName": "id", "condition": "eq", "keyValue": "={{ $json.patient_id }}" }
+          ]
+        }
+      },
+      "id": "wf07-n07",
+      "name": "Get Patient",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1340, 140],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const appt    = $('Filter Due Reminders').item.json;\nconst patient = $('Get Patient').item.json;\nconst slotDate = new Date(appt.slot_time);\nconst dateStr  = slotDate.toLocaleDateString('ar-SA', { timeZone: 'Asia/Muscat', weekday: 'long', day: 'numeric', month: 'long' });\nconst timeStr  = slotDate.toLocaleTimeString('ar-SA', { timeZone: 'Asia/Muscat', hour: '2-digit', minute: '2-digit' });\nconst name     = patient.name || 'عزيزي المريض';\nlet msg;\nif (appt.reminder_type === '24h') {\n  msg = 'مرحباً ' + name + ' 👋\\n\\nتذكير: موعدك في العيادة غداً ' + dateStr + ' الساعة ' + timeStr + '.\\n\\nللإلغاء أو التعديل أرسل لنا رسالة.';\n} else {\n  msg = 'تذكير أخير ' + name + ' ⏰\\n\\nموعدك اليوم الساعة ' + timeStr + '. نراك قريباً!';\n}\nreturn [{ json: {\n  appointment_id: appt.id,\n  clinic_id:      appt.clinic_id,\n  patient_id:     appt.patient_id,\n  phone:          patient.phone,\n  reminder_type:  appt.reminder_type,\n  message_text:   msg\n} }];"
+      },
+      "id": "wf07-n08",
+      "name": "Build Reminder Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 140]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const min = 4000, max = 9000;\nconst delay = Math.floor(Math.random() * (max - min)) + min;\nawait new Promise(resolve => setTimeout(resolve, delay));\nreturn [{ json: { ...$json, _bulk_delay_ms: delay } }];"
+      },
+      "id": "wf07-n11",
+      "name": "Bulk Send Delay",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1670, 140]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "0Aq11NOwPChsSzZ8",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "wf07-n09",
+      "name": "Send WhatsApp Reminder",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1780, 140]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "notification_queue",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "clinic_id",   "fieldValue": "={{ $('Build Reminder Message').item.json.clinic_id }}" },
+            { "fieldId": "patient_id",  "fieldValue": "={{ $('Build Reminder Message').item.json.patient_id }}" },
+            { "fieldId": "channel",     "fieldValue": "whatsapp" },
+            { "fieldId": "payload",     "fieldValue": "={{ JSON.stringify({ appointment_id: $('Build Reminder Message').item.json.appointment_id, reminder_type: $('Build Reminder Message').item.json.reminder_type, message: $('Build Reminder Message').item.json.message_text }) }}" },
+            { "fieldId": "status",      "fieldValue": "sent" }
+          ]
+        }
+      },
+      "id": "wf07-n10",
+      "name": "Log Notification",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2000, 140],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT public.clinic_has_feature('{{ $('Filter Due Reminders').item.json.clinic_id }}'::uuid, 'reminders_enabled') AS allowed;"
+      },
+      "id": "wf07-n12",
+      "name": "Check reminders_enabled",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "continueOnFail": true,
+      "position": [1450, 300],
+      "credentials": {
+        "postgres": { "id": "NDrVeK2iQy3c33J3", "name": "TAWD Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-reminders-allowed",
+              "leftValue": "={{ $json.allowed }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf07-n13",
+      "name": "Reminders Allowed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1560, 300]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[{ "node": "Calc Time Windows", "type": "main", "index": 0 }]]
+    },
+    "Calc Time Windows": {
+      "main": [[{ "node": "Get Confirmed Appointments", "type": "main", "index": 0 }]]
+    },
+    "Get Confirmed Appointments": {
+      "main": [[{ "node": "Filter Due Reminders", "type": "main", "index": 0 }]]
+    },
+    "Filter Due Reminders": {
+      "main": [[{ "node": "Has Reminders?", "type": "main", "index": 0 }]]
+    },
+    "Has Reminders?": {
+      "main": [
+        [{ "node": "Skip — No Reminders", "type": "main", "index": 0 }],
+        [{ "node": "Get Patient",         "type": "main", "index": 0 }]
+      ]
+    },
+    "Get Patient": {
+      "main": [[{ "node": "Check reminders_enabled", "type": "main", "index": 0 }]]
+    },
+    "Check reminders_enabled": {
+      "main": [[{ "node": "Reminders Allowed?", "type": "main", "index": 0 }]]
+    },
+    "Reminders Allowed?": {
+      "main": [
+        [{ "node": "Build Reminder Message", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Build Reminder Message": {
+      "main": [[{ "node": "Bulk Send Delay", "type": "main", "index": 0 }]]
+    },
+    "Bulk Send Delay": {
+      "main": [[{ "node": "Send WhatsApp Reminder", "type": "main", "index": 0 }]]
+    },
+    "Send WhatsApp Reminder": {
+      "main": [[{ "node": "Log Notification", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Muscat"
+  }
+}

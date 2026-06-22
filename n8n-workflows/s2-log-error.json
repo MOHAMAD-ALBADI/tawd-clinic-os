@@ -1,0 +1,54 @@
+{
+  "name": "TAWD — [SUB] S2 Log Error",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "s2-node-01",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ex = $json.execution || {};\nconst err = ex.error || {};\nreturn [{ json: {\n  clinic_id:     null,\n  workflow_id:   ex.workflowId   ?? null,\n  workflow_name: ex.workflowName ?? null,\n  error_message: err.message     ?? 'Unknown error',\n  error_stack:   err.stack       ?? null,\n  severity:      'high',\n  context: {\n    execution_id:       ex.id              ?? null,\n    last_node_executed: ex.lastNodeExecuted ?? null,\n    mode:               ex.mode            ?? null\n  }\n}}];"
+      },
+      "id": "s2-node-02",
+      "name": "Extract Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "tawd_error_logs",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "clinic_id",     "fieldValue": "={{ $json.clinic_id }}" },
+            { "fieldId": "workflow_id",   "fieldValue": "={{ $json.workflow_id }}" },
+            { "fieldId": "error_message", "fieldValue": "={{ $json.error_message }}" },
+            { "fieldId": "error_stack",   "fieldValue": "={{ $json.error_stack }}" },
+            { "fieldId": "severity",      "fieldValue": "={{ $json.severity }}" },
+            { "fieldId": "context",       "fieldValue": "={{ $json.context }}" }
+          ]
+        }
+      },
+      "id": "s2-node-03",
+      "name": "Insert Error Log",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    }
+  ],
+  "connections": {
+    "Error Trigger": { "main": [[{ "node": "Extract Error",   "type": "main", "index": 0 }]] },
+    "Extract Error": { "main": [[{ "node": "Insert Error Log","type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

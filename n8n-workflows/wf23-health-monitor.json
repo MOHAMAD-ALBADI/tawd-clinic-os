@@ -1,0 +1,17 @@
+﻿{
+  "name": "TAWD — WF-23 Workflow Health Monitor",
+  "nodes": [
+    { "parameters": { "rule": { "interval": [{ "field": "hours", "hoursInterval": 24 }] } }, "id": "wf23-n01", "name": "Schedule Trigger", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1, "position": [240, 300] },
+    { "parameters": { "mode": "runOnceForAllItems", "jsCode": "const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();\nreturn [{ json: { since, checked_at: new Date().toISOString() } }];" }, "id": "wf23-n02", "name": "Calc Window", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [460, 300] },
+    { "parameters": { "operation": "getAll", "tableId": "tawd_error_logs", "returnAll": true, "filters": { "conditions": [ { "keyName": "severity", "condition": "eq", "keyValue": "high" }, { "keyName": "created_at", "condition": "gte", "keyValue": "={{ $json.since }}" } ] } }, "id": "wf23-n03", "name": "Get Critical Errors", "type": "n8n-nodes-base.supabase", "typeVersion": 1, "position": [680, 300], "alwaysOutputData": true, "credentials": { "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" } } },
+    { "parameters": { "mode": "runOnceForAllItems", "jsCode": "const errors = $('Get Critical Errors').all();\nconst ctx = $('Calc Window').first().json;\nconst criticalCount = errors.filter(e => e.json.id).length;\nreturn [{ json: { ...ctx, critical_errors_24h: criticalCount, health_status: criticalCount === 0 ? 'healthy' : criticalCount < 5 ? 'warning' : 'critical' } }];" }, "id": "wf23-n04", "name": "Assess Health", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [900, 300] },
+    { "parameters": { "operation": "create", "tableId": "tawd_workflow_logs", "dataToSend": "defineBelow", "fieldsUi": { "fieldValues": [ { "fieldId": "workflow_id", "fieldValue": "wf23-health-monitor" }, { "fieldId": "clinic_id", "fieldValue": "={{ null }}" }, { "fieldId": "status", "fieldValue": "={{ $json.health_status + ':errors=' + $json.critical_errors_24h }}" }, { "fieldId": "execution_time_ms", "fieldValue": "0" } ] } }, "id": "wf23-n05", "name": "Log Health Report", "type": "n8n-nodes-base.supabase", "typeVersion": 1, "position": [1120, 300], "credentials": { "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" } } }
+  ],
+  "connections": {
+    "Schedule Trigger": { "main": [[{ "node": "Calc Window", "type": "main", "index": 0 }]] },
+    "Calc Window": { "main": [[{ "node": "Get Critical Errors", "type": "main", "index": 0 }]] },
+    "Get Critical Errors": { "main": [[{ "node": "Assess Health", "type": "main", "index": 0 }]] },
+    "Assess Health": { "main": [[{ "node": "Log Health Report", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Muscat" }
+}

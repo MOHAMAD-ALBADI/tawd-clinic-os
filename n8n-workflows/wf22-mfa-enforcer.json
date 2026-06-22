@@ -1,0 +1,11 @@
+﻿{
+  "name": "TAWD — WF-22 MFA Enforcer (Stub)",
+  "nodes": [
+    { "parameters": { "inputSource": "passthrough" }, "id": "wf22-n01", "name": "Trigger", "type": "n8n-nodes-base.executeWorkflowTrigger", "typeVersion": 1, "position": [240, 300] },
+    { "parameters": { "mode": "runOnceForAllItems", "jsCode": "const t = $('Trigger').first().json;\nconst adminRoles = ['owner', 'admin', 'doctor'];\nconst requiresMfa = adminRoles.includes(t.role);\nreturn [{ json: { ...t, mfa_required: requiresMfa, mfa_status: requiresMfa ? 'pending_verification' : 'not_required', note: 'MFA enforcement live implementation pending — uses Supabase Auth MFA' } }];" }, "id": "wf22-n02", "name": "MFA Check Stub", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [460, 300] }
+  ],
+  "connections": {
+    "Trigger": { "main": [[{ "node": "MFA Check Stub", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Muscat" }
+}

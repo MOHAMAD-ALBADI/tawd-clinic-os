@@ -1,0 +1,81 @@
+{
+  "name": "TAWD — [SUB] S7 Push to HITL",
+  "nodes": [
+    {
+      "parameters": { "inputSource": "passthrough" },
+      "id": "s7-node-01",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "ai_review_queue",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "session_id",        "fieldValue": "={{ $('Trigger').item.json.session_id }}" },
+            { "fieldId": "clinic_id",         "fieldValue": "={{ $('Trigger').item.json.clinic_id }}" },
+            { "fieldId": "patient_id",        "fieldValue": "={{ $('Trigger').item.json.patient_id ?? null }}" },
+            { "fieldId": "original_message",  "fieldValue": "={{ $('Trigger').item.json.original_message }}" },
+            { "fieldId": "ai_draft_response", "fieldValue": "={{ $('Trigger').item.json.ai_draft ?? null }}" },
+            { "fieldId": "reason",            "fieldValue": "={{ $('Trigger').item.json.reason }}" },
+            { "fieldId": "priority",          "fieldValue": "={{ $('Trigger').item.json.priority ?? 'medium' }}" },
+            { "fieldId": "status",            "fieldValue": "pending" }
+          ]
+        }
+      },
+      "id": "s7-node-02",
+      "name": "Insert HITL Queue",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [460, 300],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $vars.S1_WORKFLOW_ID }}",
+        "workflowInputData": {
+          "values": [
+            { "name": "clinic_id", "stringValue": "={{ $('Trigger').item.json.clinic_id }}" },
+            { "name": "to",        "stringValue": "={{ $('Trigger').item.json.staff_phone }}" },
+            { "name": "body",      "stringValue": "={{ '🔔 مراجعة مطلوبة\\nالمريض: ' + ($('Trigger').item.json.patient_id ?? 'غير محدد') + '\\nالسبب: ' + $('Trigger').item.json.reason }}" }
+          ]
+        }
+      },
+      "id": "s7-node-03",
+      "name": "Notify Staff (S1)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "fields": {
+          "values": [
+            { "name": "queued",    "type": "booleanValue", "booleanValue": true },
+            { "name": "review_id", "type": "stringValue",  "stringValue": "={{ $('Insert HITL Queue').item.json.id }}" },
+            { "name": "notified",  "type": "booleanValue", "booleanValue": true }
+          ]
+        }
+      },
+      "id": "s7-node-04",
+      "name": "Output",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Trigger":          { "main": [[{ "node": "Insert HITL Queue", "type": "main", "index": 0 }]] },
+    "Insert HITL Queue":{ "main": [[{ "node": "Notify Staff (S1)", "type": "main", "index": 0 }]] },
+    "Notify Staff (S1)":{ "main": [[{ "node": "Output",            "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

@@ -1,0 +1,111 @@
+{
+  "name": "TAWD — WF-17 Payment Link Generator",
+  "nodes": [
+    {
+      "parameters": { "inputSource": "passthrough" },
+      "id": "wf17-n01",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $('Trigger').first().json;\n// Programmatically enforce subscription_renewal when flag is set\nconst purpose = t.is_subscription_renewal === true\n  ? 'subscription_renewal'\n  : (t.purpose || 'invoice');\nconst total = parseFloat(t.total || t.amount || 0);\n// Deposit = 20% of invoice total; all other purposes = full amount\nconst chargeAmount = purpose === 'deposit'\n  ? parseFloat((total * 0.2).toFixed(3))\n  : total;\n// Allow custom expiry override (e.g. 72h for subscription renewals from WF-25)\nconst expiresAt = t.custom_expires_at || new Date(Date.now() + 30 * 60 * 1000).toISOString();\nreturn [{ json: { ...t, purpose, charge_amount: chargeAmount, expires_at: expiresAt } }];"
+      },
+      "id": "wf17-n02",
+      "name": "Prep Payment Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ ($vars.THAWANI_BASE_URL || 'https://uatcheckout.thawani.om') + '/api/v1/checkout/session' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "thawani-api-key", "value": "={{ $vars.THAWANI_SECRET_KEY }}" },
+            { "name": "Content-Type",    "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "client_reference_code", "value": "={{ $json.invoice_id || $json.appointment_id || $json.clinic_id }}" },
+            { "name": "mode",    "value": "payment" },
+            { "name": "products", "value": "={{ JSON.stringify([{ name: $json.purpose === 'subscription_renewal' ? 'تجديد اشتراك نظام طود' : ($json.purpose === 'deposit' ? 'عربون موعد' : 'فاتورة عيادة'), unit_amount: Math.round($json.charge_amount * 1000), quantity: 1 }]) }}" },
+            { "name": "success_url", "value": "={{ 'https://n8n.srv1239666.hstgr.cloud/webhook/thawani-success?ref=' + ($json.invoice_id || $json.appointment_id || $json.clinic_id) }}" },
+            { "name": "cancel_url",  "value": "={{ 'https://n8n.srv1239666.hstgr.cloud/webhook/thawani-cancel?ref='  + ($json.invoice_id || $json.appointment_id || $json.clinic_id) }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf17-n03",
+      "name": "Create Thawani Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t   = $('Trigger').first().json;\nconst pd  = $('Prep Payment Data').first().json;\nconst res = $json;\n\nconst sessionId = (res.data && res.data.session_id) ? res.data.session_id : (res.session_id || null);\nconst baseUrl   = $vars.THAWANI_BASE_URL || 'https://uatcheckout.thawani.om';\nconst checkoutUrl = sessionId\n  ? (baseUrl + '/pay/' + sessionId + '?key=' + ($vars.THAWANI_PUBLIC_KEY || ''))\n  : null;\n\nreturn [{ json: {\n  ...t,\n  thawani_session_id: sessionId,\n  payment_url:        checkoutUrl,\n  purpose:            pd.purpose,\n  charge_amount:      pd.charge_amount,\n  expires_at:         pd.expires_at\n} }];"
+      },
+      "id": "wf17-n04",
+      "name": "Extract Payment URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "payment_links",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "clinic_id",          "fieldValue": "={{ $json.clinic_id }}" },
+            { "fieldId": "appt_id",            "fieldValue": "={{ $json.appointment_id || null }}" },
+            { "fieldId": "invoice_id",         "fieldValue": "={{ $json.invoice_id || null }}" },
+            { "fieldId": "link_url",           "fieldValue": "={{ $json.payment_url }}" },
+            { "fieldId": "thawani_session_id", "fieldValue": "={{ $json.thawani_session_id }}" },
+            { "fieldId": "purpose",            "fieldValue": "={{ $json.purpose }}" },
+            { "fieldId": "amount",             "fieldValue": "={{ $json.charge_amount }}" },
+            { "fieldId": "currency",           "fieldValue": "OMR" },
+            { "fieldId": "expires_at",         "fieldValue": "={{ $json.expires_at }}" },
+            { "fieldId": "status",             "fieldValue": "pending" }
+          ]
+        }
+      },
+      "id": "wf17-n05",
+      "name": "Save Payment Link",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1120, 300],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t       = $('Trigger').first().json;\nconst urlData = $('Extract Payment URL').first().json;\nconst link    = $('Save Payment Link').first().json;\nreturn [{ json: {\n  ...t,\n  payment_link_id:    link.id,\n  payment_url:        urlData.payment_url,\n  thawani_session_id: urlData.thawani_session_id,\n  purpose:            urlData.purpose,\n  charge_amount:      urlData.charge_amount\n} }];"
+      },
+      "id": "wf17-n06",
+      "name": "Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    }
+  ],
+  "connections": {
+    "Trigger":               { "main": [[{ "node": "Prep Payment Data",       "type": "main", "index": 0 }]] },
+    "Prep Payment Data":     { "main": [[{ "node": "Create Thawani Session",  "type": "main", "index": 0 }]] },
+    "Create Thawani Session":{ "main": [[{ "node": "Extract Payment URL",     "type": "main", "index": 0 }]] },
+    "Extract Payment URL":   { "main": [[{ "node": "Save Payment Link",       "type": "main", "index": 0 }]] },
+    "Save Payment Link":     { "main": [[{ "node": "Output",                  "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Muscat" }
+}

@@ -1,0 +1,130 @@
+{
+  "name": "TAWD — [SUB] S5 Get or Create Chat Session",
+  "nodes": [
+    {
+      "parameters": { "inputSource": "passthrough" },
+      "id": "s5-node-01",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "chat_sessions",
+        "returnAll": false,
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            { "keyName": "clinic_id",        "condition": "eq", "keyValue": "={{ $('Trigger').item.json.clinic_id }}" },
+            { "keyName": "external_user_id", "condition": "eq", "keyValue": "={{ $('Trigger').item.json.phone }}" },
+            { "keyName": "channel",          "condition": "eq", "keyValue": "={{ $('Trigger').item.json.channel }}" },
+            { "keyName": "status",           "condition": "eq", "keyValue": "active" }
+          ]
+        }
+      },
+      "id": "s5-node-02",
+      "name": "Search Session",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [460, 300],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const found = $('Search Session').all();\nconst t = $('Trigger').first().json;\nif (found.length > 0 && found[0].json.id) {\n  const s = found[0].json;\n  return [{ json: {\n    ...t,\n    session_id:            s.id,\n    is_new_session:        false,\n    booking_in_progress:   s.booking_in_progress ?? false,\n    booking_locked_until:  s.booking_locked_until ?? null,\n    booking_slot_id:       s.booking_slot_id ?? null,\n    clarification_count:   s.clarification_count ?? 0,\n    session_language:      s.language ?? t.language ?? 'ar'\n  }}];\n}\nreturn [{ json: { ...t, needs_create_session: true } }];"
+      },
+      "id": "s5-node-03",
+      "name": "Found or Create?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-create-session",
+              "leftValue": "={{ $json.needs_create_session }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "s5-node-04",
+      "name": "Need Create?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "chat_sessions",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "clinic_id",        "fieldValue": "={{ $json.clinic_id }}" },
+            { "fieldId": "patient_id",       "fieldValue": "={{ $json.patient_id ?? null }}" },
+            { "fieldId": "channel",          "fieldValue": "={{ $json.channel }}" },
+            { "fieldId": "external_user_id", "fieldValue": "={{ $json.phone }}" },
+            { "fieldId": "status",           "fieldValue": "active" },
+            { "fieldId": "language",         "fieldValue": "ar" }
+          ]
+        }
+      },
+      "id": "s5-node-05",
+      "name": "Insert Session",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1120, 180],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $('Trigger').first().json;\nconst inserted = $json;\nreturn [{ json: {\n  ...t,\n  session_id:           inserted.id,\n  patient_id:           inserted.patient_id ?? t.patient_id ?? null,\n  is_new_session:       true,\n  booking_in_progress:  false,\n  booking_locked_until: null,\n  booking_slot_id:      null,\n  clarification_count:  0,\n  session_language:     t.language ?? 'ar',\n  needs_create_session: false\n} }];"
+      },
+      "id": "s5-node-06",
+      "name": "Output New Session",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 180]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "s5-node-07",
+      "name": "Output Existing Session",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 420]
+    }
+  ],
+  "connections": {
+    "Trigger":         { "main": [[{ "node": "Search Session",   "type": "main", "index": 0 }]] },
+    "Search Session":  { "main": [[{ "node": "Found or Create?", "type": "main", "index": 0 }]] },
+    "Found or Create?":{ "main": [[{ "node": "Need Create?",     "type": "main", "index": 0 }]] },
+    "Need Create?": {
+      "main": [
+        [{ "node": "Insert Session",          "type": "main", "index": 0 }],
+        [{ "node": "Output Existing Session", "type": "main", "index": 0 }]
+      ]
+    },
+    "Insert Session": { "main": [[{ "node": "Output New Session", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

@@ -1,0 +1,35 @@
+# ── Dependencies ──
+node_modules/
+**/node_modules/
+
+# ── Next.js build output ──
+.next/
+**/.next/
+out/
+**/out/
+build/
+
+# ── Secrets / environment (NEVER commit) ──
+.env
+.env.*
+**/.env
+**/.env.*
+.mcp.json
+
+# ── Local tooling / caches ──
+.claude/
+.playwright-mcp/
+*.log
+/tmp/
+
+# ── Screenshots & scratch images at repo root ──
+/*.png
+
+# ── OS / editor ──
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ── Vercel ──
+.vercel

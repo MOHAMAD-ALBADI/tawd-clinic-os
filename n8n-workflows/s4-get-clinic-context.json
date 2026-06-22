@@ -1,0 +1,72 @@
+{
+  "name": "TAWD — [SUB] S4 Get Clinic Context",
+  "nodes": [
+    {
+      "parameters": { "inputSource": "passthrough" },
+      "id": "s4-node-01",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "tawd_clinic_settings",
+        "returnAll": false,
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            { "keyName": "clinic_id", "condition": "eq", "keyValue": "={{ $('Trigger').item.json.clinic_id }}" }
+          ]
+        }
+      },
+      "id": "s4-node-02",
+      "name": "Get Settings",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [460, 220],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "tawd_clinics",
+        "returnAll": false,
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            { "keyName": "id", "condition": "eq", "keyValue": "={{ $('Trigger').item.json.clinic_id }}" }
+          ]
+        }
+      },
+      "id": "s4-node-03",
+      "name": "Get Clinic",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [460, 400],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t        = $('Trigger').first().json;\nconst settings = $('Get Settings').first()?.json ?? {};\nconst clinic   = $('Get Clinic').first()?.json ?? {};\nreturn [{ json: {\n  ...t,\n  clinic_name:              clinic.name ?? null,\n  clinic_phone:             clinic.phone ?? null,\n  is_in_maintenance:        settings.is_in_maintenance ?? false,\n  maintenance_msg_ar:       settings.maintenance_msg_ar ?? null,\n  maintenance_msg_en:       settings.maintenance_msg_en ?? null,\n  appointment_lock_minutes: settings.appointment_lock_minutes ?? 15,\n  currency:                 settings.currency ?? 'OMR',\n  language:                 settings.language ?? 'ar',\n  emergency_keywords:       settings.emergency_keywords_json ?? []\n}}];"
+      },
+      "id": "s4-node-04",
+      "name": "Merge Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 300]
+    }
+  ],
+  "connections": {
+    "Trigger":    { "main": [[{ "node": "Get Settings", "type": "main", "index": 0 }, { "node": "Get Clinic", "type": "main", "index": 0 }]] },
+    "Get Settings":{ "main": [[{ "node": "Merge Context","type": "main", "index": 0 }]] },
+    "Get Clinic":  { "main": [[{ "node": "Merge Context","type": "main", "index": 1 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

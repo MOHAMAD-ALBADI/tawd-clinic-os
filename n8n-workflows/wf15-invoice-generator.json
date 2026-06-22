@@ -1,0 +1,164 @@
+{
+  "name": "TAWD — WF-15 Invoice Generator + VAT",
+  "nodes": [
+    {
+      "parameters": { "inputSource": "passthrough" },
+      "id": "wf15-n01",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "vat_rules",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            { "keyName": "clinic_id",  "condition": "eq", "keyValue": "={{ $('Trigger').item.json.clinic_id }}" },
+            { "keyName": "service_id", "condition": "eq", "keyValue": "={{ $('Trigger').item.json.service_id }}" }
+          ]
+        }
+      },
+      "id": "wf15-n02",
+      "name": "Get VAT Rule",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [460, 300],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "services",
+        "returnAll": false,
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            { "keyName": "id",        "condition": "eq", "keyValue": "={{ $('Trigger').item.json.service_id }}" },
+            { "keyName": "is_active", "condition": "eq", "keyValue": "={{ true }}" }
+          ]
+        }
+      },
+      "id": "wf15-n06",
+      "name": "Get Service",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [460, 480],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t       = $('Trigger').first().json;\nconst vatRules = $('Get VAT Rule').all();\nconst svcRows  = $('Get Service').all();\n\nconst vatRule = (vatRules.length > 0 && vatRules[0].json.id) ? vatRules[0].json : null;\nconst svc     = (svcRows.length  > 0 && svcRows[0].json.id)  ? svcRows[0].json  : null;\n\nconst subtotal = svc ? parseFloat(svc.price || 0) : parseFloat(t.amount || 0);\nconst vatApplicable = vatRule ? (vatRule.vat_applicable === true || vatRule.vat_applicable === 'true') : false;\nconst vatRate   = vatApplicable ? parseFloat(vatRule.rate || 0.05) : 0;\nconst vatAmount = parseFloat((subtotal * vatRate).toFixed(3));\nconst total     = parseFloat((subtotal + vatAmount).toFixed(3));\n\n// Unique invoice number: INV-YYYYMMDD-RANDOM6\nconst datePart   = new Date().toISOString().slice(0,10).replace(/-/g,'');\nconst randPart   = Math.random().toString(36).slice(2,8).toUpperCase();\nconst invoiceNum = 'INV-' + datePart + '-' + randPart;\n\nreturn [{ json: {\n  ...t,\n  subtotal,\n  vat_applicable: vatApplicable,\n  vat_rate:       vatRate,\n  vat_amount:     vatAmount,\n  total,\n  invoice_number: invoiceNum,\n  service_name:    svc ? svc.name    : (t.description    || 'خدمة طبية'),\n  service_name_ar: svc ? svc.name_ar : (t.description_ar || 'خدمة طبية'),\n  unit_price:      subtotal\n} }];"
+      },
+      "id": "wf15-n03",
+      "name": "Calculate VAT",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "invoices",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "clinic_id",      "fieldValue": "={{ $json.clinic_id }}" },
+            { "fieldId": "invoice_number", "fieldValue": "={{ $json.invoice_number }}" },
+            { "fieldId": "appt_id",        "fieldValue": "={{ $json.appointment_id || null }}" },
+            { "fieldId": "patient_id",     "fieldValue": "={{ $json.patient_id }}" },
+            { "fieldId": "subtotal",       "fieldValue": "={{ $json.subtotal }}" },
+            { "fieldId": "vat_amount",     "fieldValue": "={{ $json.vat_amount }}" },
+            { "fieldId": "total",          "fieldValue": "={{ $json.total }}" },
+            { "fieldId": "status",         "fieldValue": "pending" }
+          ]
+        }
+      },
+      "id": "wf15-n04",
+      "name": "Create Invoice",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [940, 300],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "invoice_items",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "invoice_id",          "fieldValue": "={{ $('Create Invoice').first().json.id }}" },
+            { "fieldId": "clinic_id",            "fieldValue": "={{ $('Calculate VAT').first().json.clinic_id }}" },
+            { "fieldId": "service_id",           "fieldValue": "={{ $('Calculate VAT').first().json.service_id || null }}" },
+            { "fieldId": "description",          "fieldValue": "={{ $('Calculate VAT').first().json.service_name }}" },
+            { "fieldId": "description_ar",       "fieldValue": "={{ $('Calculate VAT').first().json.service_name_ar }}" },
+            { "fieldId": "quantity",             "fieldValue": "={{ 1 }}" },
+            { "fieldId": "unit_price_snapshot",  "fieldValue": "={{ $('Calculate VAT').first().json.unit_price }}" },
+            { "fieldId": "vat_rate_snapshot",    "fieldValue": "={{ $('Calculate VAT').first().json.vat_rate }}" },
+            { "fieldId": "vat_amount",           "fieldValue": "={{ $('Calculate VAT').first().json.vat_amount }}" },
+            { "fieldId": "total",                "fieldValue": "={{ $('Calculate VAT').first().json.total }}" },
+            { "fieldId": "sort_order",           "fieldValue": "={{ 0 }}" }
+          ]
+        }
+      },
+      "id": "wf15-n07",
+      "name": "Create Invoice Item",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1160, 300],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t    = $('Trigger').first().json;\nconst calc = $('Calculate VAT').first().json;\nconst inv  = $('Create Invoice').first().json;\nconst item = $('Create Invoice Item').first().json;\nreturn [{ json: {\n  ...t,\n  invoice_id:      inv.id,\n  invoice_number:  inv.invoice_number,\n  invoice_item_id: item.id,\n  subtotal:        calc.subtotal,\n  vat_amount:      calc.vat_amount,\n  total:           calc.total,\n  vat_rate:        calc.vat_rate,\n  invoice_status:  'pending'\n} }];"
+      },
+      "id": "wf15-n05",
+      "name": "Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1380, 300]
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [[
+        { "node": "Get VAT Rule", "type": "main", "index": 0 },
+        { "node": "Get Service",  "type": "main", "index": 0 }
+      ]]
+    },
+    "Get VAT Rule": {
+      "main": [[{ "node": "Calculate VAT", "type": "main", "index": 0 }]]
+    },
+    "Get Service": {
+      "main": [[{ "node": "Calculate VAT", "type": "main", "index": 0 }]]
+    },
+    "Calculate VAT": {
+      "main": [[{ "node": "Create Invoice", "type": "main", "index": 0 }]]
+    },
+    "Create Invoice": {
+      "main": [[{ "node": "Create Invoice Item", "type": "main", "index": 0 }]]
+    },
+    "Create Invoice Item": {
+      "main": [[{ "node": "Output", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Muscat"
+  }
+}

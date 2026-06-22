@@ -1,0 +1,117 @@
+{
+  "name": "TAWD — WF-10 Patient Profile Sync",
+  "nodes": [
+    {
+      "parameters": { "inputSource": "passthrough" },
+      "id": "wf10-n01",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $('Trigger').first().json;\nconst fields = {};\nif (t.name)        fields.name        = t.name;\nif (t.dob)         fields.dob         = t.dob;\nif (t.gender)      fields.gender      = t.gender;\nif (t.national_id) fields.national_id = t.national_id;\nif (t.source_channel) fields.source_channel = t.source_channel;\nconst hasUpdate = Object.keys(fields).length > 0;\nreturn [{ json: { ...t, update_fields: fields, has_update: hasUpdate } }];"
+      },
+      "id": "wf10-n02",
+      "name": "Prepare Update Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-has-update",
+              "leftValue": "={{ $json.has_update }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf10-n03",
+      "name": "Has Fields to Update?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $('Trigger').first().json;\nreturn [{ json: { ...t, profile_synced: false, reason: 'no fields provided' } }];"
+      },
+      "id": "wf10-n04",
+      "name": "No Update Needed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 460]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "patients",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "name",           "fieldValue": "={{ $json.name        || undefined }}" },
+            { "fieldId": "dob",            "fieldValue": "={{ $json.dob         || undefined }}" },
+            { "fieldId": "gender",         "fieldValue": "={{ $json.gender      || undefined }}" },
+            { "fieldId": "national_id",    "fieldValue": "={{ $json.national_id || undefined }}" },
+            { "fieldId": "source_channel", "fieldValue": "={{ $json.source_channel || 'whatsapp' }}" }
+          ]
+        },
+        "filters": {
+          "conditions": [
+            { "keyName": "id", "condition": "eq", "keyValue": "={{ $json.patient_id }}" }
+          ]
+        }
+      },
+      "id": "wf10-n05",
+      "name": "Update Patient Profile",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [900, 140],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $('Trigger').first().json;\nconst updated = $('Update Patient Profile').first().json;\nreturn [{ json: { ...t, profile_synced: true, patient: updated } }];"
+      },
+      "id": "wf10-n06",
+      "name": "Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 140]
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [[{ "node": "Prepare Update Fields", "type": "main", "index": 0 }]]
+    },
+    "Prepare Update Fields": {
+      "main": [[{ "node": "Has Fields to Update?", "type": "main", "index": 0 }]]
+    },
+    "Has Fields to Update?": {
+      "main": [
+        [{ "node": "Update Patient Profile", "type": "main", "index": 0 }],
+        [{ "node": "No Update Needed",       "type": "main", "index": 0 }]
+      ]
+    },
+    "Update Patient Profile": {
+      "main": [[{ "node": "Output", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Muscat"
+  }
+}

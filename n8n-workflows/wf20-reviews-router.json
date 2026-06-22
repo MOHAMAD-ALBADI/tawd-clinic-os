@@ -1,0 +1,15 @@
+﻿{
+  "name": "TAWD — WF-20 Reviews Router",
+  "nodes": [
+    { "parameters": { "inputSource": "passthrough" }, "id": "wf20-n01", "name": "Trigger", "type": "n8n-nodes-base.executeWorkflowTrigger", "typeVersion": 1, "position": [240, 300] },
+    { "parameters": { "mode": "runOnceForAllItems", "jsCode": "const t = $('Trigger').first().json;\nconst rating = parseInt(t.rating || 0);\nconst route = rating >= 4 ? 'google' : 'admin';\nreturn [{ json: { ...t, rating, route } }];" }, "id": "wf20-n02", "name": "Calc Route", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [460, 300] },
+    { "parameters": { "operation": "create", "tableId": "reviews_log", "dataToSend": "defineBelow", "fieldsUi": { "fieldValues": [ { "fieldId": "clinic_id", "fieldValue": "={{ $json.clinic_id }}" }, { "fieldId": "patient_id", "fieldValue": "={{ $json.patient_id }}" }, { "fieldId": "rating", "fieldValue": "={{ $json.rating }}" }, { "fieldId": "routed_to", "fieldValue": "={{ $json.route }}" }, { "fieldId": "comment", "fieldValue": "={{ $json.comment || '' }}" } ] } }, "id": "wf20-n03", "name": "Log Review", "type": "n8n-nodes-base.supabase", "typeVersion": 1, "position": [680, 300], "credentials": { "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" } } },
+    { "parameters": { "mode": "runOnceForAllItems", "jsCode": "const t = $('Trigger').first().json;\nconst r = $('Calc Route').first().json;\nconst review = $('Log Review').first().json;\nreturn [{ json: { ...t, review_id: review.id, routed_to: r.route, google_review_url: r.route === 'google' ? 'https://g.page/r/tawd-clinic/review' : null } }];" }, "id": "wf20-n04", "name": "Output", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [900, 300] }
+  ],
+  "connections": {
+    "Trigger": { "main": [[{ "node": "Calc Route", "type": "main", "index": 0 }]] },
+    "Calc Route": { "main": [[{ "node": "Log Review", "type": "main", "index": 0 }]] },
+    "Log Review": { "main": [[{ "node": "Output", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Muscat" }
+}

@@ -1,0 +1,349 @@
+{
+  "name": "TAWD — WF-16 Thawani Payment Processor",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "thawani-webhook",
+        "responseMode": "responseNode",
+        "options": { "rawBody": true }
+      },
+      "id": "wf16-n01",
+      "name": "Thawani Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "thawani-payment-webhook"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const inp = $input.first().json;\nconst rawBody = inp.rawBody || '';\nconst headers = inp.headers || {};\n\n// Thawani sends signature in Thawani-Signature header\nconst receivedSig = headers['thawani-signature']\n  || headers['x-thawani-signature']\n  || headers['Thawani-Signature']\n  || '';\n\nconst webhookSecret = $vars.THAWANI_WEBHOOK_SECRET || '';\n\n// Dev/UAT mode: if no secret configured, skip verification\nif (!webhookSecret) {\n  return [{ json: { ...inp, _sig_verified: true, _sig_skipped: true } }];\n}\n\nconst crypto = require('crypto');\n\nif (!receivedSig) {\n  return [{ json: { ...inp, _sig_verified: false, _sig_reason: 'missing_header' } }];\n}\n\n// Strip 'sha256=' prefix if present\nconst cleanSig = receivedSig.replace(/^sha256=/, '').toLowerCase();\n\nconst expected = crypto\n  .createHmac('sha256', webhookSecret)\n  .update(rawBody, 'utf8')\n  .digest('hex');\n\nlet valid = false;\ntry {\n  valid = crypto.timingSafeEqual(\n    Buffer.from(cleanSig),\n    Buffer.from(expected)\n  );\n} catch (_) {\n  valid = false;\n}\n\nreturn [{ json: { ...inp, _sig_verified: valid, _sig_reason: valid ? 'ok' : 'mismatch' } }];"
+      },
+      "id": "wf16-n15",
+      "name": "Verify Signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-sig",
+              "leftValue": "={{ $json._sig_verified }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf16-n16",
+      "name": "Signature Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ error: 'Invalid webhook signature' }) }}",
+        "options": { "responseCode": 403 }
+      },
+      "id": "wf16-n17",
+      "name": "Reject 403",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 480]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const body = $json.body || $json;\nconst event  = body.type  || body.event  || 'unknown';\nconst data   = body.data  || body;\nconst sessionId     = data.session_id || data.checkout_session_id || null;\nconst clientRefCode = data.client_reference_code || null;\nconst status        = data.payment_status || data.status || 'unknown';\nreturn [{ json: { event, session_id: sessionId, client_ref: clientRefCode, payment_status: status, raw: body } }];"
+      },
+      "id": "wf16-n02",
+      "name": "Parse Webhook",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-paid",
+              "leftValue": "={{ $json.payment_status }}",
+              "rightValue": "paid",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf16-n03",
+      "name": "Is Paid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { ignored: true, reason: 'payment not yet paid', status: $json.payment_status } }];"
+      },
+      "id": "wf16-n04",
+      "name": "Ignore Non-Paid",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 460]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "payment_links",
+        "returnAll": false,
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            { "keyName": "thawani_session_id", "condition": "eq", "keyValue": "={{ $json.session_id }}" }
+          ]
+        }
+      },
+      "id": "wf16-n05",
+      "name": "Find Payment Link",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1340, 140],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const links  = $('Find Payment Link').all();\nconst parsed = $('Parse Webhook').first().json;\n\nif (links.length === 0 || !links[0].json.id) {\n  return [{ json: { ...parsed, link_found: false } }];\n}\n\nconst link = links[0].json;\nreturn [{ json: {\n  ...parsed,\n  link_found:    true,\n  payment_link:  link,\n  invoice_id:    link.invoice_id || null,\n  clinic_id:     link.clinic_id,\n  appt_id:       link.appt_id   || null,\n  purpose:       link.purpose,\n  pay_amount:    link.amount\n} }];"
+      },
+      "id": "wf16-n06",
+      "name": "Resolve Invoice",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 140]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "link-found",
+              "leftValue": "={{ $json.link_found }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf16-n11",
+      "name": "Link Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1780, 140]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-sub-renewal",
+              "leftValue": "={{ $json.purpose }}",
+              "rightValue": "subscription_renewal",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf16-n12",
+      "name": "Subscription Renewal?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2000, 140]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "payment_links",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "status",  "fieldValue": "paid" },
+            { "fieldId": "paid_at", "fieldValue": "={{ new Date().toISOString() }}" }
+          ]
+        },
+        "filters": {
+          "conditions": [
+            { "keyName": "id", "condition": "eq", "keyValue": "={{ $('Resolve Invoice').first().json.payment_link.id }}" }
+          ]
+        }
+      },
+      "id": "wf16-n14",
+      "name": "Update Link Status (Renewal)",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2220, 60],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.tawd_subscriptions SET status = 'active', grace_period_ends_at = NULL, dunning_alerts_sent = 0, current_period_start = NOW(), current_period_end = NOW() + CASE billing_cycle WHEN 'annual' THEN interval '1 year' ELSE interval '1 month' END, updated_at = NOW() WHERE clinic_id = '{{ $('Resolve Invoice').first().json.clinic_id }}' AND status = 'past_due';"
+      },
+      "id": "wf16-n13",
+      "name": "Reset Subscription",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "continueOnFail": true,
+      "position": [2440, 60],
+      "credentials": {
+        "postgres": { "id": "NDrVeK2iQy3c33J3", "name": "TAWD Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "payments",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "invoice_id",      "fieldValue": "={{ $json.invoice_id }}" },
+            { "fieldId": "clinic_id",       "fieldValue": "={{ $json.clinic_id }}" },
+            { "fieldId": "gateway",         "fieldValue": "thawani" },
+            { "fieldId": "transaction_id",  "fieldValue": "={{ $json.session_id }}" },
+            { "fieldId": "currency",        "fieldValue": "OMR" },
+            { "fieldId": "amount",          "fieldValue": "={{ $json.pay_amount }}" },
+            { "fieldId": "status",          "fieldValue": "completed" },
+            { "fieldId": "paid_at",         "fieldValue": "={{ new Date().toISOString() }}" }
+          ]
+        }
+      },
+      "id": "wf16-n07",
+      "name": "Record Payment",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2220, 220],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "invoices",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "status", "fieldValue": "paid" }
+          ]
+        },
+        "filters": {
+          "conditions": [
+            { "keyName": "id", "condition": "eq", "keyValue": "={{ $('Resolve Invoice').first().json.invoice_id }}" }
+          ]
+        }
+      },
+      "id": "wf16-n08",
+      "name": "Mark Invoice Paid",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2440, 220],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "payment_links",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "status",  "fieldValue": "paid" },
+            { "fieldId": "paid_at", "fieldValue": "={{ new Date().toISOString() }}" }
+          ]
+        },
+        "filters": {
+          "conditions": [
+            { "keyName": "id", "condition": "eq", "keyValue": "={{ $('Resolve Invoice').first().json.payment_link.id }}" }
+          ]
+        }
+      },
+      "id": "wf16-n09",
+      "name": "Update Link Status",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2660, 220],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ received: true }) }}"
+      },
+      "id": "wf16-n10",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2880, 220]
+    }
+  ],
+  "connections": {
+    "Thawani Webhook":             { "main": [[{ "node": "Verify Signature",            "type": "main", "index": 0 }]] },
+    "Verify Signature":            { "main": [[{ "node": "Signature Valid?",            "type": "main", "index": 0 }]] },
+    "Signature Valid?": {
+      "main": [
+        [{ "node": "Parse Webhook", "type": "main", "index": 0 }],
+        [{ "node": "Reject 403",    "type": "main", "index": 0 }]
+      ]
+    },
+    "Parse Webhook":   { "main": [[{ "node": "Is Paid?",              "type": "main", "index": 0 }]] },
+    "Is Paid?": {
+      "main": [
+        [{ "node": "Find Payment Link", "type": "main", "index": 0 }],
+        [{ "node": "Ignore Non-Paid",   "type": "main", "index": 0 }]
+      ]
+    },
+    "Find Payment Link": { "main": [[{ "node": "Resolve Invoice",           "type": "main", "index": 0 }]] },
+    "Resolve Invoice":   { "main": [[{ "node": "Link Found?",               "type": "main", "index": 0 }]] },
+    "Link Found?": {
+      "main": [
+        [{ "node": "Subscription Renewal?", "type": "main", "index": 0 }],
+        [{ "node": "Respond 200",           "type": "main", "index": 0 }]
+      ]
+    },
+    "Subscription Renewal?": {
+      "main": [
+        [{ "node": "Update Link Status (Renewal)", "type": "main", "index": 0 }],
+        [{ "node": "Record Payment",               "type": "main", "index": 0 }]
+      ]
+    },
+    "Update Link Status (Renewal)": { "main": [[{ "node": "Reset Subscription", "type": "main", "index": 0 }]] },
+    "Reset Subscription":           { "main": [[{ "node": "Respond 200",         "type": "main", "index": 0 }]] },
+    "Record Payment":               { "main": [[{ "node": "Mark Invoice Paid",   "type": "main", "index": 0 }]] },
+    "Mark Invoice Paid":            { "main": [[{ "node": "Update Link Status",  "type": "main", "index": 0 }]] },
+    "Update Link Status":           { "main": [[{ "node": "Respond 200",         "type": "main", "index": 0 }]] },
+    "Ignore Non-Paid":              { "main": [[{ "node": "Respond 200",         "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Muscat" }
+}

@@ -1,0 +1,199 @@
+{
+  "name": "TAWD — WF-09 No-Show Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            { "field": "minutes", "minutesInterval": 30 }
+          ]
+        }
+      },
+      "id": "wf09-n01",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const now = new Date();\nconst cutoff = new Date(now.getTime() - 20 * 60 * 1000);\nconst tz = 'Asia/Muscat';\nconst todayStart = new Date(now.toLocaleDateString('en-CA', { timeZone: tz }) + 'T00:00:00+04:00');\nreturn [{ json: {\n  cutoff:      cutoff.toISOString(),\n  today_start: todayStart.toISOString(),\n  now:         now.toISOString()\n} }];"
+      },
+      "id": "wf09-n02",
+      "name": "Calc Cutoff",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "appointments",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            { "keyName": "status",    "condition": "eq",  "keyValue": "confirmed" },
+            { "keyName": "slot_time", "condition": "lte", "keyValue": "={{ $json.cutoff }}" },
+            { "keyName": "slot_time", "condition": "gte", "keyValue": "={{ $json.today_start }}" }
+          ]
+        }
+      },
+      "id": "wf09-n03",
+      "name": "Get Overdue Appointments",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const appts = $('Get Overdue Appointments').all();\nif (appts.length === 0 || !appts[0].json.id) {\n  return [{ json: { no_noshows: true } }];\n}\nreturn appts.map(a => ({ json: a.json }));"
+      },
+      "id": "wf09-n04",
+      "name": "Filter Valid",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-no-noshows",
+              "leftValue": "={{ $json.no_noshows }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf09-n05",
+      "name": "Any No-Shows?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { skipped: true, reason: 'no overdue appointments' } }];"
+      },
+      "id": "wf09-n06",
+      "name": "Skip",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 460]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "appointments",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "status", "fieldValue": "no_show" }
+          ]
+        },
+        "filters": {
+          "conditions": [
+            { "keyName": "id", "condition": "eq", "keyValue": "={{ $json.id }}" }
+          ]
+        }
+      },
+      "id": "wf09-n07",
+      "name": "Mark No-Show",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1340, 140],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "no_show_log",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "appt_id",      "fieldValue": "={{ $('Filter Valid').item.json.id }}" },
+            { "fieldId": "clinic_id",    "fieldValue": "={{ $('Filter Valid').item.json.clinic_id }}" },
+            { "fieldId": "patient_id",   "fieldValue": "={{ $('Filter Valid').item.json.patient_id }}" },
+            { "fieldId": "risk_factors", "fieldValue": "={{ JSON.stringify({ source: 'auto_detect', slot_time: $('Filter Valid').item.json.slot_time }) }}" }
+          ]
+        }
+      },
+      "id": "wf09-n08",
+      "name": "Log No-Show",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1560, 140],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "waiting_queue",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "status", "fieldValue": "no_show" }
+          ]
+        },
+        "filters": {
+          "conditions": [
+            { "keyName": "appt_id", "condition": "eq", "keyValue": "={{ $('Filter Valid').item.json.id }}" }
+          ]
+        }
+      },
+      "id": "wf09-n09",
+      "name": "Update Queue Status",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1780, 140],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[{ "node": "Calc Cutoff", "type": "main", "index": 0 }]]
+    },
+    "Calc Cutoff": {
+      "main": [[{ "node": "Get Overdue Appointments", "type": "main", "index": 0 }]]
+    },
+    "Get Overdue Appointments": {
+      "main": [[{ "node": "Filter Valid", "type": "main", "index": 0 }]]
+    },
+    "Filter Valid": {
+      "main": [[{ "node": "Any No-Shows?", "type": "main", "index": 0 }]]
+    },
+    "Any No-Shows?": {
+      "main": [
+        [{ "node": "Skip",         "type": "main", "index": 0 }],
+        [{ "node": "Mark No-Show", "type": "main", "index": 0 }]
+      ]
+    },
+    "Mark No-Show": {
+      "main": [[{ "node": "Log No-Show", "type": "main", "index": 0 }]]
+    },
+    "Log No-Show": {
+      "main": [[{ "node": "Update Queue Status", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Muscat"
+  }
+}

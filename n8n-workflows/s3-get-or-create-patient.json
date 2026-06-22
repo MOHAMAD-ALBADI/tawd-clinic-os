@@ -1,0 +1,125 @@
+{
+  "name": "TAWD — [SUB] S3 Get or Create Patient",
+  "nodes": [
+    {
+      "parameters": { "inputSource": "passthrough" },
+      "id": "s3-node-01",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "patients",
+        "returnAll": false,
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            { "keyName": "clinic_id", "condition": "eq", "keyValue": "={{ $('Trigger').item.json.clinic_id }}" },
+            { "keyName": "phone",     "condition": "eq", "keyValue": "={{ $('Trigger').item.json.phone }}" }
+          ]
+        }
+      },
+      "id": "s3-node-02",
+      "name": "Search Patient",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [460, 300],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const found = $('Search Patient').all();\nconst t = $('Trigger').first().json;\nif (found.length > 0 && found[0].json.id) {\n  return [{ json: { ...t, patient_id: found[0].json.id, is_new_patient: false } }];\n}\nreturn [{ json: { ...t, needs_create: true, is_new_patient: null, name: t.name || ('مريض ' + t.phone) } }];"
+      },
+      "id": "s3-node-03",
+      "name": "Found or Create?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-needs-create",
+              "leftValue": "={{ $json.needs_create }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "s3-node-04",
+      "name": "Need Create?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "patients",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "clinic_id", "fieldValue": "={{ $json.clinic_id }}" },
+            { "fieldId": "phone",     "fieldValue": "={{ $json.phone }}" },
+            { "fieldId": "name",      "fieldValue": "={{ $json.name }}" }
+          ]
+        }
+      },
+      "id": "s3-node-05",
+      "name": "Insert Patient",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1120, 180],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $('Trigger').first().json;\nconst inserted = $json;\nreturn [{ json: { ...t, patient_id: inserted.id, is_new_patient: true, needs_create: false } }];"
+      },
+      "id": "s3-node-06",
+      "name": "Output New",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 180]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: $input.first().json }];"
+      },
+      "id": "s3-node-07",
+      "name": "Output Existing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 420]
+    }
+  ],
+  "connections": {
+    "Trigger":         { "main": [[{ "node": "Search Patient",   "type": "main", "index": 0 }]] },
+    "Search Patient":  { "main": [[{ "node": "Found or Create?", "type": "main", "index": 0 }]] },
+    "Found or Create?":{ "main": [[{ "node": "Need Create?",     "type": "main", "index": 0 }]] },
+    "Need Create?": {
+      "main": [
+        [{ "node": "Insert Patient",  "type": "main", "index": 0 }],
+        [{ "node": "Output Existing", "type": "main", "index": 0 }]
+      ]
+    },
+    "Insert Patient": { "main": [[{ "node": "Output New", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

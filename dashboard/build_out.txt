@@ -1,0 +1,6 @@
+▲ Next.js 16.2.9 (webpack)
+- Local:         http://localhost:3001
+- Network:       http://192.168.206.1:3001
+- Environments: .env.local
+✓ Ready in 1442ms
+[?25h

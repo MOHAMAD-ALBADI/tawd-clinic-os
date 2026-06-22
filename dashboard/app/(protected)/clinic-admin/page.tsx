@@ -1,0 +1,456 @@
+import { redirect } from "next/navigation";
+import { Activity, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { getUserClaims }             from "@/lib/auth/get-user-claims";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { AppointmentTimeline }       from "@/components/dashboard/appointment-timeline";
+import { LoyaltyCenter }             from "@/components/dashboard/loyalty-center";
+import { SuraWidget }                from "@/components/dashboard/sura-widget";
+import { WeekBars }                  from "@/components/dashboard/week-bars";
+import { StatusRing }                from "@/components/dashboard/status-ring";
+import { SparkLine }                 from "@/components/dashboard/spark-line";
+import { KpiGrid }                   from "@/components/dashboard/kpi-grid";
+
+export const metadata = { title: "لوحة التحكم — طود" };
+
+export default async function ClinicAdminPage() {
+  const claims = await getUserClaims();
+  if (!claims || claims.role !== "clinic_admin") redirect("/login");
+
+  const sb         = await createServerSupabaseClient();
+  const now        = new Date();
+  const today      = now.toISOString().split("T")[0];
+  const todayStart = `${today}T00:00:00`;
+  const todayEnd   = `${today}T23:59:59`;
+  const weekAgo    = new Date(Date.now() - 6 * 86_400_000).toISOString().split("T")[0];
+
+  const [
+    apptRes, clinicRes, patientsNewRes,
+    todayRevenueRes, pendingInvoicesRes, hitlRes,
+    staffRes, weekApptRes,
+    campaignsRes, loyaltyRes, templatesRes,
+    yesterdayRevenueRes,
+  ] = await Promise.all([
+    sb.from("appointments")
+      .select("id, slot_time, status, patients!patient_id(name), services!service_id(name, name_ar), tawd_staff_users!doctor_id(id, name, name_ar)")
+      .eq("clinic_id", claims.clinic_id)
+      .gte("slot_time", todayStart).lte("slot_time", todayEnd)
+      .is("deleted_at", null).order("slot_time"),
+
+    sb.from("tawd_clinics").select("name, name_ar").eq("id", claims.clinic_id).single(),
+
+    sb.from("patients").select("id", { count: "exact", head: true })
+      .eq("clinic_id", claims.clinic_id)
+      .gte("created_at", todayStart).lte("created_at", todayEnd),
+
+    sb.from("invoices").select("total")
+      .eq("clinic_id", claims.clinic_id).eq("status", "paid")
+      .gte("created_at", todayStart).lte("created_at", todayEnd),
+
+    sb.from("invoices").select("total")
+      .eq("clinic_id", claims.clinic_id).in("status", ["sent", "partially_paid", "overdue"]).is("deleted_at", null),
+
+    sb.from("ai_review_queue")
+      .select("id, ai_draft, ai_intent, confidence_score, status, created_at, patients!patient_id(name)", { count: "exact" })
+      .eq("clinic_id", claims.clinic_id).eq("status", "pending")
+      .order("priority", { ascending: false }).order("created_at").limit(10),
+
+    sb.from("tawd_staff_users").select("id, name, name_ar, role")
+      .eq("clinic_id", claims.clinic_id).eq("is_active", true).is("deleted_at", null),
+
+    sb.from("appointments").select("slot_time, status")
+      .eq("clinic_id", claims.clinic_id)
+      .gte("slot_time", `${weekAgo}T00:00:00`).is("deleted_at", null).limit(1000),
+
+    sb.from("broadcast_campaigns")
+      .select("id, name, status, total_recipients, sent_count, failed_count, scheduled_at, started_at, completed_at")
+      .eq("clinic_id", claims.clinic_id).order("created_at", { ascending: false }).limit(10),
+
+    sb.from("loyalty_settings")
+      .select("points_per_visit, points_per_referral, redemption_rate, is_active")
+      .eq("clinic_id", claims.clinic_id).maybeSingle(),
+
+    sb.from("notification_templates")
+      .select("id, name, template_type, channel, is_active")
+      .eq("clinic_id", claims.clinic_id).eq("is_active", true).limit(20),
+
+    sb.from("invoices").select("total")
+      .eq("clinic_id", claims.clinic_id).eq("status", "paid")
+      .gte("created_at", new Date(Date.now() - 86_400_000).toISOString().split("T")[0] + "T00:00:00")
+      .lte("created_at", new Date(Date.now() - 86_400_000).toISOString().split("T")[0] + "T23:59:59"),
+  ]);
+
+  const appts           = apptRes.data       ?? [];
+  const clinic          = clinicRes.data;
+  const clinicName      = clinic?.name_ar    ?? clinic?.name ?? "عيادتك";
+  const newToday        = patientsNewRes.count ?? 0;
+  const todayRevenue    = (todayRevenueRes.data ?? []).reduce((s, i) => s + Number((i as any).total ?? 0), 0);
+  const yesterdayRev    = (yesterdayRevenueRes.data ?? []).reduce((s, i) => s + Number((i as any).total ?? 0), 0);
+  const pendingTotal    = (pendingInvoicesRes.data ?? []).reduce((s, i) => s + Number((i as any).total ?? 0), 0);
+  const hitlItems       = hitlRes.data       ?? [];
+  const hitlCount       = hitlRes.count      ?? 0;
+  const staff           = staffRes.data      ?? [];
+  const doctors         = staff.filter((s) => s.role === "doctor");
+  const campaigns       = (campaignsRes.data ?? []) as import("@/components/dashboard/loyalty-center").Campaign[];
+  const loyaltySettings = loyaltyRes.data    ?? null;
+  const templates       = (templatesRes.data ?? []) as import("@/components/dashboard/loyalty-center").NotifTemplate[];
+
+  const completed  = appts.filter((a) => a.status === "completed").length;
+  const inProgress = appts.filter((a) => ["checked_in", "in_progress"].includes(a.status)).length;
+  const pending    = appts.filter((a) => ["scheduled", "confirmed"].includes(a.status)).length;
+  const noShow     = appts.filter((a) => a.status === "no_show").length;
+  const completionRate = appts.length > 0 ? Math.round((completed / appts.length) * 100) : 0;
+
+  const revenueChange = yesterdayRev > 0
+    ? Math.round(((todayRevenue - yesterdayRev) / yesterdayRev) * 100)
+    : null;
+
+  /* week bars */
+  const DAY_LABELS   = ["أح", "إث", "ث", "أر", "خ", "ج", "س"];
+  const weekAllAppts = weekApptRes.data ?? [];
+  const weekBars = Array.from({ length: 7 }, (_, i) => {
+    const d      = new Date(Date.now() - (6 - i) * 86_400_000);
+    const dayStr = d.toISOString().split("T")[0];
+    const dayAppts = weekAllAppts.filter((a) => a.slot_time.startsWith(dayStr));
+    return {
+      day: DAY_LABELS[d.getDay()],
+      total: dayAppts.length,
+      completed: dayAppts.filter((a) => a.status === "completed").length,
+      isToday: dayStr === today,
+    };
+  });
+
+  const weekSparkData = weekBars.map((b) => b.total);
+
+  /* status ring */
+  const ringData = [
+    { name: "مكتمل",  value: completed,  color: "#14b8a6" },
+    { name: "جارٍ",   value: inProgress, color: "#38bdf8" },
+    { name: "انتظار", value: pending,    color: "rgba(255,255,255,0.08)" },
+    { name: "غياب",  value: noShow,     color: "#EF4444" },
+  ];
+
+  const h        = now.getHours();
+  const greeting = h < 12 ? "صباح الخير" : h < 18 ? "مساء الخير" : "مساء النور";
+  const todayAr  = new Intl.DateTimeFormat("ar-SA", { weekday: "long", day: "numeric", month: "long" }).format(now);
+  const workStart = 8; const workEnd = 18;
+  const dayPct   = Math.min(100, Math.max(0, Math.round(((h + now.getMinutes() / 60) - workStart) / (workEnd - workStart) * 100)));
+
+  return (
+    <div className="space-y-4 pb-28 animate-fade-in">
+
+      {/* ══════════════════════════════════
+          HERO ROW
+      ══════════════════════════════════ */}
+      <div className="grid grid-cols-12 gap-4">
+
+        {/* Revenue hero — col 7 */}
+        <div
+          className="col-span-12 lg:col-span-7 relative rounded-3xl overflow-hidden flex flex-col justify-between"
+          style={{
+            background: "linear-gradient(145deg, rgba(20,184,166,0.07) 0%, rgba(10,13,22,0.95) 50%, rgba(10,13,22,1) 100%)",
+            border: "1px solid rgba(20,184,166,0.12)",
+            boxShadow: "0 0 0 1px rgba(255,255,255,0.03), 0 32px 64px rgba(0,0,0,0.5)",
+            padding: "1.75rem 2rem",
+            minHeight: 280,
+          }}
+        >
+          {/* ambient orbs */}
+          <div className="absolute pointer-events-none" style={{ width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(20,184,166,0.07) 0%, transparent 60%)", top: -200, insetInlineStart: -80 }} />
+          <div className="absolute pointer-events-none" style={{ width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle, rgba(251,146,60,0.05) 0%, transparent 65%)", bottom: -60, insetInlineEnd: 60 }} />
+
+          {/* header */}
+          <div className="relative flex items-start justify-between">
+            <div>
+              <p className="text-xs font-semibold tracking-wide" style={{ color: "rgba(148,163,184,0.4)" }}>
+                {greeting} — {todayAr}
+              </p>
+              <h1 className="font-black text-white mt-1 leading-tight" style={{ fontSize: "clamp(1.4rem, 2.5vw, 1.9rem)", letterSpacing: "-0.02em" }}>
+                {clinicName}
+              </h1>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.15)" }}>
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#22C55E", boxShadow: "0 0 6px #22C55E" }} />
+                <span className="text-[11px] font-semibold" style={{ color: "#22C55E" }}>مباشر</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Revenue number */}
+          <div className="relative mt-auto pt-6">
+            <div className="flex items-center gap-3 mb-1">
+              <p className="text-[10px] font-bold uppercase tracking-[0.25em]" style={{ color: "rgba(20,184,166,0.4)" }}>
+                إيراد اليوم · ر.ع
+              </p>
+              {revenueChange !== null && (
+                <div
+                  className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ltr-nums"
+                  style={{
+                    background: revenueChange >= 0 ? "rgba(74,222,128,0.1)" : "rgba(239,68,68,0.1)",
+                    color: revenueChange >= 0 ? "#4ADE80" : "#F87171",
+                    border: `1px solid ${revenueChange >= 0 ? "rgba(74,222,128,0.2)" : "rgba(239,68,68,0.2)"}`,
+                  }}
+                >
+                  {revenueChange >= 0
+                    ? <ArrowUpRight className="w-2.5 h-2.5" />
+                    : <ArrowDownRight className="w-2.5 h-2.5" />}
+                  {Math.abs(revenueChange)}%
+                </div>
+              )}
+            </div>
+            <p
+              className="font-black ltr-nums leading-none"
+              style={{
+                fontSize: "clamp(2.8rem, 6vw, 4.5rem)",
+                color: todayRevenue > 0 ? "#14b8a6" : "rgba(20,184,166,0.12)",
+                textShadow: todayRevenue > 0 ? "0 0 60px rgba(20,184,166,0.4), 0 0 120px rgba(20,184,166,0.12)" : "none",
+                letterSpacing: "-0.04em",
+              }}
+            >
+              {todayRevenue > 0
+                ? todayRevenue.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })
+                : "0.000"}
+            </p>
+          </div>
+
+          {/* day progress + week sparkline row */}
+          <div className="relative mt-5 grid grid-cols-2 gap-4 items-end">
+            <div>
+              <div className="flex items-center justify-between text-[10px] mb-1.5" style={{ color: "rgba(148,163,184,0.3)" }}>
+                <span>يوم العمل</span>
+                <span className="font-bold ltr-nums" style={{ color: "rgba(20,184,166,0.7)" }}>{dayPct}%</span>
+              </div>
+              <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${dayPct}%`,
+                    background: "linear-gradient(90deg, #0f766e, #14b8a6, #5dd9cb)",
+                    boxShadow: "0 0 12px rgba(20,184,166,0.7)",
+                    transition: "width 0.8s ease",
+                  }}
+                />
+              </div>
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "rgba(148,163,184,0.25)" }}>
+                7 أيام
+              </p>
+              <SparkLine data={weekSparkData} color="#14b8a6" width={100} height={40} />
+            </div>
+          </div>
+        </div>
+
+        {/* Right col — 5 cols */}
+        <div className="col-span-12 lg:col-span-5 grid grid-rows-2 gap-4">
+
+          {/* Status ring card */}
+          <div
+            className="relative rounded-3xl overflow-hidden flex items-center gap-5"
+            style={{
+              background: "rgba(255,255,255,0.02)",
+              border: "1px solid rgba(255,255,255,0.07)",
+              boxShadow: "0 0 0 1px rgba(255,255,255,0.02)",
+              padding: "1.25rem 1.5rem",
+            }}
+          >
+            <div className="absolute pointer-events-none inset-0" style={{ background: "radial-gradient(ellipse at 30% 50%, rgba(20,184,166,0.04) 0%, transparent 65%)" }} />
+            <div className="relative shrink-0">
+              <StatusRing data={ringData} total={appts.length} />
+            </div>
+            <div className="relative flex-1 space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(148,163,184,0.3)" }}>
+                مواعيد اليوم
+              </p>
+              {[
+                { label: "مكتمل",  v: completed,  c: "#14b8a6" },
+                { label: "جارٍ",   v: inProgress, c: "#38bdf8" },
+                { label: "انتظار", v: pending,    c: "rgba(148,163,184,0.4)" },
+                { label: "غياب",  v: noShow,     c: "#EF4444" },
+              ].map((s) => (
+                <div key={s.label} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full" style={{ background: s.c }} />
+                    <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.45)" }}>{s.label}</span>
+                  </div>
+                  <span className="text-sm font-black ltr-nums" style={{ color: s.v > 0 ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.12)" }}>
+                    {s.v}
+                  </span>
+                </div>
+              ))}
+              {appts.length > 0 && (
+                <div className="pt-1 border-t" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px]" style={{ color: "rgba(148,163,184,0.3)" }}>معدل الإتمام</span>
+                    <span className="text-[11px] font-black ltr-nums" style={{ color: completionRate >= 70 ? "#4ADE80" : "#14b8a6" }}>
+                      {completionRate}%
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Doctors card */}
+          <div
+            className="relative rounded-3xl overflow-hidden"
+            style={{
+              background: "rgba(255,255,255,0.02)",
+              border: "1px solid rgba(255,255,255,0.07)",
+              padding: "1.25rem 1.5rem",
+            }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(148,163,184,0.3)" }}>
+                الكادر الطبي النشط
+              </p>
+              <span className="font-black ltr-nums text-xl" style={{ color: "#14b8a6", textShadow: "0 0 20px rgba(20,184,166,0.4)" }}>
+                {doctors.length}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {doctors.slice(0, 4).map((d) => (
+                <div
+                  key={d.id}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-semibold transition-all"
+                  style={{
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.07)",
+                    color: "rgba(255,255,255,0.7)",
+                  }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#4ADE80", boxShadow: "0 0 5px rgba(74,222,128,0.8)" }} />
+                  {d.name_ar ?? d.name}
+                </div>
+              ))}
+              {doctors.length === 0 && (
+                <p className="text-xs" style={{ color: "rgba(148,163,184,0.2)" }}>لا يوجد أطباء نشطون</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════
+          4 KPI CARDS
+      ══════════════════════════════════ */}
+      <KpiGrid items={[
+        {
+          label: "مواعيد اليوم",
+          value: appts.length,
+          sub: `${pending} انتظار · ${inProgress} جارٍ`,
+          color: "#14b8a6",
+          glow: "rgba(20,184,166,0.08)",
+          border: "rgba(20,184,166,0.14)",
+          spark: weekSparkData,
+          iconName: "Calendar",
+        },
+        {
+          label: "مرضى جدد",
+          value: newToday,
+          sub: "تسجيل جديد اليوم",
+          color: "#38bdf8",
+          glow: "rgba(56,189,248,0.07)",
+          border: "rgba(56,189,248,0.14)",
+          spark: [0, 1, 0, 2, 1, 3, newToday],
+          iconName: "UserPlus",
+        },
+        {
+          label: "فواتير معلقة",
+          value: pendingTotal > 0
+            ? pendingTotal.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })
+            : "0.000",
+          sub: "ريال عُماني غير مدفوع",
+          color: "#fbbf24",
+          glow: "rgba(251,191,36,0.06)",
+          border: "rgba(251,191,36,0.14)",
+          spark: [3, 2, 4, 2, 3, 5, pendingTotal > 0 ? 1 : 0],
+          iconName: "Banknote",
+        },
+        {
+          label: "طابور سُرى",
+          value: hitlCount,
+          sub: hitlCount > 0 ? "تحتاج مراجعة فورية" : "الطابور فارغ ✓",
+          color: hitlCount > 0 ? "#5dd9cb" : "#4ADE80",
+          glow: hitlCount > 0 ? "rgba(94,217,203,0.07)" : "rgba(74,222,128,0.06)",
+          border: hitlCount > 0 ? "rgba(94,217,203,0.16)" : "rgba(74,222,128,0.14)",
+          spark: [0, 1, 0, 0, 1, 2, hitlCount],
+          iconName: "Bot",
+        },
+      ]} />
+
+      {/* ══════════════════════════════════
+          TIMELINE + LOYALTY
+      ══════════════════════════════════ */}
+      <div className="grid grid-cols-12 gap-4">
+
+        {/* Timeline — 7 cols */}
+        <div
+          className="col-span-12 lg:col-span-7 rounded-3xl overflow-hidden"
+          style={{
+            background: "rgba(255,255,255,0.02)",
+            border: "1px solid rgba(255,255,255,0.07)",
+            padding: "1.5rem",
+          }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="w-1.5 h-5 rounded-full" style={{ background: "linear-gradient(180deg, #14b8a6, #0d9488)" }} />
+              <h2 className="font-bold text-white">جدول اليوم الحي</h2>
+              <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.15)" }}>
+                <span className="w-1 h-1 rounded-full animate-pulse" style={{ background: "#22C55E" }} />
+                <span className="text-[9px] font-bold" style={{ color: "#22C55E" }}>LIVE</span>
+              </div>
+            </div>
+            <a
+              href="/clinic-admin/appointments"
+              className="flex items-center gap-1 text-[11px] font-semibold"
+              style={{ color: "rgba(20,184,166,0.55)" }}
+            >
+              عرض الكل
+              <ArrowUpRight className="w-3 h-3" />
+            </a>
+          </div>
+          <AppointmentTimeline appointments={appts as any} doctors={doctors as any} />
+        </div>
+
+        {/* Loyalty + Week — 5 cols */}
+        <div className="col-span-12 lg:col-span-5 flex flex-col gap-4">
+
+          {/* Mini week summary */}
+          <div
+            className="rounded-3xl overflow-hidden"
+            style={{
+              background: "rgba(255,255,255,0.02)",
+              border: "1px solid rgba(255,255,255,0.07)",
+              padding: "1.25rem 1.5rem",
+            }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Activity className="w-3.5 h-3.5" style={{ color: "rgba(20,184,166,0.5)" }} />
+                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(148,163,184,0.3)" }}>
+                  توزيع الأسبوع
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-[10px]" style={{ color: "rgba(148,163,184,0.25)" }}>الإجمالي</span>
+                <span className="font-black ltr-nums" style={{ color: "#14b8a6" }}>
+                  {weekBars.reduce((s, b) => s + b.total, 0)}
+                </span>
+              </div>
+            </div>
+            <WeekBars data={weekBars} />
+          </div>
+
+          {/* Loyalty center */}
+          <div className="flex-1">
+            <LoyaltyCenter loyaltySettings={loyaltySettings} campaigns={campaigns} templates={templates} />
+          </div>
+        </div>
+      </div>
+
+      <SuraWidget hitlItems={hitlItems as any} hitlCount={hitlCount} />
+    </div>
+  );
+}

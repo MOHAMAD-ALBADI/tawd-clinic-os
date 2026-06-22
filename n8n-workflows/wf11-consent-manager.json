@@ -1,0 +1,188 @@
+{
+  "name": "TAWD — WF-11 Consent & PDPL Manager",
+  "nodes": [
+    {
+      "parameters": { "inputSource": "passthrough" },
+      "id": "wf11-n01",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "digital_consents",
+        "returnAll": false,
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            { "keyName": "patient_id",    "condition": "eq", "keyValue": "={{ $('Trigger').item.json.patient_id }}" },
+            { "keyName": "consent_type",  "condition": "eq", "keyValue": "pdpl_data_processing" }
+          ]
+        }
+      },
+      "id": "wf11-n02",
+      "name": "Check Existing Consent",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [460, 300],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const found = $('Check Existing Consent').all();\nconst t = $('Trigger').first().json;\nconst hasConsent = found.length > 0 && found[0].json.id;\nreturn [{ json: { ...t, has_consent: hasConsent } }];"
+      },
+      "id": "wf11-n03",
+      "name": "Already Consented?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-consent",
+              "leftValue": "={{ $json.has_consent }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf11-n04",
+      "name": "Needs Consent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $('Trigger').first().json;\nreturn [{ json: { ...t, consent_status: 'already_obtained', needs_consent: false } }];"
+      },
+      "id": "wf11-n05",
+      "name": "Consent Already Exists",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 460]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $('Trigger').first().json;\nconst consentText = 'بموجب نظام حماية البيانات الشخصية (PDPL)، نطلب موافقتك على معالجة بياناتك الشخصية والطبية لأغراض تقديم الرعاية الصحية. هل توافق؟ (نعم / لا)';\nreturn [{ json: { ...t, consent_message: consentText, needs_consent: true, consent_type: 'pdpl_data_processing' } }];"
+      },
+      "id": "wf11-n06",
+      "name": "Prepare Consent Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 140]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-consent-given",
+              "leftValue": "={{ $json.consent_given }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf11-n07",
+      "name": "Consent Given?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1340, 140]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $json;\nreturn [{ json: { ...t, consent_status: 'pending_patient_response' } }];"
+      },
+      "id": "wf11-n08",
+      "name": "Awaiting Consent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "digital_consents",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "patient_id",   "fieldValue": "={{ $('Trigger').first().json.patient_id }}" },
+            { "fieldId": "consent_type", "fieldValue": "pdpl_data_processing" },
+            { "fieldId": "signed_at",    "fieldValue": "={{ new Date().toISOString() }}" }
+          ]
+        }
+      },
+      "id": "wf11-n09",
+      "name": "Record Consent",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1560, 0],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $('Trigger').first().json;\nconst consent = $('Record Consent').first().json;\nreturn [{ json: { ...t, consent_status: 'obtained', consent_id: consent.id, needs_consent: false } }];"
+      },
+      "id": "wf11-n10",
+      "name": "Output Consent OK",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 0]
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [[{ "node": "Check Existing Consent", "type": "main", "index": 0 }]]
+    },
+    "Check Existing Consent": {
+      "main": [[{ "node": "Already Consented?", "type": "main", "index": 0 }]]
+    },
+    "Already Consented?": {
+      "main": [[{ "node": "Needs Consent?", "type": "main", "index": 0 }]]
+    },
+    "Needs Consent?": {
+      "main": [
+        [{ "node": "Consent Already Exists",  "type": "main", "index": 0 }],
+        [{ "node": "Prepare Consent Request", "type": "main", "index": 0 }]
+      ]
+    },
+    "Prepare Consent Request": {
+      "main": [[{ "node": "Consent Given?", "type": "main", "index": 0 }]]
+    },
+    "Consent Given?": {
+      "main": [
+        [{ "node": "Record Consent",    "type": "main", "index": 0 }],
+        [{ "node": "Awaiting Consent",  "type": "main", "index": 0 }]
+      ]
+    },
+    "Record Consent": {
+      "main": [[{ "node": "Output Consent OK", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Muscat"
+  }
+}

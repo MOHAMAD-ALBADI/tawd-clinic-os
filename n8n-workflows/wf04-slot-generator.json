@@ -1,0 +1,105 @@
+{
+  "name": "TAWD — WF-04 Appointment Slot Generator (Nightly)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "hours", "hoursInterval": 24 }],
+          "cronExpression": "0 2 * * *"
+        }
+      },
+      "id": "wf04-n01",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const windowDays = 14;\nconst windowStart = new Date();\nwindowStart.setDate(windowStart.getDate() + 1);\nconst windowEnd = new Date();\nwindowEnd.setDate(windowEnd.getDate() + windowDays);\nreturn [{ json: {\n  window_start: windowStart.toISOString().split('T')[0],\n  window_end:   windowEnd.toISOString().split('T')[0],\n  window_days:  windowDays,\n  run_at:       new Date().toISOString()\n}}];"
+      },
+      "id": "wf04-n02",
+      "name": "Set Booking Window",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH slot_series AS (\n  SELECT\n    ds.clinic_id,\n    ds.doctor_id,\n    ds.slot_duration_minutes,\n    (\n      gen_date::DATE + ds.start_time\n    ) AT TIME ZONE 'Asia/Muscat'\n      + (slot_n * ds.slot_duration_minutes * INTERVAL '1 minute') AS slot_time\n  FROM public.doctor_schedules ds,\n       generate_series(\n         CURRENT_DATE + INTERVAL '1 day',\n         CURRENT_DATE + INTERVAL '14 days',\n         INTERVAL '1 day'\n       ) AS gen_date,\n       generate_series(0, 47) AS slot_n\n  WHERE ds.is_active = TRUE\n    AND (ds.effective_until IS NULL OR ds.effective_until >= gen_date::DATE)\n    AND gen_date::DATE >= ds.effective_from\n    AND ds.day_of_week::TEXT = LOWER(TRIM(TO_CHAR(gen_date::DATE, 'Day')))\n    AND slot_n < FLOOR(\n          EXTRACT(EPOCH FROM (ds.end_time - ds.start_time))\n          / (ds.slot_duration_minutes * 60)\n        )::INT\n    AND NOT EXISTS (\n          SELECT 1 FROM public.clinic_holidays ch\n          WHERE ch.clinic_id = ds.clinic_id\n            AND ch.holiday_date = gen_date::DATE\n            AND (\n              ch.applies_to_all_doctors = TRUE\n              OR ch.doctor_id = ds.doctor_id\n            )\n        )\n    AND EXISTS (\n          SELECT 1 FROM public.doctor_services dsvc\n          WHERE dsvc.clinic_id = ds.clinic_id\n            AND dsvc.doctor_id = ds.doctor_id\n            AND dsvc.is_active = TRUE\n        )\n    AND EXISTS (\n          SELECT 1 FROM public.tawd_subscriptions ts\n          WHERE ts.clinic_id = ds.clinic_id\n            AND ts.status IN ('active', 'trial')\n        )\n),\ninserted AS (\n  INSERT INTO public.appointment_slots\n    (clinic_id, doctor_id, slot_time, duration_minutes, is_booked, is_locked)\n  SELECT\n    clinic_id,\n    doctor_id,\n    slot_time,\n    slot_duration_minutes,\n    FALSE,\n    FALSE\n  FROM slot_series\n  WHERE slot_time > NOW()\n  ON CONFLICT (clinic_id, doctor_id, slot_time) DO NOTHING\n  RETURNING id\n)\nSELECT COUNT(*) AS slots_created FROM inserted;",
+        "options": {}
+      },
+      "id": "wf04-n03",
+      "name": "Generate Slots",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [640, 300],
+      "credentials": {
+        "postgres": { "id": "NDrVeK2iQy3c33J3", "name": "TAWD Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const result = $input.first().json;\nconst ctx    = $('Set Booking Window').first().json;\nconst count  = parseInt(result.slots_created || result.count || 0);\nreturn [{ json: {\n  ...ctx,\n  slots_created: count,\n  health_status: count >= 0 ? 'ok' : 'error',\n  summary: 'Generated ' + count + ' new appointment slots for the next ' + ctx.window_days + ' days (active clinics + doctors with services only)'\n}}];"
+      },
+      "id": "wf04-n04",
+      "name": "Assess Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "tawd_workflow_logs",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "workflow_id",       "fieldValue": "wf04-slot-generator" },
+            { "fieldId": "clinic_id",         "fieldValue": "={{ null }}" },
+            { "fieldId": "status",            "fieldValue": "={{ $json.health_status + ':slots_created=' + $json.slots_created }}" },
+            { "fieldId": "execution_time_ms", "fieldValue": "0" }
+          ]
+        }
+      },
+      "id": "wf04-n05",
+      "name": "Log Execution",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1080, 300],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "fields": {
+          "values": [
+            { "name": "slots_created", "type": "numberValue",  "numberValue": "={{ $('Assess Result').first().json.slots_created }}" },
+            { "name": "window_days",   "type": "numberValue",  "numberValue": "={{ $('Assess Result').first().json.window_days }}" },
+            { "name": "run_at",        "type": "stringValue",  "stringValue": "={{ $('Assess Result').first().json.run_at }}" },
+            { "name": "status",        "type": "stringValue",  "stringValue": "completed" }
+          ]
+        }
+      },
+      "id": "wf04-n06",
+      "name": "Output",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [1300, 300]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger":  { "main": [[{ "node": "Set Booking Window", "type": "main", "index": 0 }]] },
+    "Set Booking Window":{ "main": [[{ "node": "Generate Slots",     "type": "main", "index": 0 }]] },
+    "Generate Slots":    { "main": [[{ "node": "Assess Result",      "type": "main", "index": 0 }]] },
+    "Assess Result":     { "main": [[{ "node": "Log Execution",      "type": "main", "index": 0 }]] },
+    "Log Execution":     { "main": [[{ "node": "Output",             "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Muscat" }
+}

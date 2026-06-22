@@ -1,0 +1,157 @@
+{
+  "name": "TAWD — WF-18 Doctor Commission Calculator",
+  "nodes": [
+    {
+      "parameters": { "inputSource": "passthrough" },
+      "id": "wf18-n01",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "invoices",
+        "returnAll": false,
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            { "keyName": "id",     "condition": "eq", "keyValue": "={{ $('Trigger').item.json.invoice_id }}" },
+            { "keyName": "status", "condition": "eq", "keyValue": "paid" }
+          ]
+        }
+      },
+      "id": "wf18-n02",
+      "name": "Get Paid Invoice",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [460, 300],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "tawd_staff_users",
+        "returnAll": false,
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            { "keyName": "id", "condition": "eq", "keyValue": "={{ $('Trigger').item.json.doctor_id }}" }
+          ]
+        }
+      },
+      "id": "wf18-n08",
+      "name": "Get Doctor",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [460, 480],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const invoices = $('Get Paid Invoice').all();\nconst doctors  = $('Get Doctor').all();\nconst t = $('Trigger').first().json;\n\nif (invoices.length === 0 || !invoices[0].json.id) {\n  return [{ json: { ...t, commission_skipped: true, reason: 'invoice not found or not paid' } }];\n}\n\nconst inv = invoices[0].json;\nconst doctor = (doctors.length > 0 && doctors[0].json.id) ? doctors[0].json : null;\n\n// Use doctor's actual commission rate from DB; fall back to passed-in rate or 10%\nconst rateFromDB  = doctor ? parseFloat(doctor.commission_rate || 0) : 0;\nconst rateFromCtx = parseFloat(t.commission_rate || 0);\nconst commissionRate = (rateFromDB > 0 ? rateFromDB : (rateFromCtx > 0 ? rateFromCtx : 10)) / 100;\n\nconst commissionAmount = parseFloat((inv.subtotal * commissionRate).toFixed(3));\n\nreturn [{ json: {\n  ...t,\n  invoice:           inv,\n  doctor_id:         t.doctor_id || inv.doctor_id || null,\n  clinic_id:         t.clinic_id || inv.clinic_id || null,\n  commission_rate:   parseFloat((commissionRate * 100).toFixed(2)),\n  commission_amount: commissionAmount,\n  invoice_subtotal:  inv.subtotal\n} }];"
+      },
+      "id": "wf18-n03",
+      "name": "Calc Commission",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-skip",
+              "leftValue": "={{ $json.commission_skipped }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf18-n04",
+      "name": "Should Skip?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [920, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { ...$json } }];"
+      },
+      "id": "wf18-n05",
+      "name": "Skip",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1140, 460]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "doctor_commissions",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "invoice_id",        "fieldValue": "={{ $json.invoice_id }}" },
+            { "fieldId": "clinic_id",         "fieldValue": "={{ $json.clinic_id }}" },
+            { "fieldId": "doctor_id",         "fieldValue": "={{ $json.doctor_id }}" },
+            { "fieldId": "commission_rate",   "fieldValue": "={{ $json.commission_rate }}" },
+            { "fieldId": "commission_amount", "fieldValue": "={{ $json.commission_amount }}" },
+            { "fieldId": "currency",          "fieldValue": "OMR" },
+            { "fieldId": "status",            "fieldValue": "pending" }
+          ]
+        }
+      },
+      "id": "wf18-n06",
+      "name": "Create Commission Record",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1140, 140],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t    = $('Trigger').first().json;\nconst calc = $('Calc Commission').first().json;\nconst comm = $('Create Commission Record').first().json;\nreturn [{ json: {\n  ...t,\n  commission_id:     comm.id,\n  commission_amount: calc.commission_amount,\n  commission_rate:   calc.commission_rate,\n  commission_status: 'pending'\n} }];"
+      },
+      "id": "wf18-n07",
+      "name": "Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1360, 140]
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [{ "node": "Get Paid Invoice", "type": "main", "index": 0 }],
+        [{ "node": "Get Doctor",       "type": "main", "index": 0 }]
+      ]
+    },
+    "Get Paid Invoice": { "main": [[{ "node": "Calc Commission", "type": "main", "index": 0 }]] },
+    "Get Doctor":       { "main": [[{ "node": "Calc Commission", "type": "main", "index": 0 }]] },
+    "Calc Commission":  { "main": [[{ "node": "Should Skip?",    "type": "main", "index": 0 }]] },
+    "Should Skip?": {
+      "main": [
+        [{ "node": "Skip",                    "type": "main", "index": 0 }],
+        [{ "node": "Create Commission Record","type": "main", "index": 0 }]
+      ]
+    },
+    "Create Commission Record": { "main": [[{ "node": "Output", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Muscat" }
+}

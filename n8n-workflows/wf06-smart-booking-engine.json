@@ -1,0 +1,284 @@
+{
+  "name": "TAWD — WF-06 Smart Booking Engine",
+  "nodes": [
+    {
+      "parameters": { "inputSource": "passthrough" },
+      "id": "wf06-n01",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "appointment_slots",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            { "keyName": "clinic_id", "condition": "eq",  "keyValue": "={{ $('Trigger').item.json.clinic_id }}" },
+            { "keyName": "slot_time", "condition": "gt",  "keyValue": "={{ new Date().toISOString() }}" },
+            { "keyName": "is_booked", "condition": "eq",  "keyValue": "={{ false }}" }
+          ]
+        }
+      },
+      "id": "wf06-n02",
+      "name": "Get Available Slots",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [460, 300],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "doctor_services",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            { "keyName": "clinic_id", "condition": "eq", "keyValue": "={{ $('Trigger').first().json.clinic_id }}" },
+            { "keyName": "is_active", "condition": "eq", "keyValue": "={{ true }}" }
+          ]
+        }
+      },
+      "id": "wf06-n10",
+      "name": "Get Doctor Services",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "alwaysOutputData": true,
+      "continueOnFail": true,
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const dsRows = $input.all();\nconst slots = $('Get Available Slots').all();\nconst t = $('Trigger').first().json;\nconst now = new Date();\n\n// Build set of valid doctor IDs for the requested service\nlet validDoctorIds = null;\nif (t.service_id) {\n  const ids = new Set();\n  for (const d of dsRows) {\n    if (d.json && d.json.doctor_id && d.json.service_id === t.service_id) {\n      ids.add(d.json.doctor_id);\n    }\n  }\n  if (ids.size > 0) validDoctorIds = ids;\n  // ids.size === 0: no mappings configured → no restriction (graceful fallback)\n}\n\nconst available = slots.filter(function(s) {\n  if (!s.json.id) return false;\n  if (validDoctorIds && !validDoctorIds.has(s.json.doctor_id)) return false;\n  if (s.json.is_locked === true || s.json.is_locked === 'true') {\n    if (!s.json.locked_until || new Date(s.json.locked_until) >= now) return false;\n  }\n  return true;\n});\n\nif (available.length === 0) {\n  return [{ json: { ...t, has_slots: false, available_slots: [] } }];\n}\n\navailable.sort(function(a, b) { return new Date(a.json.slot_time) - new Date(b.json.slot_time); });\n\nlet candidates = available;\n\nif (t.doctor_id) {\n  const byDoc = available.filter(function(s) { return s.json.doctor_id === t.doctor_id; });\n  if (byDoc.length > 0) candidates = byDoc;\n}\n\nif (t.requested_date) {\n  const req = new Date(t.requested_date);\n  const sameDay = candidates.filter(function(s) {\n    const d = new Date(s.json.slot_time);\n    return d.toDateString() === req.toDateString();\n  });\n  if (sameDay.length > 0) candidates = sameDay;\n}\n\nconst picked = candidates[0].json;\nconst preview = candidates.slice(0, 5).map(function(s) { return s.json; });\n\nreturn [{ json: { ...t, has_slots: true, picked_slot: picked, available_slots: preview } }];"
+      },
+      "id": "wf06-n03",
+      "name": "Check & Pick Slot",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-has-slots",
+              "leftValue": "={{ $json.has_slots }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf06-n04",
+      "name": "Has Slots?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $json;\nreturn [{ json: { ...t, booking_status: 'no_slots', booking_error: 'لا توجد مواعيد متاحة في الوقت الحالي. يرجى التواصل معنا لتحديد موعد مناسب.' } }];"
+      },
+      "id": "wf06-n05",
+      "name": "No Slots Available",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 460]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "appointment_slots",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "is_locked",    "fieldValue": "={{ true }}" },
+            { "fieldId": "locked_until", "fieldValue": "={{ new Date(Date.now() + 15 * 60 * 1000).toISOString() }}" }
+          ]
+        },
+        "filters": {
+          "conditions": [
+            { "keyName": "id",        "condition": "eq", "keyValue": "={{ $json.picked_slot.id }}" },
+            { "keyName": "is_locked", "condition": "eq", "keyValue": "={{ false }}" },
+            { "keyName": "is_booked", "condition": "eq", "keyValue": "={{ false }}" }
+          ]
+        }
+      },
+      "id": "wf06-n06",
+      "name": "Lock Slot",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1340, 140],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-lock-ok",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf06-n11",
+      "name": "Lock Succeeded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1560, 140]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $('Check & Pick Slot').first().json;\nreturn [{ json: { ...t, booking_status: 'slot_taken', booking_error: 'عذراً، تم حجز هذا الموعد من شخص آخر للتو. يرجى المحاولة مرة أخرى لاختيار موعد بديل.' } }];"
+      },
+      "id": "wf06-n12",
+      "name": "Slot Taken",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 280]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "appointments",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "clinic_id",       "fieldValue": "={{ $('Trigger').first().json.clinic_id }}" },
+            { "fieldId": "patient_id",      "fieldValue": "={{ $('Trigger').first().json.patient_id }}" },
+            { "fieldId": "doctor_id",       "fieldValue": "={{ $('Check & Pick Slot').first().json.picked_slot.doctor_id }}" },
+            { "fieldId": "slot_id",         "fieldValue": "={{ $('Check & Pick Slot').first().json.picked_slot.id }}" },
+            { "fieldId": "service_id",      "fieldValue": "={{ $('Trigger').first().json.service_id || null }}" },
+            { "fieldId": "slot_time",       "fieldValue": "={{ $('Check & Pick Slot').first().json.picked_slot.slot_time }}" },
+            { "fieldId": "duration_minutes","fieldValue": "={{ $('Check & Pick Slot').first().json.picked_slot.duration_minutes || 30 }}" },
+            { "fieldId": "status",          "fieldValue": "confirmed" },
+            { "fieldId": "type",            "fieldValue": "={{ $('Trigger').first().json.appointment_type || 'consultation' }}" },
+            { "fieldId": "source_channel",  "fieldValue": "={{ $('Trigger').first().json.channel || 'whatsapp' }}" }
+          ]
+        }
+      },
+      "id": "wf06-n07",
+      "name": "Create Appointment",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1780, 60],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.appointment_slots SET is_booked = true, is_locked = false, locked_until = NULL, locked_by_session = NULL WHERE id = '{{ $('Check & Pick Slot').first().json.picked_slot.id }}'::uuid;"
+      },
+      "id": "wf06-n13",
+      "name": "Mark Slot Booked",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "continueOnFail": true,
+      "position": [2000, 60],
+      "credentials": {
+        "postgres": { "id": "NDrVeK2iQy3c33J3", "name": "TAWD Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "waiting_queue",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "clinic_id",      "fieldValue": "={{ $('Trigger').first().json.clinic_id }}" },
+            { "fieldId": "appt_id",        "fieldValue": "={{ $('Create Appointment').first().json.id }}" },
+            { "fieldId": "patient_id",     "fieldValue": "={{ $('Trigger').first().json.patient_id }}" },
+            { "fieldId": "queue_position", "fieldValue": "={{ 0 }}" },
+            { "fieldId": "status",         "fieldValue": "waiting" }
+          ]
+        }
+      },
+      "id": "wf06-n08",
+      "name": "Add to Queue",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2220, 60],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $('Trigger').first().json;\nconst slot = $('Check & Pick Slot').first().json.picked_slot;\nconst appt = $('Create Appointment').first().json;\nconst queue = $('Add to Queue').first().json;\n\nconst slotDate = new Date(slot.slot_time);\nconst dateAr = slotDate.toLocaleDateString('ar-SA', { timeZone: 'Asia/Muscat', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });\nconst timeAr = slotDate.toLocaleTimeString('ar-SA', { timeZone: 'Asia/Muscat', hour: '2-digit', minute: '2-digit' });\n\nreturn [{ json: {\n  ...t,\n  booking_status:          'confirmed',\n  appointment_id:          appt.id,\n  slot_id:                 slot.id,\n  slot_time:               slot.slot_time,\n  doctor_id:               slot.doctor_id,\n  queue_id:                queue.id,\n  booking_confirmation_ar: 'تم حجز موعدك بنجاح يوم ' + dateAr + ' الساعة ' + timeAr + '. رقم موعدك: ' + (appt.id || '').substring(0, 8)\n} }];"
+      },
+      "id": "wf06-n09",
+      "name": "Output Confirmation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2440, 60]
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [[{ "node": "Get Available Slots", "type": "main", "index": 0 }]]
+    },
+    "Get Available Slots": {
+      "main": [[{ "node": "Get Doctor Services", "type": "main", "index": 0 }]]
+    },
+    "Get Doctor Services": {
+      "main": [[{ "node": "Check & Pick Slot", "type": "main", "index": 0 }]]
+    },
+    "Check & Pick Slot": {
+      "main": [[{ "node": "Has Slots?", "type": "main", "index": 0 }]]
+    },
+    "Has Slots?": {
+      "main": [
+        [{ "node": "Lock Slot",          "type": "main", "index": 0 }],
+        [{ "node": "No Slots Available", "type": "main", "index": 0 }]
+      ]
+    },
+    "Lock Slot": {
+      "main": [[{ "node": "Lock Succeeded?", "type": "main", "index": 0 }]]
+    },
+    "Lock Succeeded?": {
+      "main": [
+        [{ "node": "Create Appointment", "type": "main", "index": 0 }],
+        [{ "node": "Slot Taken",         "type": "main", "index": 0 }]
+      ]
+    },
+    "Create Appointment": {
+      "main": [[{ "node": "Mark Slot Booked", "type": "main", "index": 0 }]]
+    },
+    "Mark Slot Booked": {
+      "main": [[{ "node": "Add to Queue", "type": "main", "index": 0 }]]
+    },
+    "Add to Queue": {
+      "main": [[{ "node": "Output Confirmation", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Muscat"
+  }
+}

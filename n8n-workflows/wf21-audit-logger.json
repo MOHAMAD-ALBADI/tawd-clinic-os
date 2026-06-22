@@ -1,0 +1,74 @@
+{
+  "name": "TAWD — WF-21 Audit Logger",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tawd-audit",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "wf21-n01",
+      "name": "Audit Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "tawd-audit-webhook"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const body = $json.body || $json;\n\n// action must be INSERT, UPDATE, or DELETE (audit_action ENUM)\nconst rawAction = (body.action || 'INSERT').toUpperCase();\nconst validActions = ['INSERT', 'UPDATE', 'DELETE'];\nconst action = validActions.includes(rawAction) ? rawAction : 'INSERT';\n\n// Stringify JSONB fields\nconst oldValue = body.old_data ? JSON.stringify(body.old_data) : null;\nconst newValue = body.new_data ? JSON.stringify(body.new_data) : null;\n\nreturn [{ json: {\n  user_id:    body.user_id    || null,\n  clinic_id:  body.clinic_id  || null,\n  action:     action,\n  table_name: body.table_name || 'unknown',\n  record_id:  body.record_id  || null,\n  old_value:  oldValue,\n  new_value:  newValue,\n  ip_address: body.ip_address || null\n} }];"
+      },
+      "id": "wf21-n02",
+      "name": "Parse Audit Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "tawd_audit_logs",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "user_id",    "fieldValue": "={{ $json.user_id }}" },
+            { "fieldId": "clinic_id",  "fieldValue": "={{ $json.clinic_id }}" },
+            { "fieldId": "action",     "fieldValue": "={{ $json.action }}" },
+            { "fieldId": "table_name", "fieldValue": "={{ $json.table_name }}" },
+            { "fieldId": "record_id",  "fieldValue": "={{ $json.record_id }}" },
+            { "fieldId": "old_value",  "fieldValue": "={{ $json.old_value }}" },
+            { "fieldId": "new_value",  "fieldValue": "={{ $json.new_value }}" },
+            { "fieldId": "ip_address", "fieldValue": "={{ $json.ip_address }}" }
+          ]
+        }
+      },
+      "id": "wf21-n03",
+      "name": "Store Audit Log",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ logged: true, id: $json.id }) }}"
+      },
+      "id": "wf21-n04",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Audit Webhook":    { "main": [[{ "node": "Parse Audit Event", "type": "main", "index": 0 }]] },
+    "Parse Audit Event":{ "main": [[{ "node": "Store Audit Log",   "type": "main", "index": 0 }]] },
+    "Store Audit Log":  { "main": [[{ "node": "Respond OK",        "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Muscat" }
+}

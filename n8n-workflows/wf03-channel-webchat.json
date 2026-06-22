@@ -1,0 +1,90 @@
+﻿{
+  "name": "TAWD — WF-03 Channel Receiver Web Chat",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sura-webchat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wf03-n01",
+      "name": "WebChat Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "sura-webchat-webhook"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const body = $json.body || $json;\nconst clinicId    = body.clinic_id    || null;\nconst sessionKey  = body.session_key  || body.visitor_id || null;\nconst messageText = body.message      || body.message_text || '';\nconst visitorName = body.name         || null;\nif (!clinicId || !messageText) {\n  return [{ json: { error: 'missing clinic_id or message', skip: true } }];\n}\nreturn [{ json: {\n  clinic_id:     clinicId,\n  channel:       'web',\n  phone:         sessionKey,\n  message_text:  messageText,\n  name:          visitorName,\n  language:      body.language || 'ar',\n  source_channel: 'web'\n} }];"
+      },
+      "id": "wf03-n02",
+      "name": "Parse Web Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [{ "id": "skip-check", "leftValue": "={{ $json.skip }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }],
+          "combinator": "and"
+        }
+      },
+      "id": "wf03-n03",
+      "name": "Should Skip?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ error: $json.error }) }}", "options": { "responseCode": 400 } },
+      "id": "wf03-n04",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 460]
+    },
+    {
+      "parameters": {
+        "workflowId": { "__rl": true, "value": "arZRfHPPTytcMSR5", "mode": "id" },
+        "options": {}
+      },
+      "id": "wf03-n05",
+      "name": "Call Sura Core Engine",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [900, 140]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const result = $input.first().json;\nreturn [{ json: { response: result.response_ar || result.sura_response || 'تم استلام رسالتك' } }];"
+      },
+      "id": "wf03-n06",
+      "name": "Extract Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 140]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ ok: true, response: $json.response }) }}" },
+      "id": "wf03-n07",
+      "name": "Respond with Sura Reply",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 140]
+    }
+  ],
+  "connections": {
+    "WebChat Webhook":    { "main": [[{ "node": "Parse Web Message", "type": "main", "index": 0 }]] },
+    "Parse Web Message":  { "main": [[{ "node": "Should Skip?", "type": "main", "index": 0 }]] },
+    "Should Skip?": { "main": [[{ "node": "Call Sura Core Engine", "type": "main", "index": 0 }], [{ "node": "Respond Error", "type": "main", "index": 0 }]] },
+    "Call Sura Core Engine": { "main": [[{ "node": "Extract Response", "type": "main", "index": 0 }]] },
+    "Extract Response":   { "main": [[{ "node": "Respond with Sura Reply", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Muscat" }
+}

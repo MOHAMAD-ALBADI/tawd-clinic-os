@@ -1,0 +1,13 @@
+﻿{
+  "name": "TAWD — WF-14 Insurance Pre-check (Dhamani Stub)",
+  "nodes": [
+    { "parameters": { "inputSource": "passthrough" }, "id": "wf14-n01", "name": "Trigger", "type": "n8n-nodes-base.executeWorkflowTrigger", "typeVersion": 1, "position": [240, 300] },
+    { "parameters": { "operation": "getAll", "tableId": "insurance_providers", "returnAll": false, "limit": 1, "filters": { "conditions": [ { "keyName": "id", "condition": "eq", "keyValue": "={{ $('Trigger').item.json.provider_id }}" }, { "keyName": "is_active", "condition": "eq", "keyValue": "={{ true }}" } ] } }, "id": "wf14-n02", "name": "Get Provider", "type": "n8n-nodes-base.supabase", "typeVersion": 1, "position": [460, 300], "alwaysOutputData": true, "credentials": { "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" } } },
+    { "parameters": { "mode": "runOnceForAllItems", "jsCode": "const t = $('Trigger').first().json;\nconst providers = $('Get Provider').all();\nconst provider = (providers.length > 0 && providers[0].json.id) ? providers[0].json : null;\nif (!provider) {\n  return [{ json: { ...t, insurance_status: 'provider_not_found', eligible: false } }];\n}\nreturn [{ json: { ...t, insurance_status: 'check_pending', eligible: null, provider_name: provider.provider_name, dhamani_code: provider.dhamani_code, note: 'Dhamani live integration pending — manual verification required' } }];" }, "id": "wf14-n03", "name": "Stub Check", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [680, 300] }
+  ],
+  "connections": {
+    "Trigger": { "main": [[{ "node": "Get Provider", "type": "main", "index": 0 }]] },
+    "Get Provider": { "main": [[{ "node": "Stub Check", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "timezone": "Asia/Muscat" }
+}

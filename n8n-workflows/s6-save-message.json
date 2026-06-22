@@ -1,0 +1,53 @@
+{
+  "name": "TAWD — [SUB] S6 Save Message",
+  "nodes": [
+    {
+      "parameters": { "inputSource": "passthrough" },
+      "id": "s6-node-01",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "chat_messages",
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "session_id",   "fieldValue": "={{ $('Trigger').item.json.session_id }}" },
+            { "fieldId": "clinic_id",    "fieldValue": "={{ $('Trigger').item.json.clinic_id }}" },
+            { "fieldId": "sender",       "fieldValue": "={{ $('Trigger').item.json.sender }}" },
+            { "fieldId": "message_text", "fieldValue": "={{ $('Trigger').item.json.message_text }}" },
+            { "fieldId": "message_type", "fieldValue": "text" }
+          ]
+        }
+      },
+      "id": "s6-node-02",
+      "name": "Insert Message",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [460, 300],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const t = $('Trigger').first().json;\nconst msgId = $('Insert Message').first().json.id;\nreturn [{ json: { ...t, message_id: msgId, saved: true } }];"
+      },
+      "id": "s6-node-03",
+      "name": "Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    }
+  ],
+  "connections": {
+    "Trigger":       { "main": [[{ "node": "Insert Message", "type": "main", "index": 0 }]] },
+    "Insert Message": { "main": [[{ "node": "Output",         "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

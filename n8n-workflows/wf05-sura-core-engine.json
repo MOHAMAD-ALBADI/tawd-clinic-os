@@ -1,0 +1,672 @@
+{
+  "name": "TAWD — WF-05 Sura Core Engine (WhatsApp)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sura-whatsapp",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wf05-n01",
+      "name": "WhatsApp Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "9c6d1606-c6fc-499b-b743-ec2c4e65e485"
+    },
+    {
+      "parameters": {
+        "respondWith": "noData",
+        "options": { "responseCode": 200 }
+      },
+      "id": "wf05-n02",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const raw  = $input.first().json;\nconst body = raw.body || raw;\n\nconst entry  = (body.entry || [])[0];\nconst change = (entry?.changes || [])[0];\nconst value  = change?.value;\nconst msgs   = value?.messages || [];\n\nif (!msgs.length) {\n  return [{ json: { type: 'status_update' } }];\n}\n\nconst msg = msgs[0];\nif (msg.type !== 'text') {\n  return [{ json: { type: 'unsupported_media', from: '+' + msg.from, media_type: msg.type } }];\n}\n\nconst phoneNumberId = value?.metadata?.phone_number_id || '';\n\nreturn [{ json: {\n  type:            'message',\n  phone:           '+' + msg.from,\n  raw_from:        msg.from,\n  message_id:      msg.id,\n  message_text:    msg.text.body,\n  sender_name:     (value?.contacts || [])[0]?.profile?.name || '',\n  timestamp:       msg.timestamp,\n  phone_number_id: phoneNumberId,\n  channel:         'whatsapp',\n  waba_id:         entry?.id || ''\n}}];"
+      },
+      "id": "wf05-n03",
+      "name": "Parse Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-message-type",
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "message",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf05-n04",
+      "name": "Valid Message?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [920, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT clinic_id::text FROM public.channel_configs WHERE channel = 'whatsapp' AND is_active = true AND config->>'phone_number_id' = '{{ $json.phone_number_id }}' LIMIT 1;"
+      },
+      "id": "wf05-n38",
+      "name": "Lookup Clinic Channel",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1160, 300],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": { "id": "NDrVeK2iQy3c33J3", "name": "TAWD Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = $input.all();\nconst ctx  = $('Parse Request').first().json;\nif (rows.length === 0 || !rows[0].json || !rows[0].json.clinic_id) {\n  return [];\n}\nreturn [{ json: { ...ctx, clinic_id: rows[0].json.clinic_id } }];"
+      },
+      "id": "wf05-n39",
+      "name": "Resolve Clinic ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1380, 300]
+    },
+    {
+      "parameters": { "workflowId": "MSsHC3t4qbzqWzlk" },
+      "id": "wf05-n05",
+      "name": "S4 Clinic Context",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1600, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT public.clinic_has_feature('{{ $json.clinic_id }}'::uuid, 'sura_ai_enabled') AS enabled;"
+      },
+      "id": "wf05-n40",
+      "name": "Check sura_ai_enabled",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1840, 300],
+      "alwaysOutputData": true,
+      "continueOnFail": true,
+      "credentials": {
+        "postgres": { "id": "NDrVeK2iQy3c33J3", "name": "TAWD Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = $input.all();\nconst ctx  = $('S4 Clinic Context').first().json;\n// Fail-open: DB error → allow (don't block prod on transient DB hiccup)\nconst firstRow = rows.length > 0 ? rows[0].json : {};\nconst enabled  = firstRow.error ? true : (firstRow.enabled === true);\nreturn [{ json: { ...ctx, sura_ai_enabled: enabled } }];"
+      },
+      "id": "wf05-n41",
+      "name": "Resolve Feature Flag",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2060, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-sura-enabled",
+              "leftValue": "={{ $json.sura_ai_enabled }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf05-n42",
+      "name": "Feature Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2280, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $json;\nconst clinicName = ctx.clinic_name_ar || ctx.clinic_name || 'العيادة';\nreturn [{ json: {\n  ...ctx,\n  to:     ctx.phone,\n  body:   'عذراً، خدمة سُرى غير متاحة حالياً. للمساعدة يرجى التواصل مع ' + clinicName + ' مباشرة.',\n  sender: 'sura'\n} }];"
+      },
+      "id": "wf05-n43",
+      "name": "Sura Unavailable",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2500, 480]
+    },
+    {
+      "parameters": { "workflowId": "0Aq11NOwPChsSzZ8" },
+      "id": "wf05-n44",
+      "name": "S1 Send Unavailable",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [2720, 480]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-maintenance",
+              "leftValue": "={{ $json.is_in_maintenance }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf05-n06",
+      "name": "Maintenance Mode?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2520, 300]
+    },
+    {
+      "parameters": { "workflowId": "0Aq11NOwPChsSzZ8" },
+      "id": "wf05-n07",
+      "name": "S1 Maintenance Msg",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [2760, 120]
+    },
+    {
+      "parameters": { "workflowId": "44lmYECx1xkG0Cir" },
+      "id": "wf05-n08",
+      "name": "S3 Get Patient",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [2760, 500]
+    },
+    {
+      "parameters": { "workflowId": "LhLhOblkCwLWWQlt" },
+      "id": "wf05-n09",
+      "name": "S5 Get Session",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [3000, 480]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "fields": {
+          "values": [
+            { "name": "sender",       "type": "stringValue", "stringValue": "patient" },
+            { "name": "message_text", "type": "stringValue", "stringValue": "={{ $json.message_text }}" }
+          ]
+        }
+      },
+      "id": "wf05-n25",
+      "name": "Set Sender User",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [3240, 480]
+    },
+    {
+      "parameters": { "workflowId": "F3YMSuQuGiknwoEH" },
+      "id": "wf05-n10",
+      "name": "S6 Save User Msg",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [3480, 480]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $json;\nconst bookingNote = ctx.booking_in_progress\n  ? '\\n\\n[تنبيه داخلي: المريض في منتصف عملية حجز]'\n  : '';\n\nconst systemPrompt = 'أنت سُرى، المساعدة الذكية لعيادة ' + (ctx.clinic_name || 'العيادة') + '.\\n\\n'\n  + '[الشخصية]\\n'\n  + 'دافئة، احترافية، خليجية الأسلوب. تتحدثين بالعربية دائماً إلا إذا تحدث المريض بلغة أخرى.\\n\\n'\n  + '[مهامك]\\n'\n  + '• الحجز وإدارة المواعيد\\n'\n  + '• الاستفسار عن الخدمات والأسعار\\n'\n  + '• معلومات العيادة (ساعات العمل، الموقع، الأطباء)\\n\\n'\n  + '[كلمات الطوارئ]\\n'\n  + 'إذا ذُكرت: طوارئ، إسعاف، نزيف، ألم شديد، لا أتنفس، أغمي، حادث، قلبي\\n'\n  + 'اجعل intent=emergency و requires_hitl=true فوراً.\\n\\n'\n  + '[قواعد صارمة]\\n'\n  + '1. ردك JSON خالص فقط — لا نص خارج الـ JSON\\n'\n  + '2. لا تعطِ تشخيصات طبية\\n'\n  + '3. لا تُفصح أنك AI إلا إذا سُئلت\\n'\n  + bookingNote + '\\n\\n'\n  + '[حقول الإخراج المطلوبة]\\n'\n  + 'intent: greeting|book_appointment|cancel_appointment|reschedule_appointment|check_status|inquiry_services|inquiry_pricing|inquiry_location|inquiry_hours|payment_inquiry|complaint|follow_up|emergency|off_topic|unclear\\n'\n  + 'response_ar: نص الرد\\n'\n  + 'confidence: رقم بين 0 و 1\\n'\n  + 'is_sensitive: true أو false\\n'\n  + 'requires_hitl: true أو false';\n\nreturn [{ json: {\n  ...ctx,\n  system_prompt:       systemPrompt,\n  user_message:        ctx.message_text,\n  session_id:          ctx.session_id,\n  clinic_id:           ctx.clinic_id,\n  phone:               ctx.phone,\n  patient_id:          ctx.patient_id,\n  clarification_count: ctx.clarification_count || 0,\n  booking_in_progress: ctx.booking_in_progress || false,\n  clinic_name:         ctx.clinic_name || 'العيادة'\n}}];"
+      },
+      "id": "wf05-n11",
+      "name": "Build AI Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3720, 480]
+    },
+    {
+      "parameters": {
+        "agentType": "conversationalAgent",
+        "promptType": "define",
+        "text": "={{ $json.user_message }}",
+        "options": { "systemMessage": "={{ $json.system_prompt }}" }
+      },
+      "id": "wf05-n12",
+      "name": "سُرى Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1,
+      "position": [3960, 480]
+    },
+    {
+      "parameters": {
+        "modelName": "gemini-2.0-flash",
+        "options": { "temperature": 0.3 }
+      },
+      "id": "wf05-n13",
+      "name": "Gemini Flash",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [3960, 680],
+      "credentials": {
+        "googlePalmApi": { "id": "s9N4V76Rwk6zW2lo", "name": "TAWD Gemini API" }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Build AI Context').first().json.session_id }}"
+      },
+      "id": "wf05-n14",
+      "name": "Chat Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1,
+      "position": [4200, 680],
+      "credentials": {
+        "postgres": { "id": "NDrVeK2iQy3c33J3", "name": "TAWD Supabase Postgres" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rawOutput = $json.output || $json.text || '';\nconst ctx = $('Build AI Context').first().json;\n\nlet parsed;\ntry {\n  const cleaned = rawOutput.replace(/```json\\n?/gi,'').replace(/```\\n?/g,'').trim();\n  parsed = JSON.parse(cleaned);\n} catch(e) {\n  parsed = {\n    intent:        'unclear',\n    response_ar:   'عذراً، لم أفهم طلبك. هل يمكنك إعادة الصياغة؟',\n    confidence:    0.0,\n    is_sensitive:  false,\n    requires_hitl: false\n  };\n}\n\nreturn [{ json: {\n  ...ctx,\n  intent:        parsed.intent       || 'unclear',\n  response_ar:   parsed.response_ar  || '',\n  confidence:    parsed.confidence   ?? 0.0,\n  is_sensitive:  parsed.is_sensitive ?? false,\n  requires_hitl: parsed.requires_hitl ?? false,\n  raw_ai_output: rawOutput\n}}];"
+      },
+      "id": "wf05-n15",
+      "name": "Parse AI Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4200, 480]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "hitl-confidence",
+              "leftValue": "={{ $json.confidence }}",
+              "rightValue": 0.85,
+              "operator": { "type": "number", "operation": "gte" }
+            },
+            {
+              "id": "hitl-not-sensitive",
+              "leftValue": "={{ $json.is_sensitive }}",
+              "rightValue": false,
+              "operator": { "type": "boolean", "operation": "equals" }
+            },
+            {
+              "id": "hitl-not-required",
+              "leftValue": "={{ $json.requires_hitl }}",
+              "rightValue": false,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf05-n16",
+      "name": "HITL Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [4440, 480]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "is-booking",
+              "leftValue": "={{ $json.intent }}",
+              "rightValue": "book_appointment",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf05-n28",
+      "name": "Is Booking?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [4680, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $json;\nreturn [{ json: {\n  clinic_id:        ctx.clinic_id,\n  patient_id:       ctx.patient_id,\n  session_id:       ctx.session_id,\n  phone:            ctx.phone,\n  channel:          ctx.channel || 'whatsapp',\n  service_id:       ctx.requested_service_id || null,\n  doctor_id:        ctx.requested_doctor_id  || null,\n  requested_date:   ctx.requested_date       || null,\n  appointment_type: 'consultation',\n  _parent_ctx:      ctx\n} }];"
+      },
+      "id": "wf05-n29",
+      "name": "Prep Booking Params",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4920, 160]
+    },
+    {
+      "parameters": { "workflowId": "pxPgMdVxdZmuVlYQ" },
+      "id": "wf05-n30",
+      "name": "Call WF-06 Booking",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [5140, 160]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const bookingResult = $json;\nconst parentCtx = $('Prep Booking Params').first().json._parent_ctx || {};\n\nconst message = bookingResult.booking_status === 'confirmed'\n  ? bookingResult.booking_confirmation_ar\n  : (bookingResult.booking_error || 'عذراً، لم أتمكن من إتمام الحجز. يرجى المحاولة لاحقاً أو التواصل معنا مباشرة.');\n\nreturn [{ json: {\n  ...parentCtx,\n  sender:         'sura',\n  message_text:   message,\n  booking_status: bookingResult.booking_status,\n  appointment_id: bookingResult.appointment_id || null\n} }];"
+      },
+      "id": "wf05-n31",
+      "name": "Format Booking Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [5360, 160]
+    },
+    {
+      "parameters": { "workflowId": "F3YMSuQuGiknwoEH" },
+      "id": "wf05-n32",
+      "name": "S6 Save Booking Msg",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [5580, 160]
+    },
+    {
+      "parameters": { "workflowId": "0Aq11NOwPChsSzZ8" },
+      "id": "wf05-n33",
+      "name": "S1 Send Booking",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [5800, 160]
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "fields": {
+          "values": [
+            { "name": "sender",       "type": "stringValue", "stringValue": "sura" },
+            { "name": "message_text", "type": "stringValue", "stringValue": "={{ $json.response_ar }}" }
+          ]
+        }
+      },
+      "id": "wf05-n26",
+      "name": "Set Sender Sura",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [4920, 440]
+    },
+    {
+      "parameters": { "workflowId": "F3YMSuQuGiknwoEH" },
+      "id": "wf05-n17",
+      "name": "S6 Save Assistant Msg",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [5140, 440]
+    },
+    {
+      "parameters": { "workflowId": "0Aq11NOwPChsSzZ8" },
+      "id": "wf05-n18",
+      "name": "S1 Send Response",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [5360, 440]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "check-clarification",
+              "leftValue": "={{ $json.clarification_count }}",
+              "rightValue": 2,
+              "operator": { "type": "number", "operation": "lt" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "wf05-n19",
+      "name": "Clarification OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [4680, 640]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "chat_sessions",
+        "filters": {
+          "conditions": [
+            { "keyName": "id", "condition": "eq", "keyValue": "={{ $json.session_id }}" }
+          ]
+        },
+        "dataToSend": "defineBelow",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "clarification_count", "fieldValue": "={{ ($json.clarification_count || 0) + 1 }}" }
+          ]
+        }
+      },
+      "id": "wf05-n20",
+      "name": "Increment Clarification",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [4920, 540],
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "fields": {
+          "values": [
+            { "name": "sender",       "type": "stringValue", "stringValue": "sura" },
+            { "name": "message_text", "type": "stringValue", "stringValue": "={{ $('Parse AI Output').first().json.response_ar }}" }
+          ]
+        }
+      },
+      "id": "wf05-n27",
+      "name": "Set Sender Sura Clarif",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [5140, 540]
+    },
+    {
+      "parameters": { "workflowId": "F3YMSuQuGiknwoEH" },
+      "id": "wf05-n21",
+      "name": "S6 Save Clarification",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [5360, 540]
+    },
+    {
+      "parameters": { "workflowId": "0Aq11NOwPChsSzZ8" },
+      "id": "wf05-n22",
+      "name": "S1 Send Clarification",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [5580, 540]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "tawd_staff_users",
+        "returnAll": false,
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            { "keyName": "clinic_id", "condition": "eq", "keyValue": "={{ $json.clinic_id }}" },
+            { "keyName": "role",      "condition": "eq", "keyValue": "admin" },
+            { "keyName": "is_active", "condition": "eq", "keyValue": "={{ true }}" }
+          ]
+        }
+      },
+      "id": "wf05-n37",
+      "name": "Get Clinic Admin Phone",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [4700, 780],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": { "id": "vvSpPqfrBDkrqjjc", "name": "TAWD Supabase" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ai    = $('Parse AI Output').first().json;\nconst admin = $json;\nconst reason = ai.intent === 'unclear' ? 'confidence_low'\n  : ai.is_sensitive ? 'sensitive_topic'\n  : ai.intent === 'emergency' ? 'emergency'\n  : 'requires_human';\n\nreturn [{ json: {\n  ...ai,\n  original_message: ai.message_text,\n  ai_draft:         ai.response_ar,\n  reason:           reason,\n  priority:         ai.intent === 'emergency' ? 'critical' : 'medium',\n  staff_phone:      (admin && admin.id && admin.phone) ? admin.phone : null\n}}];"
+      },
+      "id": "wf05-n23",
+      "name": "Prepare HITL Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4920, 780]
+    },
+    {
+      "parameters": {
+        "agentType": "conversationalAgent",
+        "promptType": "define",
+        "text": "={{ $json.ai_draft }}",
+        "options": {
+          "systemMessage": "أنت خبير في التواصل الطبي. حسّن المسودة التالية لتكون أوضح وأكثر ودية للمريض العربي. أعِد المسودة المحسّنة فقط بدون أي إضافات خارج النص.",
+          "maxIterations": 1
+        }
+      },
+      "id": "wf05-n35",
+      "name": "HITL Refine Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1,
+      "position": [5140, 780]
+    },
+    {
+      "parameters": {
+        "modelName": "gemini-2.5-pro-latest",
+        "options": { "temperature": 0.2 }
+      },
+      "id": "wf05-n34",
+      "name": "Gemini Pro",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [5140, 960],
+      "credentials": {
+        "googlePalmApi": { "id": "s9N4V76Rwk6zW2lo", "name": "TAWD Gemini API" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const refined = $json.output || $json.text || '';\nconst ctx = $('Prepare HITL Input').first().json;\nreturn [{ json: { ...ctx, ai_draft: refined.trim() || ctx.ai_draft } }];"
+      },
+      "id": "wf05-n36",
+      "name": "Merge Refined",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [5360, 780]
+    },
+    {
+      "parameters": { "workflowId": "dK1T85wRcr8XPZSO" },
+      "id": "wf05-n24",
+      "name": "S7 Push HITL",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [5580, 780]
+    }
+  ],
+  "connections": {
+    "WhatsApp Webhook":  { "main": [[{ "node": "Respond 200",             "type": "main", "index": 0 }]] },
+    "Respond 200":       { "main": [[{ "node": "Parse Request",           "type": "main", "index": 0 }]] },
+    "Parse Request":     { "main": [[{ "node": "Valid Message?",          "type": "main", "index": 0 }]] },
+    "Valid Message?": {
+      "main": [
+        [{ "node": "Lookup Clinic Channel", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Lookup Clinic Channel": { "main": [[{ "node": "Resolve Clinic ID",    "type": "main", "index": 0 }]] },
+    "Resolve Clinic ID":     { "main": [[{ "node": "S4 Clinic Context",    "type": "main", "index": 0 }]] },
+    "S4 Clinic Context":     { "main": [[{ "node": "Check sura_ai_enabled","type": "main", "index": 0 }]] },
+    "Check sura_ai_enabled": { "main": [[{ "node": "Resolve Feature Flag", "type": "main", "index": 0 }]] },
+    "Resolve Feature Flag":  { "main": [[{ "node": "Feature Enabled?",     "type": "main", "index": 0 }]] },
+    "Feature Enabled?": {
+      "main": [
+        [{ "node": "Maintenance Mode?",  "type": "main", "index": 0 }],
+        [{ "node": "Sura Unavailable",   "type": "main", "index": 0 }]
+      ]
+    },
+    "Sura Unavailable":  { "main": [[{ "node": "S1 Send Unavailable",    "type": "main", "index": 0 }]] },
+    "Maintenance Mode?": {
+      "main": [
+        [{ "node": "S1 Maintenance Msg", "type": "main", "index": 0 }],
+        [{ "node": "S3 Get Patient",     "type": "main", "index": 0 }]
+      ]
+    },
+    "S3 Get Patient":    { "main": [[{ "node": "S5 Get Session",         "type": "main", "index": 0 }]] },
+    "S5 Get Session":    { "main": [[{ "node": "Set Sender User",        "type": "main", "index": 0 }]] },
+    "Set Sender User":   { "main": [[{ "node": "S6 Save User Msg",       "type": "main", "index": 0 }]] },
+    "S6 Save User Msg":  { "main": [[{ "node": "Build AI Context",       "type": "main", "index": 0 }]] },
+    "Build AI Context":  { "main": [[{ "node": "سُرى Agent",             "type": "main", "index": 0 }]] },
+    "سُرى Agent":        { "main": [[{ "node": "Parse AI Output",        "type": "main", "index": 0 }]] },
+    "Parse AI Output":   { "main": [[{ "node": "HITL Gate",              "type": "main", "index": 0 }]] },
+    "HITL Gate": {
+      "main": [
+        [{ "node": "Is Booking?",       "type": "main", "index": 0 }],
+        [{ "node": "Clarification OK?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Is Booking?": {
+      "main": [
+        [{ "node": "Prep Booking Params", "type": "main", "index": 0 }],
+        [{ "node": "Set Sender Sura",     "type": "main", "index": 0 }]
+      ]
+    },
+    "Prep Booking Params":   { "main": [[{ "node": "Call WF-06 Booking",   "type": "main", "index": 0 }]] },
+    "Call WF-06 Booking":    { "main": [[{ "node": "Format Booking Reply",  "type": "main", "index": 0 }]] },
+    "Format Booking Reply":  { "main": [[{ "node": "S6 Save Booking Msg",   "type": "main", "index": 0 }]] },
+    "S6 Save Booking Msg":   { "main": [[{ "node": "S1 Send Booking",       "type": "main", "index": 0 }]] },
+    "Set Sender Sura":       { "main": [[{ "node": "S6 Save Assistant Msg", "type": "main", "index": 0 }]] },
+    "S6 Save Assistant Msg": { "main": [[{ "node": "S1 Send Response",      "type": "main", "index": 0 }]] },
+    "Clarification OK?": {
+      "main": [
+        [{ "node": "Increment Clarification", "type": "main", "index": 0 }],
+        [{ "node": "Get Clinic Admin Phone",  "type": "main", "index": 0 }]
+      ]
+    },
+    "Get Clinic Admin Phone":  { "main": [[{ "node": "Prepare HITL Input",     "type": "main", "index": 0 }]] },
+    "Increment Clarification": { "main": [[{ "node": "Set Sender Sura Clarif", "type": "main", "index": 0 }]] },
+    "Set Sender Sura Clarif":  { "main": [[{ "node": "S6 Save Clarification",  "type": "main", "index": 0 }]] },
+    "S6 Save Clarification":   { "main": [[{ "node": "S1 Send Clarification",  "type": "main", "index": 0 }]] },
+    "Prepare HITL Input":  { "main": [[{ "node": "HITL Refine Agent", "type": "main", "index": 0 }]] },
+    "HITL Refine Agent":   { "main": [[{ "node": "Merge Refined",     "type": "main", "index": 0 }]] },
+    "Merge Refined":       { "main": [[{ "node": "S7 Push HITL",      "type": "main", "index": 0 }]] },
+    "Gemini Flash": {
+      "ai_languageModel": [[{ "node": "سُرى Agent",        "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Gemini Pro": {
+      "ai_languageModel": [[{ "node": "HITL Refine Agent", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Chat Memory": {
+      "ai_memory": [[{ "node": "سُرى Agent", "type": "ai_memory", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}
