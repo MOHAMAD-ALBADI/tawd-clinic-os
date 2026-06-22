@@ -14,7 +14,8 @@ const STATUS_OPTS: { value: InvoiceStatus; label: string }[] = [
   { value: "refunded", label: "مستردة" },
 ];
 
-type Pos = { right: number; top?: number; bottom?: number };
+type Pos = { left: number; top?: number; bottom?: number };
+const MENU_W = 216;
 
 export function InvoiceRowActions({ id, status }: { id: string; status: string }) {
   const [open, setOpen] = useState(false);
@@ -27,8 +28,9 @@ export function InvoiceRowActions({ id, status }: { id: string; status: string }
     const r = btnRef.current?.getBoundingClientRect();
     if (r) {
       const openUp = window.innerHeight - r.bottom < 320;
+      const left = Math.max(8, Math.min(r.right - MENU_W, window.innerWidth - MENU_W - 8));
       setPos({
-        right: Math.round(window.innerWidth - r.right),
+        left,
         top: openUp ? undefined : Math.round(r.bottom + 6),
         bottom: openUp ? Math.round(window.innerHeight - r.top + 6) : undefined,
       });
@@ -55,7 +57,7 @@ export function InvoiceRowActions({ id, status }: { id: string; status: string }
           <div className="fixed inset-0 z-[55]" onClick={() => setOpen(false)} />
           <div
             className="panel py-1.5 animate-scale-in"
-            style={{ position: "fixed", right: pos.right, top: pos.top, bottom: pos.bottom, width: 208, maxHeight: "70vh", overflowY: "auto", zIndex: 60, background: "rgba(12,18,28,0.99)" }}
+            style={{ position: "fixed", left: pos.left, top: pos.top, bottom: pos.bottom, width: MENU_W, maxHeight: "70vh", overflowY: "auto", zIndex: 60, background: "rgba(12,18,28,0.99)" }}
           >
             <Link href={`/clinic-admin/invoices/${id}`}
               className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-right transition-colors hover:bg-white/[0.04]" style={{ color: "var(--text-1)" }}>

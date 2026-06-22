@@ -12,7 +12,8 @@ const STATUS_OPTS: { value: AppointmentStatus; label: string }[] = [
   { value: "no_show", label: "لم يحضر" },
 ];
 
-type Pos = { right: number; top?: number; bottom?: number };
+type Pos = { left: number; top?: number; bottom?: number };
+const MENU_W = 216;
 
 export function AppointmentRowActions({ id, status, slotTime }: { id: string; status: string; slotTime: string }) {
   const [open, setOpen] = useState(false);
@@ -30,8 +31,10 @@ export function AppointmentRowActions({ id, status, slotTime }: { id: string; st
     const r = btnRef.current?.getBoundingClientRect();
     if (r) {
       const openUp = window.innerHeight - r.bottom < 320;
+      // Align the menu's right edge to the button, then clamp inside the viewport.
+      const left = Math.max(8, Math.min(r.right - MENU_W, window.innerWidth - MENU_W - 8));
       setPos({
-        right: Math.round(window.innerWidth - r.right),
+        left,
         top: openUp ? undefined : Math.round(r.bottom + 6),
         bottom: openUp ? Math.round(window.innerHeight - r.top + 6) : undefined,
       });
@@ -64,7 +67,7 @@ export function AppointmentRowActions({ id, status, slotTime }: { id: string; st
           <div className="fixed inset-0 z-[55]" onClick={close} />
           <div
             className="panel py-1.5 animate-scale-in"
-            style={{ position: "fixed", right: pos.right, top: pos.top, bottom: pos.bottom, width: 208, maxHeight: "70vh", overflowY: "auto", zIndex: 60, background: "rgba(12,18,28,0.99)" }}
+            style={{ position: "fixed", left: pos.left, top: pos.top, bottom: pos.bottom, width: MENU_W, maxHeight: "70vh", overflowY: "auto", zIndex: 60, background: "rgba(12,18,28,0.99)" }}
           >
             {mode === "menu" ? (
               <>
