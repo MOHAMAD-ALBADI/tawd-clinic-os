@@ -69,14 +69,12 @@ export async function recordVitals(patientId: string, v: VitalsInput) {
     x === null || x === undefined || Number.isNaN(x) ? null : x;
   const w = num(v.weight_kg);
   const h = num(v.height_cm);
-  const bmi = w && h && h > 0 ? Math.round((w / Math.pow(h / 100, 2)) * 10) / 10 : null;
-
+  // NOTE: bmi is a generated column in Postgres — never insert it.
   const { error } = await supabase.from("patient_vitals").insert({
     clinic_id: claims.clinic_id,
     patient_id: patientId,
     weight_kg: w,
     height_cm: h,
-    bmi,
     blood_pressure_systolic: num(v.blood_pressure_systolic),
     blood_pressure_diastolic: num(v.blood_pressure_diastolic),
     pulse_bpm: num(v.pulse_bpm),
