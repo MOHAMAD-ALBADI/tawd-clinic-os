@@ -1,13 +1,11 @@
 import { redirect } from "next/navigation";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { formatDate } from "@/lib/utils";
-import { UserCircle } from "lucide-react";
+import { PatientSearch, type DocPatient } from "@/components/doctor/patient-search";
 
 export const metadata = { title: "مرضاي — طود" };
 
-type ApptRow = { patients: unknown; slot_time: string };
-type PatientJ = { id: string; name: string; phone?: string };
+type J = { name: string; phone: string | null } | null;
 
 export default async function DoctorPatientsPage() {
   const claims = await getUserClaims();
@@ -15,64 +13,40 @@ export default async function DoctorPatientsPage() {
 
   const supabase = await createServerSupabaseClient();
 
+  // All of this doctor's appointments → dedupe into a patient list with visit counts.
   const { data } = await supabase
     .from("appointments")
-    .select("slot_time, patients(id, name, phone)")
-    .eq("clinic_id", claims.clinic_id)
+    .select("patient_id, slot_time, patients(name, phone)")
     .eq("doctor_id", claims.sub)
-    .order("slot_time", { ascending: false })
-    .limit(100);
+    .is("deleted_at", null)
+    .order("slot_time", { ascending: false });
 
-  const rows = (data ?? []) as ApptRow[];
-  const seen = new Set<string>();
-  const patients: Array<PatientJ & { last_visit: string }> = [];
-  for (const r of rows) {
-    const p = r.patients as PatientJ | null;
-    if (p && !seen.has(p.id)) {
-      seen.add(p.id);
-      patients.push({ ...p, last_visit: r.slot_time });
+  const map = new Map<string, DocPatient>();
+  for (const a of data ?? []) {
+    if (!a.patient_id) continue;
+    const p = a.patients as unknown as J;
+    const existing = map.get(a.patient_id);
+    if (existing) {
+      existing.visits += 1;
+    } else {
+      map.set(a.patient_id, {
+        id: a.patient_id,
+        name: p?.name ?? "مجهول",
+        phone: p?.phone ?? null,
+        visits: 1,
+        last: a.slot_time, // first seen = latest visit (ordered desc)
+      });
     }
   }
+  const patients = [...map.values()];
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 animate-fade-in">
       <div>
-        <h2 className="text-xl font-bold" style={{ color: "hsl(var(--foreground))" }}>مرضاي</h2>
-        <p className="text-sm mt-0.5" style={{ color: "hsl(var(--muted-foreground))" }}>
-          {patients.length} مريض في سجلاتك
-        </p>
+        <h2 className="text-xl font-bold text-white">مرضاي</h2>
+        <p className="text-sm mt-0.5" style={{ color: "rgba(148,163,184,0.6)" }}>{patients.length} مريض في سجلاتك</p>
       </div>
-
-      <div
-        className="rounded-2xl overflow-hidden"
-        style={{ border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
-      >
-        {patients.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-3">
-            <UserCircle className="w-10 h-10" style={{ color: "hsl(var(--muted-foreground))" }} />
-            <p className="text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>لا يوجد مرضى حتى الآن</p>
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ background: "hsl(var(--muted) / 0.4)", borderBottom: "1px solid hsl(var(--border))" }}>
-                {["المريض", "رقم الجوال", "آخر زيارة"].map((h) => (
-                  <th key={h} className="text-right py-3 px-5 text-[12px] font-semibold" style={{ color: "hsl(var(--muted-foreground))" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {patients.map((p, i) => (
-                <tr key={p.id} style={{ borderBottom: i < patients.length - 1 ? "1px solid hsl(var(--border))" : undefined }}>
-                  <td className="py-3.5 px-5 font-semibold" style={{ color: "hsl(var(--foreground))" }}>{p.name}</td>
-                  <td className="py-3.5 px-5 ltr-nums" style={{ color: "hsl(var(--muted-foreground))" }}>{p.phone ?? "—"}</td>
-                  <td className="py-3.5 px-5 ltr-nums" style={{ color: "hsl(var(--muted-foreground))" }}>{formatDate(p.last_visit)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <PatientSearch patients={patients} />
     </div>
   );
 }

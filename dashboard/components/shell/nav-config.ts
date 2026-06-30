@@ -37,8 +37,9 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "الإعدادات",   href: "/clinic-admin/settings",      icon: Settings },
   ],
   doctor: [
-    { label: "جدولي اليوم", href: "/doctor",          icon: Stethoscope, exact: true },
-    { label: "مرضاي",       href: "/doctor/patients",  icon: UserCircle },
+    { label: "جدولي اليوم", href: "/doctor",              icon: Stethoscope, exact: true },
+    { label: "مواعيدي",     href: "/doctor/appointments",  icon: Calendar },
+    { label: "مرضاي",       href: "/doctor/patients",      icon: UserCircle },
   ],
   receptionist: [
     { label: "لوحة الاستقبال", href: "/reception",       icon: ClipboardList, exact: true },
