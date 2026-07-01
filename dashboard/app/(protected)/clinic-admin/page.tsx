@@ -9,6 +9,7 @@ import { WeekBars }                  from "@/components/dashboard/week-bars";
 import { StatusRing }                from "@/components/dashboard/status-ring";
 import { SparkLine }                 from "@/components/dashboard/spark-line";
 import { KpiGrid }                   from "@/components/dashboard/kpi-grid";
+import { SuraRecoveryPanel }         from "@/components/dashboard/sura-recovery";
 
 export const metadata = { title: "لوحة التحكم — طود" };
 
@@ -28,7 +29,7 @@ export default async function ClinicAdminPage() {
     todayRevenueRes, pendingInvoicesRes, hitlRes,
     staffRes, weekApptRes,
     campaignsRes, loyaltyRes, templatesRes,
-    yesterdayRevenueRes,
+    yesterdayRevenueRes, recoveryRes, waitlistRes,
   ] = await Promise.all([
     sb.from("appointments")
       .select("id, slot_time, status, patients!patient_id(name), services!service_id(name, name_ar), tawd_staff_users!doctor_id(id, name, name_ar)")
@@ -77,6 +78,15 @@ export default async function ClinicAdminPage() {
       .eq("clinic_id", claims.clinic_id).eq("status", "paid")
       .gte("created_at", new Date(Date.now() - 86_400_000).toISOString().split("T")[0] + "T00:00:00")
       .lte("created_at", new Date(Date.now() - 86_400_000).toISOString().split("T")[0] + "T23:59:59"),
+
+    sb.from("automation_recovery_ledger").select("amount")
+      .eq("clinic_id", claims.clinic_id)
+      .gte("occurred_at", `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01T00:00:00`),
+
+    sb.from("appointment_waitlist")
+      .select("id, created_at, patients!patient_id(name), services!service_id(name_ar)")
+      .eq("clinic_id", claims.clinic_id).eq("status", "waiting")
+      .order("priority", { ascending: false }).limit(6),
   ]);
 
   const appts           = apptRes.data       ?? [];
@@ -93,6 +103,18 @@ export default async function ClinicAdminPage() {
   const campaigns       = (campaignsRes.data ?? []) as import("@/components/dashboard/loyalty-center").Campaign[];
   const loyaltySettings = loyaltyRes.data    ?? null;
   const templates       = (templatesRes.data ?? []) as import("@/components/dashboard/loyalty-center").NotifTemplate[];
+
+  const recovery        = recoveryRes.data ?? [];
+  const recoveredTotal  = recovery.reduce((s, r) => s + Number((r as { amount?: number }).amount ?? 0), 0);
+  const recoveredCount  = recovery.length;
+  const relTime = (iso: string) => {
+    const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000);
+    return h < 1 ? "الآن" : h < 24 ? `منذ ${h} ساعة` : `منذ ${Math.floor(h / 24)} يوم`;
+  };
+  const waitlist = (waitlistRes.data ?? []).map((w) => {
+    const ww = w as { id: string; created_at: string; patients?: { name?: string }; services?: { name_ar?: string } };
+    return { id: ww.id, name: ww.patients?.name ?? "مريض", service: ww.services?.name_ar ?? null, waitingFor: relTime(ww.created_at) };
+  });
 
   const completed  = appts.filter((a) => a.status === "completed").length;
   const inProgress = appts.filter((a) => ["checked_in", "in_progress"].includes(a.status)).length;
@@ -378,6 +400,11 @@ export default async function ClinicAdminPage() {
           iconName: "Bot",
         },
       ]} />
+
+      {/* ══════════════════════════════════
+          SURA RECOVERY (ROI) + WAITLIST
+      ══════════════════════════════════ */}
+      <SuraRecoveryPanel recovered={recoveredTotal} count={recoveredCount} waitlist={waitlist} />
 
       {/* ══════════════════════════════════
           TIMELINE + LOYALTY
