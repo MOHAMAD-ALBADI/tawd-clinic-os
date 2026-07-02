@@ -13,6 +13,7 @@ import {
   Megaphone,
   Star,
   Scissors,
+  Bot,
   type LucideIcon,
 } from "lucide-react";
 
@@ -33,6 +34,7 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "الخدمات",      href: "/clinic-admin/services",      icon: Scissors },
     { label: "الكادر الطبي", href: "/clinic-admin/staff",         icon: Users },
     { label: "التسويق",      href: "/clinic-admin/marketing",     icon: Megaphone },
+    { label: "تحليلات سُرى",  href: "/clinic-admin/sura-analytics", icon: Bot },
     { label: "التقارير",     href: "/clinic-admin/reports",       icon: BarChart3 },
     { label: "الإعدادات",   href: "/clinic-admin/settings",      icon: Settings },
   ],
