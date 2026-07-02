@@ -10,6 +10,7 @@ import { StatusRing }                from "@/components/dashboard/status-ring";
 import { SparkLine }                 from "@/components/dashboard/spark-line";
 import { KpiGrid }                   from "@/components/dashboard/kpi-grid";
 import { SuraRecoveryPanel }         from "@/components/dashboard/sura-recovery";
+import { EmergencyAlerts }           from "@/components/dashboard/emergency-alerts";
 
 export const metadata = { title: "لوحة التحكم — طود" };
 
@@ -29,7 +30,7 @@ export default async function ClinicAdminPage() {
     todayRevenueRes, pendingInvoicesRes, hitlRes,
     staffRes, weekApptRes,
     campaignsRes, loyaltyRes, templatesRes,
-    yesterdayRevenueRes, recoveryRes, waitlistRes,
+    yesterdayRevenueRes, recoveryRes, waitlistRes, alertsRes,
   ] = await Promise.all([
     sb.from("appointments")
       .select("id, slot_time, status, patients!patient_id(name), services!service_id(name, name_ar), tawd_staff_users!doctor_id(id, name, name_ar)")
@@ -87,6 +88,11 @@ export default async function ClinicAdminPage() {
       .select("id, created_at, patients!patient_id(name), services!service_id(name_ar)")
       .eq("clinic_id", claims.clinic_id).eq("status", "waiting")
       .order("priority", { ascending: false }).limit(6),
+
+    sb.from("sura_alerts")
+      .select("id, phone, patient_name, message, created_at")
+      .eq("clinic_id", claims.clinic_id).eq("kind", "emergency").eq("status", "open")
+      .order("created_at", { ascending: false }).limit(10),
   ]);
 
   const appts           = apptRes.data       ?? [];
@@ -114,6 +120,11 @@ export default async function ClinicAdminPage() {
   const waitlist = (waitlistRes.data ?? []).map((w) => {
     const ww = w as { id: string; created_at: string; patients?: { name?: string }; services?: { name_ar?: string } };
     return { id: ww.id, name: ww.patients?.name ?? "مريض", service: ww.services?.name_ar ?? null, waitingFor: relTime(ww.created_at) };
+  });
+
+  const emergencyAlerts = (alertsRes.data ?? []).map((a) => {
+    const aa = a as { id: string; phone?: string; patient_name?: string; message?: string; created_at: string };
+    return { id: aa.id, phone: aa.phone ?? null, patientName: aa.patient_name ?? null, message: aa.message ?? null, ago: relTime(aa.created_at) };
   });
 
   const completed  = appts.filter((a) => a.status === "completed").length;
@@ -159,6 +170,11 @@ export default async function ClinicAdminPage() {
 
   return (
     <div className="space-y-4 pb-28 animate-fade-in">
+
+      {/* ══════════════════════════════════
+          EMERGENCY ALERTS (safety-critical, top)
+      ══════════════════════════════════ */}
+      <EmergencyAlerts alerts={emergencyAlerts} />
 
       {/* ══════════════════════════════════
           HERO ROW
