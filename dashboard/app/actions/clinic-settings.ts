@@ -51,3 +51,23 @@ export async function updateWorkingHours(hours: Record<string, { open: string; c
   if (error) throw new Error(error.message);
   revalidatePath("/clinic-admin/settings");
 }
+
+/** Set the clinic's Google review link (used by Sura's post-visit follow-up message). */
+export async function updateReviewLink(url: string) {
+  const claims = await getUserClaims();
+  if (!claims || claims.role !== "clinic_admin") throw new Error("غير مصرح");
+
+  const clean = url.trim();
+  if (clean && !/^https?:\/\//i.test(clean)) throw new Error("الرابط يجب أن يبدأ بـ https://");
+
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase
+    .from("tawd_clinic_settings")
+    .upsert(
+      { clinic_id: claims.clinic_id, google_review_url: clean || null },
+      { onConflict: "clinic_id" }
+    );
+
+  if (error) throw new Error(error.message);
+  revalidatePath("/clinic-admin/settings");
+}

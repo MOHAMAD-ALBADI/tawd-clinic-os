@@ -3,6 +3,7 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { ClinicInfoForm } from "@/components/settings/clinic-info-form";
 import { WorkingHoursForm } from "@/components/settings/working-hours-form";
+import { ReviewLinkForm } from "@/components/settings/review-link-form";
 import { Shield, CreditCard, Users, Activity } from "lucide-react";
 
 export const metadata = { title: "الإعدادات — طود" };
@@ -32,7 +33,7 @@ export default async function SettingsPage() {
         .single(),
       supabase
         .from("tawd_clinic_settings")
-        .select("working_hours, mfa_enforced, channel_toggles")
+        .select("working_hours, mfa_enforced, channel_toggles, google_review_url")
         .eq("clinic_id", claims.clinic_id)
         .single(),
       supabase
@@ -129,6 +130,9 @@ export default async function SettingsPage() {
 
       {/* Working hours — editable */}
       <WorkingHoursForm hours={workingHours} />
+
+      {/* Google review link — editable (used by Sura post-visit follow-up) */}
+      <ReviewLinkForm currentUrl={(settings?.google_review_url as string | null) ?? null} />
 
       {/* Security info */}
       <div
