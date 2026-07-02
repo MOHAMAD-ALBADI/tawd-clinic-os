@@ -19,8 +19,14 @@ export default async function SuraAnalyticsPage() {
   if (!claims || claims.role !== "clinic_admin") redirect("/login");
 
   const sb = await createServerSupabaseClient();
-  const { data } = await sb.rpc("sura_analytics");
+  const [{ data }, { data: errData }] = await Promise.all([
+    sb.rpc("sura_analytics"),
+    sb.rpc("sura_recent_errors"),
+  ]);
   const a = (data ?? {}) as Analytics;
+  const health = (errData ?? {}) as { open_count?: number; recent?: { id: string; workflow_name: string; node_name: string; error_message: string; at: string }[] };
+  const errCount = Number(health.open_count ?? 0);
+  const errs = health.recent ?? [];
 
   const conversations = Number(a.conversations ?? 0);
   const messages      = Number(a.total_messages ?? 0);
@@ -156,6 +162,37 @@ export default async function SuraAnalyticsPage() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* System health — Sura error monitoring */}
+      <div className="rounded-3xl" style={{ background: errCount > 0 ? "linear-gradient(145deg, rgba(251,191,36,0.10) 0%, rgba(18,15,10,0.95) 55%)" : "rgba(255,255,255,0.02)", border: `1px solid ${errCount > 0 ? "rgba(251,191,36,0.3)" : "rgba(74,222,128,0.18)"}`, padding: "1.5rem" }}>
+        <div className="flex items-center gap-2.5 mb-3">
+          {errCount > 0
+            ? <AlertTriangle className="w-4 h-4" style={{ color: "#fbbf24" }} />
+            : <TrendingUp className="w-4 h-4" style={{ color: "#4ADE80" }} />}
+          <h2 className="font-bold text-white text-sm">صحة سُرى</h2>
+          <span className="ltr-nums text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: errCount > 0 ? "rgba(251,191,36,0.18)" : "rgba(74,222,128,0.15)", color: errCount > 0 ? "#fcd34d" : "#4ADE80" }}>
+            {errCount > 0 ? `${errCount} خطأ مفتوح` : "سليمة ✓"}
+          </span>
+        </div>
+        {errCount === 0 ? (
+          <p className="text-[13px]" style={{ color: "rgba(148,163,184,0.6)" }}>
+            كل أتمتة سُرى تعمل بسلاسة — لا توجد أخطاء. 🌿 (أي خطأ يُسجَّل هنا فوراً + يوصلك واتساب)
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {errs.map((e) => (
+              <div key={e.id} className="rounded-2xl p-3" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(251,191,36,0.15)" }}>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[12px] font-bold text-white">{e.workflow_name}</span>
+                  {e.node_name && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "rgba(251,191,36,0.14)", color: "#fcd34d" }}>{e.node_name}</span>}
+                  <span className="text-[10px] ltr-nums" style={{ color: "rgba(148,163,184,0.45)" }}>{e.at}</span>
+                </div>
+                <p className="text-[11px] mt-1 leading-relaxed line-clamp-2" style={{ color: "rgba(255,255,255,0.6)" }}>{e.error_message}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
