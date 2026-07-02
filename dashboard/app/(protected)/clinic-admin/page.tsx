@@ -90,8 +90,8 @@ export default async function ClinicAdminPage() {
       .order("priority", { ascending: false }).limit(6),
 
     sb.from("sura_alerts")
-      .select("id, phone, patient_name, message, created_at")
-      .eq("clinic_id", claims.clinic_id).eq("kind", "emergency").eq("status", "open")
+      .select("id, kind, phone, patient_name, message, created_at")
+      .eq("clinic_id", claims.clinic_id).in("kind", ["emergency", "complaint"]).eq("status", "open")
       .order("created_at", { ascending: false }).limit(10),
   ]);
 
@@ -123,8 +123,8 @@ export default async function ClinicAdminPage() {
   });
 
   const emergencyAlerts = (alertsRes.data ?? []).map((a) => {
-    const aa = a as { id: string; phone?: string; patient_name?: string; message?: string; created_at: string };
-    return { id: aa.id, phone: aa.phone ?? null, patientName: aa.patient_name ?? null, message: aa.message ?? null, ago: relTime(aa.created_at) };
+    const aa = a as { id: string; kind?: string; phone?: string; patient_name?: string; message?: string; created_at: string };
+    return { id: aa.id, kind: aa.kind ?? "emergency", phone: aa.phone ?? null, patientName: aa.patient_name ?? null, message: aa.message ?? null, ago: relTime(aa.created_at) };
   });
 
   const completed  = appts.filter((a) => a.status === "completed").length;
