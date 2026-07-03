@@ -155,13 +155,21 @@ export default async function ClinicAdminPage() {
 
   const weekSparkData = weekBars.map((b) => b.total);
 
-  /* status ring — status palette: accent=done, info=active, neutral=waiting, bad=no-show */
+  /* status ring — ONE hue family: teal=alive/done, neutral=waiting, muted red=lost */
   const ringData = [
-    { name: "مكتمل",  value: completed,  color: "#2dd4bf" },
-    { name: "جارٍ",   value: inProgress, color: "#38bdf8" },
-    { name: "انتظار", value: pending,    color: "rgba(255,255,255,0.14)" },
-    { name: "غياب",  value: noShow,     color: "#f43f5e" },
+    { name: "مكتمل",  value: completed,  color: "rgba(45,212,191,0.55)" },
+    { name: "جارٍ",   value: inProgress, color: "#2dd4bf" },
+    { name: "انتظار", value: pending,    color: "rgba(255,255,255,0.16)" },
+    { name: "غياب",  value: noShow,     color: "rgba(244,63,94,0.55)" },
   ];
+
+  /* next upcoming appointment (the "what's next" reading) */
+  const nextAppt = appts.find(
+    (a) => ["scheduled", "confirmed"].includes(a.status) && new Date(a.slot_time) > now
+  );
+  const nextApptTime = nextAppt
+    ? new Date(nextAppt.slot_time).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })
+    : null;
 
   const h        = now.getHours();
   const greeting = h < 12 ? "صباح الخير" : h < 18 ? "مساء الخير" : "مساء النور";
@@ -199,8 +207,8 @@ export default async function ClinicAdminPage() {
             </div>
           </div>
 
-          {/* The reading: today's revenue */}
-          <div className="relative mt-auto pt-6">
+          {/* The reading: today's revenue — centered, always legible */}
+          <div className="relative flex-1 flex flex-col justify-center py-5">
             <div className="flex items-center gap-3 mb-2">
               <p className="eyebrow" style={{ color: "var(--accent-2)" }}>
                 إيراد اليوم · ر.ع
@@ -218,7 +226,7 @@ export default async function ClinicAdminPage() {
               className="ltr-nums font-bold leading-none"
               style={{
                 fontSize: "clamp(2.6rem, 5.5vw, 4.2rem)",
-                color: todayRevenue > 0 ? "#ffffff" : "rgba(255,255,255,0.3)",
+                color: todayRevenue > 0 ? "#ffffff" : "rgba(255,255,255,0.45)",
                 letterSpacing: "-0.03em",
               }}
             >
@@ -226,10 +234,30 @@ export default async function ClinicAdminPage() {
                 ? todayRevenue.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })
                 : "0.000"}
             </p>
+
+            {/* ops strip — what matters right now */}
+            <div className="flex items-center gap-5 mt-6 flex-wrap">
+              <div className="flex items-baseline gap-2">
+                <span className="eyebrow" style={{ fontSize: 9 }}>الموعد القادم</span>
+                {nextAppt ? (
+                  <span className="text-sm font-semibold text-white">
+                    <span className="ltr-nums">{nextApptTime}</span>
+                    <span style={{ color: "var(--text-3)" }}> · {(nextAppt as any).patients?.name ?? "مريض"}</span>
+                  </span>
+                ) : (
+                  <span className="text-sm font-medium" style={{ color: "var(--text-3)" }}>لا مواعيد قادمة اليوم</span>
+                )}
+              </div>
+              <span className="w-px h-4" style={{ background: "rgba(255,255,255,0.1)" }} />
+              <div className="flex items-baseline gap-2">
+                <span className="eyebrow" style={{ fontSize: 9 }}>معدل الإتمام</span>
+                <span className="text-sm font-bold ltr-nums text-white">{completionRate}%</span>
+              </div>
+            </div>
           </div>
 
           {/* day progress + week sparkline row */}
-          <div className="relative mt-6 grid grid-cols-2 gap-4 items-end">
+          <div className="relative grid grid-cols-2 gap-4 items-end">
             <div>
               <div className="flex items-center justify-between text-[10px] mb-1.5" style={{ color: "var(--text-4)" }}>
                 <span>يوم العمل</span>
@@ -264,10 +292,10 @@ export default async function ClinicAdminPage() {
             <div className="relative flex-1 space-y-2">
               <p className="eyebrow">مواعيد اليوم</p>
               {[
-                { label: "مكتمل",  v: completed,  c: "#2dd4bf" },
-                { label: "جارٍ",   v: inProgress, c: "#38bdf8" },
+                { label: "مكتمل",  v: completed,  c: "rgba(45,212,191,0.55)" },
+                { label: "جارٍ",   v: inProgress, c: "#2dd4bf" },
                 { label: "انتظار", v: pending,    c: "rgba(255,255,255,0.3)" },
-                { label: "غياب",  v: noShow,     c: "#f43f5e" },
+                { label: "غياب",  v: noShow,     c: "rgba(244,63,94,0.6)" },
               ].map((s) => (
                 <div key={s.label} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -283,7 +311,7 @@ export default async function ClinicAdminPage() {
                 <div className="pt-1.5 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
                   <div className="flex items-center justify-between">
                     <span className="text-[10px]" style={{ color: "var(--text-4)" }}>معدل الإتمام</span>
-                    <span className="text-[11px] font-bold ltr-nums" style={{ color: completionRate >= 70 ? "#34d399" : "var(--text-1)" }}>
+                    <span className="text-[11px] font-bold ltr-nums" style={{ color: completionRate >= 70 ? "#5dd9cb" : "var(--text-1)" }}>
                       {completionRate}%
                     </span>
                   </div>
@@ -309,7 +337,7 @@ export default async function ClinicAdminPage() {
                     color: "var(--text-2)",
                   }}
                 >
-                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#34d399" }} />
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "var(--accent-1)" }} />
                   {d.name_ar ?? d.name}
                 </div>
               ))}
@@ -327,7 +355,7 @@ export default async function ClinicAdminPage() {
           label: "مواعيد اليوم",
           value: appts.length,
           sub: `${pending} انتظار · ${inProgress} جارٍ`,
-          color: "#2dd4bf",
+          color: "var(--text-2)",
           glow: "", border: "",
           spark: weekSparkData,
           iconName: "Calendar",
@@ -336,7 +364,7 @@ export default async function ClinicAdminPage() {
           label: "مرضى جدد",
           value: newToday,
           sub: "تسجيل جديد اليوم",
-          color: "#38bdf8",
+          color: "var(--text-2)",
           glow: "", border: "",
           spark: [0, 1, 0, 2, 1, 3, newToday],
           iconName: "UserPlus",
@@ -347,7 +375,7 @@ export default async function ClinicAdminPage() {
             ? pendingTotal.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })
             : "0.000",
           sub: "ريال عُماني غير مدفوع",
-          color: "#fbbf24",
+          color: pendingTotal > 0 ? "#fbbf24" : "var(--text-2)",
           glow: "", border: "",
           spark: [3, 2, 4, 2, 3, 5, pendingTotal > 0 ? 1 : 0],
           iconName: "Banknote",
@@ -356,7 +384,7 @@ export default async function ClinicAdminPage() {
           label: "طابور سُرى",
           value: hitlCount,
           sub: hitlCount > 0 ? "تحتاج مراجعة فورية" : "الطابور فارغ ✓",
-          color: hitlCount > 0 ? "#2dd4bf" : "#34d399",
+          color: hitlCount > 0 ? "#2dd4bf" : "var(--text-2)",
           glow: "", border: "",
           spark: [0, 1, 0, 0, 1, 2, hitlCount],
           iconName: "Bot",

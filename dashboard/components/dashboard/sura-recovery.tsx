@@ -38,8 +38,8 @@ export function SuraRecoveryPanel({
         style={{ padding: "1.6rem 1.9rem", minHeight: 220 }}
       >
         <div className="relative flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.22)" }}>
-            <Sparkles className="w-4 h-4" style={{ color: "#34d399" }} />
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: "rgba(45,212,191,0.1)", border: "1px solid rgba(45,212,191,0.22)" }}>
+            <Sparkles className="w-4 h-4" style={{ color: "#2dd4bf" }} />
           </div>
           <div>
             <p className="text-[11px] font-bold tracking-wide" style={{ color: "var(--text-1)" }}>استردّت لك سُرى هذا الشهر</p>

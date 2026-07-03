@@ -38,8 +38,8 @@ type Tab = "loyalty" | "campaigns" | "templates";
 const CAMPAIGN_STATUS: Record<string, { label: string; color: string }> = {
   draft:     { label: "مسودة",    color: "#71717a" },
   scheduled: { label: "مجدول",    color: "#a1a1aa" },
-  running:   { label: "يُرسَل",   color: "#7dd3fc" },
-  completed: { label: "مكتمل",    color: "#6ee7b7" },
+  running:   { label: "يُرسَل",   color: "#2dd4bf" },
+  completed: { label: "مكتمل",    color: "#5dd9cb" },
   cancelled: { label: "ملغي",     color: "#fda4b4" },
 };
 
@@ -164,12 +164,12 @@ export function LoyaltyCenter({
                   className="text-[10px] px-2 py-0.5 rounded-full font-bold"
                   style={{
                     background: form.is_active
-                      ? "rgba(74,222,128,0.08)"
+                      ? "rgba(45,212,191,0.08)"
                       : "rgba(107,114,128,0.08)",
-                    color: form.is_active ? "#4ADE80" : "#6B7280",
+                    color: form.is_active ? "#5dd9cb" : "#6B7280",
                     border: `1px solid ${
                       form.is_active
-                        ? "rgba(74,222,128,0.18)"
+                        ? "rgba(45,212,191,0.18)"
                         : "rgba(107,114,128,0.18)"
                     }`,
                   }}
@@ -226,12 +226,12 @@ export function LoyaltyCenter({
                   className="text-[11px] font-semibold px-3 py-1.5 rounded-lg w-full"
                   style={{
                     background: form.is_active
-                      ? "rgba(74,222,128,0.06)"
+                      ? "rgba(45,212,191,0.06)"
                       : "rgba(107,114,128,0.06)",
-                    color: form.is_active ? "#4ADE80" : "#6B7280",
+                    color: form.is_active ? "#5dd9cb" : "#6B7280",
                     border: `1px solid ${
                       form.is_active
-                        ? "rgba(74,222,128,0.15)"
+                        ? "rgba(45,212,191,0.15)"
                         : "rgba(107,114,128,0.15)"
                     }`,
                   }}
@@ -412,7 +412,7 @@ export function LoyaltyCenter({
                 >
                   <div
                     className="w-1.5 h-1.5 rounded-full shrink-0"
-                    style={{ background: t.is_active ? "#4ADE80" : "var(--text-4)" }}
+                    style={{ background: t.is_active ? "#5dd9cb" : "var(--text-4)" }}
                   />
                   <p
                     className="text-xs font-semibold text-white flex-1 truncate"

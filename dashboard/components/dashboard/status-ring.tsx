@@ -11,17 +11,26 @@ export function StatusRing({ data, total }: { data: StatusSlice[]; total: number
     : data.filter((d) => d.value > 0);
 
   return (
-    <div className="relative flex items-center justify-center" style={{ height: 160 }}>
-      <ResponsiveContainer width={160} height={160}>
+    <div className="relative flex items-center justify-center" style={{ height: 150 }}>
+      {/* quiet track behind the data band */}
+      <div
+        className="absolute rounded-full pointer-events-none"
+        style={{
+          width: 128, height: 128,
+          border: "1px solid rgba(255,255,255,0.05)",
+        }}
+      />
+      <ResponsiveContainer width={150} height={150}>
         <PieChart>
           <Pie
             data={chartData}
             cx="50%" cy="50%"
-            innerRadius={52} outerRadius={72}
+            innerRadius={57} outerRadius={68}
             paddingAngle={isEmpty ? 0 : 3}
             dataKey="value"
             stroke="#0a0a0b"
             strokeWidth={2}
+            cornerRadius={6}
             startAngle={90} endAngle={-270}
           >
             {chartData.map((entry, i) => (
@@ -35,7 +44,7 @@ export function StatusRing({ data, total }: { data: StatusSlice[]; total: number
         <p
           className="font-bold ltr-nums leading-none"
           style={{
-            fontSize: "2.1rem",
+            fontSize: "1.9rem",
             color: isEmpty ? "rgba(255,255,255,0.14)" : "#ffffff",
           }}
         >

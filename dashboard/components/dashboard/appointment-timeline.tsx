@@ -16,16 +16,17 @@ type Appt = {
 
 type Doctor = { id: string; name: string; name_ar: string | null };
 
-/* Status = meaning. Neutral for waiting, accent for arrived,
-   info for active, green for done, amber late, red no-show. */
+/* Status = meaning, ONE hue family: neutral greys for waiting,
+   teal steps for the live path (arrived → active → done),
+   amber late / muted red no-show as the only true alarms. */
 const STATUS_MAP: Record<string, { label: string; color: string; bar: string; bg: string }> = {
   scheduled:   { label: "مجدول",  color: "#a1a1aa", bar: "rgba(255,255,255,0.25)", bg: "rgba(255,255,255,0.03)" },
   confirmed:   { label: "مؤكد",   color: "#e4e4e7", bar: "rgba(255,255,255,0.45)", bg: "rgba(255,255,255,0.04)" },
-  checked_in:  { label: "حضر",    color: "#5dd9cb", bar: "#14b8a6", bg: "rgba(20,184,166,0.06)" },
-  in_progress: { label: "جارٍ",   color: "#7dd3fc", bar: "#38bdf8", bg: "rgba(56,189,248,0.06)" },
-  completed:   { label: "مكتمل",  color: "#6ee7b7", bar: "#34d399", bg: "rgba(52,211,153,0.05)" },
+  checked_in:  { label: "حضر",    color: "#5dd9cb", bar: "rgba(45,212,191,0.55)", bg: "rgba(45,212,191,0.05)" },
+  in_progress: { label: "جارٍ",   color: "#2dd4bf", bar: "#2dd4bf", bg: "rgba(45,212,191,0.07)" },
+  completed:   { label: "مكتمل",  color: "#5dd9cb", bar: "rgba(45,212,191,0.35)", bg: "rgba(45,212,191,0.04)" },
   cancelled:   { label: "ملغي",   color: "#71717a", bar: "rgba(255,255,255,0.12)", bg: "rgba(255,255,255,0.015)" },
-  no_show:     { label: "غياب",   color: "#fda4b4", bar: "#f43f5e", bg: "rgba(244,63,94,0.05)" },
+  no_show:     { label: "غياب",   color: "#fda4b4", bar: "rgba(244,63,94,0.55)", bg: "rgba(244,63,94,0.04)" },
 };
 
 const LATE = { label: "تأخّر", color: "#fcd34d", bar: "#fbbf24", bg: "rgba(251,191,36,0.06)" };
@@ -43,11 +44,11 @@ const NEXT_ACTIONS: Record<string, Array<{ label: string; status: string; color:
     { label: "غياب",        status: "no_show",     color: "#fda4b4" },
   ],
   checked_in: [
-    { label: "ابدأ الجلسة", status: "in_progress", color: "#7dd3fc" },
+    { label: "ابدأ الجلسة", status: "in_progress", color: "#2dd4bf" },
     { label: "إلغاء",       status: "cancelled",   color: "#71717a" },
   ],
   in_progress: [
-    { label: "اكتمل",       status: "completed",   color: "#6ee7b7" },
+    { label: "اكتمل",       status: "completed",   color: "#5dd9cb" },
   ],
 };
 
@@ -105,8 +106,8 @@ export function AppointmentTimeline({
       <div className="flex flex-wrap gap-1.5">
         {[
           { label: "انتظار", value: pending,    color: "#a1a1aa" },
-          { label: "جارٍ",   value: inProgress, color: "#7dd3fc" },
-          { label: "مكتمل",  value: completed,  color: "#6ee7b7" },
+          { label: "جارٍ",   value: inProgress, color: "#2dd4bf" },
+          { label: "مكتمل",  value: completed,  color: "#5dd9cb" },
           ...(lateCount > 0
             ? [{ label: "تأخّر", value: lateCount, color: "#fcd34d" }]
             : []),
