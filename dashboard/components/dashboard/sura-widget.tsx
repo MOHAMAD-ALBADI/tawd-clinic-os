@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Bot, X, Inbox, Clock, ChevronLeft, Sparkles } from "lucide-react";
 
@@ -14,6 +14,14 @@ export type HitlItem = {
   patients: unknown;
 };
 
+type ChatMsg = { role: "user" | "sura"; text: string };
+
+const QUICK_QUESTIONS = [
+  "كم إيراد هذا الشهر؟",
+  "كم موعد عندنا بكرة؟",
+  "وش أكثر خدمة مطلوبة؟",
+];
+
 export function SuraWidget({
   hitlItems,
   hitlCount,
@@ -22,6 +30,35 @@ export function SuraWidget({
   hitlCount: number;
 }) {
   const [open, setOpen] = useState(false);
+  const [question, setQuestion] = useState("");
+  const [chat, setChat] = useState<ChatMsg[]>([]);
+  const [loading, setLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [chat, loading]);
+
+  async function ask(q?: string) {
+    const text = (q ?? question).trim();
+    if (!text || loading) return;
+    setQuestion("");
+    setChat((c) => [...c, { role: "user", text }]);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/sura/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: text }),
+      });
+      const j = await res.json();
+      setChat((c) => [...c, { role: "sura", text: j.answer ?? "تعذّر التحليل الآن — حاول مرة أخرى." }]);
+    } catch {
+      setChat((c) => [...c, { role: "sura", text: "تعذّر الاتصال — تأكد من الشبكة وحاول مجدداً." }]);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const panel = open ? (
     <>
@@ -40,7 +77,7 @@ export function SuraWidget({
       <div
         className="fixed top-0 bottom-0 end-0 flex flex-col"
         style={{
-          width: "min(340px, 100vw)",
+          width: "min(360px, 100vw)",
           zIndex: 9999,
           background: "rgba(13,13,15,0.98)",
           borderInlineStart: "1px solid rgba(20,184,166,0.22)",
@@ -60,7 +97,7 @@ export function SuraWidget({
               border: "1px solid rgba(20,184,166,0.28)",
             }}
           >
-            <Bot className="w-4 h-4" style={{ color: "#14b8a6" }} />
+            <Bot className="w-4 h-4" style={{ color: "#2dd4bf" }} />
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-bold text-white text-sm">سُرى</p>
@@ -107,20 +144,20 @@ export function SuraWidget({
             </div>
 
             {hitlItems.length === 0 ? (
-              <div className="flex flex-col items-center py-8 gap-2">
+              <div className="flex flex-col items-center py-6 gap-2">
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center"
                   style={{
-                    background: "rgba(74,222,128,0.06)",
-                    border: "1px solid rgba(74,222,128,0.1)",
+                    background: "rgba(45,212,191,0.06)",
+                    border: "1px solid rgba(45,212,191,0.1)",
                   }}
                 >
                   <Inbox
                     className="w-4 h-4"
-                    style={{ color: "rgba(74,222,128,0.4)" }}
+                    style={{ color: "rgba(45,212,191,0.45)" }}
                   />
                 </div>
-                <p className="text-xs font-semibold" style={{ color: "#4ADE80" }}>
+                <p className="text-xs font-semibold" style={{ color: "#5dd9cb" }}>
                   الطابور فارغ
                 </p>
                 <p
@@ -144,7 +181,7 @@ export function SuraWidget({
                   );
                   const conf = Math.round(Number(item.confidence_score) * 100);
                   const confColor =
-                    conf >= 70 ? "#4ADE80" : conf >= 40 ? "#5dd9cb" : "#F87171";
+                    conf >= 70 ? "#5dd9cb" : conf >= 40 ? "rgba(45,212,191,0.6)" : "#fda4b4";
 
                   return (
                     <div
@@ -166,7 +203,7 @@ export function SuraWidget({
                           />
                           <span
                             className="text-[10px] ltr-nums"
-                            style={{ color: "#134e4a" }}
+                            style={{ color: "var(--text-4)" }}
                           >
                             {ageMin} د
                           </span>
@@ -174,7 +211,7 @@ export function SuraWidget({
                       </div>
 
                       {item.ai_intent && (
-                        <p className="text-[11px] mb-1" style={{ color: "#38bdf8" }}>
+                        <p className="text-[11px] mb-1" style={{ color: "var(--text-2)" }}>
                           {item.ai_intent}
                         </p>
                       )}
@@ -208,16 +245,6 @@ export function SuraWidget({
                             {conf}%
                           </span>
                         </div>
-                        <button
-                          className="text-[11px] font-semibold px-2 py-0.5 rounded-lg"
-                          style={{
-                            background: "rgba(20,184,166,0.1)",
-                            color: "#5dd9cb",
-                            border: "1px solid rgba(20,184,166,0.18)",
-                          }}
-                        >
-                          مراجعة
-                        </button>
                       </div>
                     </div>
                   );
@@ -226,36 +253,114 @@ export function SuraWidget({
             )}
           </div>
 
-          {/* ── quick query ── */}
+          {/* ── Ask Sura — live clinic intelligence ── */}
           <div className="px-4 pb-4 mt-4">
             <div
               className="pt-4 space-y-3"
               style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
             >
               <div className="flex items-center gap-2">
-                <Sparkles className="w-3.5 h-3.5" style={{ color: "#14b8a6" }} />
+                <Sparkles className="w-3.5 h-3.5" style={{ color: "#2dd4bf" }} />
                 <p
                   className="text-[10px] font-bold uppercase tracking-widest"
                   style={{ color: "var(--text-4)" }}
                 >
                   اسأل سُرى
                 </p>
+                <span className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full badge-brand">
+                  <span className="live-dot" style={{ width: 4, height: 4 }} />
+                  مباشر
+                </span>
               </div>
+
+              {/* quick questions (before first message) */}
+              {chat.length === 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_QUESTIONS.map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => ask(q)}
+                      disabled={loading}
+                      className="text-[11px] font-medium px-2.5 py-1.5 rounded-full transition-colors"
+                      style={{
+                        background: "rgba(255,255,255,0.035)",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                        color: "var(--text-2)",
+                      }}
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* conversation */}
+              {chat.length > 0 && (
+                <div className="space-y-2 max-h-72 overflow-y-auto pe-0.5">
+                  {chat.map((m, i) => (
+                    <div
+                      key={i}
+                      className="rounded-xl px-3 py-2 text-[12px] leading-relaxed"
+                      style={
+                        m.role === "user"
+                          ? {
+                              background: "rgba(255,255,255,0.05)",
+                              border: "1px solid rgba(255,255,255,0.08)",
+                              color: "var(--text-1)",
+                              marginInlineStart: "1.5rem",
+                            }
+                          : {
+                              background: "rgba(45,212,191,0.06)",
+                              border: "1px solid rgba(45,212,191,0.14)",
+                              color: "var(--text-1)",
+                              marginInlineEnd: "1.5rem",
+                              whiteSpace: "pre-wrap",
+                            }
+                      }
+                    >
+                      {m.text}
+                    </div>
+                  ))}
+                  {loading && (
+                    <div
+                      className="rounded-xl px-3 py-2 text-[12px] flex items-center gap-1.5"
+                      style={{
+                        background: "rgba(45,212,191,0.06)",
+                        border: "1px solid rgba(45,212,191,0.14)",
+                        color: "var(--text-3)",
+                        marginInlineEnd: "1.5rem",
+                      }}
+                    >
+                      <span className="live-dot" style={{ width: 5, height: 5 }} />
+                      سُرى تحلّل بياناتك…
+                    </div>
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+              )}
 
               <div className="flex gap-2">
                 <input
                   type="text"
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") ask(); }}
+                  disabled={loading}
                   placeholder="مثال: ما إجمالي إيراد الأسبوع؟"
                   className="flex-1 rounded-xl px-3 py-2 text-xs text-white"
                   style={{
                     background: "rgba(255,255,255,0.04)",
                     border: "1px solid rgba(255,255,255,0.08)",
                     outline: "none",
+                    opacity: loading ? 0.6 : 1,
                   }}
                 />
                 <button
-                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                  onClick={() => ask()}
+                  disabled={loading || !question.trim()}
+                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 disabled:opacity-50"
                   style={{ background: "linear-gradient(135deg, #0d9488, #0f766e)" }}
+                  aria-label="إرسال السؤال"
                 >
                   <ChevronLeft className="w-4 h-4 text-white" />
                 </button>
@@ -263,9 +368,9 @@ export function SuraWidget({
 
               <p
                 className="text-[10px] text-center"
-                style={{ color: "#1E3A4C" }}
+                style={{ color: "var(--text-4)" }}
               >
-                التحليل الذكي المباشر — قريباً
+                تحليل مباشر من بيانات عيادتك الحقيقية
               </p>
             </div>
           </div>
