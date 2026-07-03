@@ -87,7 +87,7 @@ export default async function ReportsPage() {
         <div
           className="col-span-12 lg:col-span-8 rounded-3xl relative overflow-hidden"
           style={{
-            background: "linear-gradient(145deg, rgba(20,184,166,0.07) 0%, rgba(10,13,22,0.92) 55%, rgba(10,13,22,0.97) 100%)",
+            background: "linear-gradient(145deg, rgba(20,184,166,0.07) 0%, rgba(13,13,15,0.92) 55%, rgba(13,13,15,0.97) 100%)",
             border: "1px solid rgba(20,184,166,0.12)",
             padding: "2rem 2.25rem 1.75rem",
             boxShadow: "0 24px 64px rgba(0,0,0,0.5), inset 0 1px 0 rgba(94,217,203,0.06)",

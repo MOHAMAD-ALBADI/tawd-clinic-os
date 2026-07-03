@@ -11,6 +11,7 @@ import { SparkLine }                 from "@/components/dashboard/spark-line";
 import { KpiGrid }                   from "@/components/dashboard/kpi-grid";
 import { SuraRecoveryPanel }         from "@/components/dashboard/sura-recovery";
 import { EmergencyAlerts }           from "@/components/dashboard/emergency-alerts";
+import { TawdBarsGlyph }             from "@/components/shell/tawd-logo";
 
 export const metadata = { title: "لوحة التحكم — طود" };
 
@@ -154,12 +155,12 @@ export default async function ClinicAdminPage() {
 
   const weekSparkData = weekBars.map((b) => b.total);
 
-  /* status ring */
+  /* status ring — status palette: accent=done, info=active, neutral=waiting, bad=no-show */
   const ringData = [
-    { name: "مكتمل",  value: completed,  color: "#14b8a6" },
+    { name: "مكتمل",  value: completed,  color: "#2dd4bf" },
     { name: "جارٍ",   value: inProgress, color: "#38bdf8" },
-    { name: "انتظار", value: pending,    color: "rgba(255,255,255,0.08)" },
-    { name: "غياب",  value: noShow,     color: "#EF4444" },
+    { name: "انتظار", value: pending,    color: "rgba(255,255,255,0.14)" },
+    { name: "غياب",  value: noShow,     color: "#f43f5e" },
   ];
 
   const h        = now.getHours();
@@ -171,78 +172,54 @@ export default async function ClinicAdminPage() {
   return (
     <div className="space-y-4 pb-28 animate-fade-in">
 
-      {/* ══════════════════════════════════
-          EMERGENCY ALERTS (safety-critical, top)
-      ══════════════════════════════════ */}
+      {/* ══ EMERGENCY ALERTS (safety-critical, top) ══ */}
       <EmergencyAlerts alerts={emergencyAlerts} />
 
-      {/* ══════════════════════════════════
-          HERO ROW
-      ══════════════════════════════════ */}
+      {/* ══ HERO ROW ══ */}
       <div className="grid grid-cols-12 gap-4">
 
-        {/* Revenue hero — col 7 */}
+        {/* Revenue readout — col 7 */}
         <div
-          className="col-span-12 lg:col-span-7 relative rounded-3xl overflow-hidden flex flex-col justify-between"
-          style={{
-            background: "linear-gradient(145deg, rgba(20,184,166,0.07) 0%, rgba(10,13,22,0.95) 50%, rgba(10,13,22,1) 100%)",
-            border: "1px solid rgba(20,184,166,0.12)",
-            boxShadow: "0 0 0 1px rgba(255,255,255,0.03), 0 32px 64px rgba(0,0,0,0.5)",
-            padding: "1.75rem 2rem",
-            minHeight: 280,
-          }}
+          className="col-span-12 lg:col-span-7 panel-feature relative overflow-hidden flex flex-col justify-between"
+          style={{ padding: "1.75rem 2rem", minHeight: 280 }}
         >
-          {/* ambient orbs */}
-          <div className="absolute pointer-events-none" style={{ width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(20,184,166,0.07) 0%, transparent 60%)", top: -200, insetInlineStart: -80 }} />
-          <div className="absolute pointer-events-none" style={{ width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle, rgba(251,146,60,0.05) 0%, transparent 65%)", bottom: -60, insetInlineEnd: 60 }} />
-
           {/* header */}
           <div className="relative flex items-start justify-between">
             <div>
-              <p className="text-xs font-semibold tracking-wide" style={{ color: "rgba(148,163,184,0.4)" }}>
+              <p className="text-xs font-medium" style={{ color: "var(--text-3)" }}>
                 {greeting} — {todayAr}
               </p>
-              <h1 className="font-black text-white mt-1 leading-tight" style={{ fontSize: "clamp(1.4rem, 2.5vw, 1.9rem)", letterSpacing: "-0.02em" }}>
+              <h1 className="font-bold text-white mt-1 leading-tight" style={{ fontSize: "clamp(1.4rem, 2.5vw, 1.85rem)", letterSpacing: "-0.01em" }}>
                 {clinicName}
               </h1>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.15)" }}>
-                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#22C55E", boxShadow: "0 0 6px #22C55E" }} />
-                <span className="text-[11px] font-semibold" style={{ color: "#22C55E" }}>مباشر</span>
-              </div>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: "rgba(45,212,191,0.08)", border: "1px solid rgba(45,212,191,0.18)" }}>
+              <span className="live-dot" />
+              <span className="text-[11px] font-semibold" style={{ color: "#5dd9cb" }}>مباشر</span>
             </div>
           </div>
 
-          {/* Revenue number */}
+          {/* The reading: today's revenue */}
           <div className="relative mt-auto pt-6">
-            <div className="flex items-center gap-3 mb-1">
-              <p className="text-[10px] font-bold uppercase tracking-[0.25em]" style={{ color: "rgba(20,184,166,0.4)" }}>
+            <div className="flex items-center gap-3 mb-2">
+              <p className="eyebrow" style={{ color: "var(--accent-2)" }}>
                 إيراد اليوم · ر.ع
               </p>
               {revenueChange !== null && (
-                <div
-                  className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ltr-nums"
-                  style={{
-                    background: revenueChange >= 0 ? "rgba(74,222,128,0.1)" : "rgba(239,68,68,0.1)",
-                    color: revenueChange >= 0 ? "#4ADE80" : "#F87171",
-                    border: `1px solid ${revenueChange >= 0 ? "rgba(74,222,128,0.2)" : "rgba(239,68,68,0.2)"}`,
-                  }}
-                >
+                <span className={`badge ltr-nums ${revenueChange >= 0 ? "badge-ok" : "badge-bad"}`} style={{ padding: "0.125rem 0.5rem", fontSize: 10 }}>
                   {revenueChange >= 0
                     ? <ArrowUpRight className="w-2.5 h-2.5" />
                     : <ArrowDownRight className="w-2.5 h-2.5" />}
                   {Math.abs(revenueChange)}%
-                </div>
+                </span>
               )}
             </div>
             <p
-              className="font-black ltr-nums leading-none"
+              className="ltr-nums font-bold leading-none"
               style={{
-                fontSize: "clamp(2.8rem, 6vw, 4.5rem)",
-                color: todayRevenue > 0 ? "#14b8a6" : "rgba(20,184,166,0.12)",
-                textShadow: todayRevenue > 0 ? "0 0 60px rgba(20,184,166,0.4), 0 0 120px rgba(20,184,166,0.12)" : "none",
-                letterSpacing: "-0.04em",
+                fontSize: "clamp(2.6rem, 5.5vw, 4.2rem)",
+                color: todayRevenue > 0 ? "#ffffff" : "rgba(255,255,255,0.3)",
+                letterSpacing: "-0.03em",
               }}
             >
               {todayRevenue > 0
@@ -252,29 +229,26 @@ export default async function ClinicAdminPage() {
           </div>
 
           {/* day progress + week sparkline row */}
-          <div className="relative mt-5 grid grid-cols-2 gap-4 items-end">
+          <div className="relative mt-6 grid grid-cols-2 gap-4 items-end">
             <div>
-              <div className="flex items-center justify-between text-[10px] mb-1.5" style={{ color: "rgba(148,163,184,0.3)" }}>
+              <div className="flex items-center justify-between text-[10px] mb-1.5" style={{ color: "var(--text-4)" }}>
                 <span>يوم العمل</span>
-                <span className="font-bold ltr-nums" style={{ color: "rgba(20,184,166,0.7)" }}>{dayPct}%</span>
+                <span className="font-bold ltr-nums" style={{ color: "var(--text-2)" }}>{dayPct}%</span>
               </div>
-              <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+              <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
                 <div
                   className="h-full rounded-full"
                   style={{
                     width: `${dayPct}%`,
-                    background: "linear-gradient(90deg, #0f766e, #14b8a6, #5dd9cb)",
-                    boxShadow: "0 0 12px rgba(20,184,166,0.7)",
+                    background: "linear-gradient(90deg, rgba(255,255,255,0.25), var(--accent-1))",
                     transition: "width 0.8s ease",
                   }}
                 />
               </div>
             </div>
             <div className="flex flex-col items-end gap-1">
-              <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "rgba(148,163,184,0.25)" }}>
-                7 أيام
-              </p>
-              <SparkLine data={weekSparkData} color="#14b8a6" width={100} height={40} />
+              <p className="eyebrow" style={{ fontSize: 9 }}>7 أيام</p>
+              <SparkLine data={weekSparkData} color="rgba(255,255,255,0.45)" width={100} height={36} />
             </div>
           </div>
         </div>
@@ -283,44 +257,33 @@ export default async function ClinicAdminPage() {
         <div className="col-span-12 lg:col-span-5 grid grid-rows-2 gap-4">
 
           {/* Status ring card */}
-          <div
-            className="relative rounded-3xl overflow-hidden flex items-center gap-5"
-            style={{
-              background: "rgba(255,255,255,0.02)",
-              border: "1px solid rgba(255,255,255,0.07)",
-              boxShadow: "0 0 0 1px rgba(255,255,255,0.02)",
-              padding: "1.25rem 1.5rem",
-            }}
-          >
-            <div className="absolute pointer-events-none inset-0" style={{ background: "radial-gradient(ellipse at 30% 50%, rgba(20,184,166,0.04) 0%, transparent 65%)" }} />
+          <div className="panel relative overflow-hidden flex items-center gap-5" style={{ padding: "1.25rem 1.5rem" }}>
             <div className="relative shrink-0">
               <StatusRing data={ringData} total={appts.length} />
             </div>
             <div className="relative flex-1 space-y-2">
-              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(148,163,184,0.3)" }}>
-                مواعيد اليوم
-              </p>
+              <p className="eyebrow">مواعيد اليوم</p>
               {[
-                { label: "مكتمل",  v: completed,  c: "#14b8a6" },
+                { label: "مكتمل",  v: completed,  c: "#2dd4bf" },
                 { label: "جارٍ",   v: inProgress, c: "#38bdf8" },
-                { label: "انتظار", v: pending,    c: "rgba(148,163,184,0.4)" },
-                { label: "غياب",  v: noShow,     c: "#EF4444" },
+                { label: "انتظار", v: pending,    c: "rgba(255,255,255,0.3)" },
+                { label: "غياب",  v: noShow,     c: "#f43f5e" },
               ].map((s) => (
                 <div key={s.label} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full" style={{ background: s.c }} />
-                    <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.45)" }}>{s.label}</span>
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: s.c }} />
+                    <span className="text-[11px]" style={{ color: "var(--text-3)" }}>{s.label}</span>
                   </div>
-                  <span className="text-sm font-black ltr-nums" style={{ color: s.v > 0 ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.12)" }}>
+                  <span className="text-sm font-bold ltr-nums" style={{ color: s.v > 0 ? "#ffffff" : "rgba(255,255,255,0.15)" }}>
                     {s.v}
                   </span>
                 </div>
               ))}
               {appts.length > 0 && (
-                <div className="pt-1 border-t" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                <div className="pt-1.5 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px]" style={{ color: "rgba(148,163,184,0.3)" }}>معدل الإتمام</span>
-                    <span className="text-[11px] font-black ltr-nums" style={{ color: completionRate >= 70 ? "#4ADE80" : "#14b8a6" }}>
+                    <span className="text-[10px]" style={{ color: "var(--text-4)" }}>معدل الإتمام</span>
+                    <span className="text-[11px] font-bold ltr-nums" style={{ color: completionRate >= 70 ? "#34d399" : "var(--text-1)" }}>
                       {completionRate}%
                     </span>
                   </div>
@@ -330,56 +293,42 @@ export default async function ClinicAdminPage() {
           </div>
 
           {/* Doctors card */}
-          <div
-            className="relative rounded-3xl overflow-hidden"
-            style={{
-              background: "rgba(255,255,255,0.02)",
-              border: "1px solid rgba(255,255,255,0.07)",
-              padding: "1.25rem 1.5rem",
-            }}
-          >
+          <div className="panel relative overflow-hidden" style={{ padding: "1.25rem 1.5rem" }}>
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(148,163,184,0.3)" }}>
-                الكادر الطبي النشط
-              </p>
-              <span className="font-black ltr-nums text-xl" style={{ color: "#14b8a6", textShadow: "0 0 20px rgba(20,184,166,0.4)" }}>
-                {doctors.length}
-              </span>
+              <p className="eyebrow">الكادر الطبي النشط</p>
+              <span className="font-bold ltr-nums text-xl text-white">{doctors.length}</span>
             </div>
             <div className="flex flex-wrap gap-2">
               {doctors.slice(0, 4).map((d) => (
                 <div
                   key={d.id}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-semibold transition-all"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-semibold"
                   style={{
                     background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.07)",
-                    color: "rgba(255,255,255,0.7)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    color: "var(--text-2)",
                   }}
                 >
-                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#4ADE80", boxShadow: "0 0 5px rgba(74,222,128,0.8)" }} />
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "#34d399" }} />
                   {d.name_ar ?? d.name}
                 </div>
               ))}
               {doctors.length === 0 && (
-                <p className="text-xs" style={{ color: "rgba(148,163,184,0.2)" }}>لا يوجد أطباء نشطون</p>
+                <p className="text-xs" style={{ color: "var(--text-4)" }}>لا يوجد أطباء نشطون</p>
               )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* ══════════════════════════════════
-          4 KPI CARDS
-      ══════════════════════════════════ */}
+      {/* ══ 4 KPI CARDS ══ */}
       <KpiGrid items={[
         {
           label: "مواعيد اليوم",
           value: appts.length,
           sub: `${pending} انتظار · ${inProgress} جارٍ`,
-          color: "#14b8a6",
-          glow: "rgba(20,184,166,0.08)",
-          border: "rgba(20,184,166,0.14)",
+          color: "#2dd4bf",
+          glow: "", border: "",
           spark: weekSparkData,
           iconName: "Calendar",
         },
@@ -388,8 +337,7 @@ export default async function ClinicAdminPage() {
           value: newToday,
           sub: "تسجيل جديد اليوم",
           color: "#38bdf8",
-          glow: "rgba(56,189,248,0.07)",
-          border: "rgba(56,189,248,0.14)",
+          glow: "", border: "",
           spark: [0, 1, 0, 2, 1, 3, newToday],
           iconName: "UserPlus",
         },
@@ -400,8 +348,7 @@ export default async function ClinicAdminPage() {
             : "0.000",
           sub: "ريال عُماني غير مدفوع",
           color: "#fbbf24",
-          glow: "rgba(251,191,36,0.06)",
-          border: "rgba(251,191,36,0.14)",
+          glow: "", border: "",
           spark: [3, 2, 4, 2, 3, 5, pendingTotal > 0 ? 1 : 0],
           iconName: "Banknote",
         },
@@ -409,46 +356,34 @@ export default async function ClinicAdminPage() {
           label: "طابور سُرى",
           value: hitlCount,
           sub: hitlCount > 0 ? "تحتاج مراجعة فورية" : "الطابور فارغ ✓",
-          color: hitlCount > 0 ? "#5dd9cb" : "#4ADE80",
-          glow: hitlCount > 0 ? "rgba(94,217,203,0.07)" : "rgba(74,222,128,0.06)",
-          border: hitlCount > 0 ? "rgba(94,217,203,0.16)" : "rgba(74,222,128,0.14)",
+          color: hitlCount > 0 ? "#2dd4bf" : "#34d399",
+          glow: "", border: "",
           spark: [0, 1, 0, 0, 1, 2, hitlCount],
           iconName: "Bot",
         },
       ]} />
 
-      {/* ══════════════════════════════════
-          SURA RECOVERY (ROI) + WAITLIST
-      ══════════════════════════════════ */}
+      {/* ══ SURA RECOVERY (ROI) + WAITLIST ══ */}
       <SuraRecoveryPanel recovered={recoveredTotal} count={recoveredCount} waitlist={waitlist} />
 
-      {/* ══════════════════════════════════
-          TIMELINE + LOYALTY
-      ══════════════════════════════════ */}
+      {/* ══ TIMELINE + LOYALTY ══ */}
       <div className="grid grid-cols-12 gap-4">
 
         {/* Timeline — 7 cols */}
-        <div
-          className="col-span-12 lg:col-span-7 rounded-3xl overflow-hidden"
-          style={{
-            background: "rgba(255,255,255,0.02)",
-            border: "1px solid rgba(255,255,255,0.07)",
-            padding: "1.5rem",
-          }}
-        >
+        <div className="col-span-12 lg:col-span-7 panel overflow-hidden" style={{ padding: "1.5rem" }}>
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2.5">
-              <div className="w-1.5 h-5 rounded-full" style={{ background: "linear-gradient(180deg, #14b8a6, #0d9488)" }} />
-              <h2 className="font-bold text-white">جدول اليوم الحي</h2>
-              <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.15)" }}>
-                <span className="w-1 h-1 rounded-full animate-pulse" style={{ background: "#22C55E" }} />
-                <span className="text-[9px] font-bold" style={{ color: "#22C55E" }}>LIVE</span>
+            <div className="section-title">
+              <TawdBarsGlyph size={13} />
+              <h2>جدول اليوم الحي</h2>
+              <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ background: "rgba(45,212,191,0.08)", border: "1px solid rgba(45,212,191,0.16)" }}>
+                <span className="live-dot" style={{ width: 4, height: 4 }} />
+                <span className="text-[9px] font-bold" style={{ color: "#5dd9cb" }}>LIVE</span>
               </div>
             </div>
             <a
               href="/clinic-admin/appointments"
-              className="flex items-center gap-1 text-[11px] font-semibold"
-              style={{ color: "rgba(20,184,166,0.55)" }}
+              className="flex items-center gap-1 text-[11px] font-semibold transition-colors"
+              style={{ color: "var(--text-3)" }}
             >
               عرض الكل
               <ArrowUpRight className="w-3 h-3" />
@@ -461,24 +396,15 @@ export default async function ClinicAdminPage() {
         <div className="col-span-12 lg:col-span-5 flex flex-col gap-4">
 
           {/* Mini week summary */}
-          <div
-            className="rounded-3xl overflow-hidden"
-            style={{
-              background: "rgba(255,255,255,0.02)",
-              border: "1px solid rgba(255,255,255,0.07)",
-              padding: "1.25rem 1.5rem",
-            }}
-          >
+          <div className="panel overflow-hidden" style={{ padding: "1.25rem 1.5rem" }}>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <Activity className="w-3.5 h-3.5" style={{ color: "rgba(20,184,166,0.5)" }} />
-                <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(148,163,184,0.3)" }}>
-                  توزيع الأسبوع
-                </p>
+                <Activity className="w-3.5 h-3.5" style={{ color: "var(--text-3)" }} />
+                <p className="eyebrow">توزيع الأسبوع</p>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-[10px]" style={{ color: "rgba(148,163,184,0.25)" }}>الإجمالي</span>
-                <span className="font-black ltr-nums" style={{ color: "#14b8a6" }}>
+                <span className="text-[10px]" style={{ color: "var(--text-4)" }}>الإجمالي</span>
+                <span className="font-bold ltr-nums text-white">
                   {weekBars.reduce((s, b) => s + b.total, 0)}
                 </span>
               </div>

@@ -83,7 +83,7 @@ export default function LoginPage() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: "linear-gradient(145deg, rgba(20,184,166,0.1) 0%, rgba(10,13,22,0.8) 100%)",
+                  background: "linear-gradient(145deg, rgba(20,184,166,0.1) 0%, rgba(13,13,15,0.8) 100%)",
                   border: "1px solid rgba(20,184,166,0.22)",
                   backdropFilter: "blur(12px)",
                   boxShadow: [

@@ -20,7 +20,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
       <div
         className="relative rounded-3xl overflow-hidden"
         style={{
-          background: "linear-gradient(145deg, rgba(20,184,166,0.06) 0%, rgba(10,13,22,0.95) 100%)",
+          background: "linear-gradient(145deg, rgba(20,184,166,0.06) 0%, rgba(13,13,15,0.95) 100%)",
           border: "1px solid rgba(20,184,166,0.1)",
           padding: "1.5rem 2rem",
         }}

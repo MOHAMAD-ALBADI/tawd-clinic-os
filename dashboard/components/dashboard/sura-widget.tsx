@@ -42,7 +42,7 @@ export function SuraWidget({
         style={{
           width: "min(340px, 100vw)",
           zIndex: 9999,
-          background: "rgba(4,6,15,0.98)",
+          background: "rgba(13,13,15,0.98)",
           borderInlineStart: "1px solid rgba(20,184,166,0.22)",
           boxShadow: "-24px 0 80px rgba(0,0,0,0.6)",
         }}
@@ -64,7 +64,7 @@ export function SuraWidget({
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-bold text-white text-sm">سُرى</p>
-            <p className="text-[11px]" style={{ color: "#334155" }}>
+            <p className="text-[11px]" style={{ color: "var(--text-4)" }}>
               المساعد الذكي للعيادة
             </p>
           </div>
@@ -73,7 +73,7 @@ export function SuraWidget({
             className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
             style={{
               background: "rgba(255,255,255,0.05)",
-              color: "#475569",
+              color: "var(--text-3)",
             }}
           >
             <X className="w-4 h-4" />
@@ -88,7 +88,7 @@ export function SuraWidget({
               <Inbox className="w-3.5 h-3.5" style={{ color: "#5dd9cb" }} />
               <p
                 className="text-[10px] font-bold uppercase tracking-widest"
-                style={{ color: "#334155" }}
+                style={{ color: "var(--text-4)" }}
               >
                 طابور المراجعة
               </p>
@@ -125,7 +125,7 @@ export function SuraWidget({
                 </p>
                 <p
                   className="text-[11px] text-center"
-                  style={{ color: "#334155" }}
+                  style={{ color: "var(--text-4)" }}
                 >
                   لا توجد محادثات تحتاج مراجعة
                 </p>
@@ -181,7 +181,7 @@ export function SuraWidget({
 
                       <p
                         className="text-[11px] line-clamp-2"
-                        style={{ color: "#475569" }}
+                        style={{ color: "var(--text-3)" }}
                       >
                         {item.ai_draft.substring(0, 90)}
                         {item.ai_draft.length > 90 ? "…" : ""}
@@ -236,7 +236,7 @@ export function SuraWidget({
                 <Sparkles className="w-3.5 h-3.5" style={{ color: "#14b8a6" }} />
                 <p
                   className="text-[10px] font-bold uppercase tracking-widest"
-                  style={{ color: "#334155" }}
+                  style={{ color: "var(--text-4)" }}
                 >
                   اسأل سُرى
                 </p>

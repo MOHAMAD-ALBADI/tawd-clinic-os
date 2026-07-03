@@ -1,18 +1,20 @@
 import type { Metadata } from "next";
-import { Tajawal, Inter } from "next/font/google";
+import { IBM_Plex_Sans_Arabic, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
-const tajawal = Tajawal({
+/* Body + display: engineered Arabic — precise, clinical, excellent weights */
+const plexArabic = IBM_Plex_Sans_Arabic({
   subsets: ["arabic", "latin"],
-  weight: ["300", "400", "500", "700", "800"],
-  variable: "--font-tajawal",
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-plex-ar",
   display: "swap",
 });
 
-const inter = Inter({
+/* Numerals: tabular mono — the dashboard reads like a medical instrument */
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  variable: "--font-inter",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-plex-mono",
   display: "swap",
 });
 
@@ -31,7 +33,7 @@ export default function RootLayout({
     <html
       lang="ar"
       dir="rtl"
-      className={`dark ${tajawal.variable} ${inter.variable}`}
+      className={`dark ${plexArabic.variable} ${plexMono.variable}`}
       suppressHydrationWarning
     >
       <body>{children}</body>

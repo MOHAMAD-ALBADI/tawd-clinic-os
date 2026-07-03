@@ -81,8 +81,8 @@ export function LoyaltyEditor({
         className="relative rounded-3xl overflow-hidden"
         style={{
           background: form.is_active
-            ? "linear-gradient(145deg, rgba(20,184,166,0.1) 0%, rgba(10,13,22,0.95) 60%)"
-            : "linear-gradient(145deg, rgba(107,114,128,0.08) 0%, rgba(10,13,22,0.95) 60%)",
+            ? "linear-gradient(145deg, rgba(20,184,166,0.1) 0%, rgba(13,13,15,0.95) 60%)"
+            : "linear-gradient(145deg, rgba(107,114,128,0.08) 0%, rgba(13,13,15,0.95) 60%)",
           border: `1px solid ${form.is_active ? "rgba(20,184,166,0.15)" : "rgba(107,114,128,0.12)"}`,
           boxShadow: form.is_active ? "0 0 40px rgba(20,184,166,0.05)" : "none",
           padding: "1.75rem 2rem",
@@ -262,7 +262,7 @@ export function LoyaltyEditor({
             key={s.label}
             className="relative rounded-2xl overflow-hidden"
             style={{
-              background: `linear-gradient(145deg, ${s.glow} 0%, rgba(10,13,22,0.8) 100%)`,
+              background: `linear-gradient(145deg, ${s.glow} 0%, rgba(13,13,15,0.8) 100%)`,
               border: `1px solid ${s.border}`,
               padding: "1.4rem",
               transition: "border-color 0.2s, transform 0.2s",

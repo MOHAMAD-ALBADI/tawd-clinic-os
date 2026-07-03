@@ -11,7 +11,7 @@ interface SparkLineProps {
 
 export function SparkLine({
   data,
-  color = "#14b8a6",
+  color = "rgba(255,255,255,0.55)",
   height = 36,
   width = 80,
   filled = true,
@@ -23,7 +23,7 @@ export function SparkLine({
   const min = Math.min(...data);
   const range = max - min || 1;
 
-  const pad = 2;
+  const pad = 3;
   const W = width - pad * 2;
   const H = height - pad * 2;
 
@@ -47,7 +47,7 @@ export function SparkLine({
       {filled && (
         <defs>
           <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+            <stop offset="0%" stopColor={color} stopOpacity="0.18" />
             <stop offset="100%" stopColor={color} stopOpacity="0" />
           </linearGradient>
         </defs>
@@ -61,13 +61,12 @@ export function SparkLine({
         strokeLinejoin="round"
         fill="none"
       />
-      {/* last dot */}
+      {/* last reading */}
       <circle
         cx={points[points.length - 1].x}
         cy={points[points.length - 1].y}
-        r={2.5}
+        r={2.2}
         fill={color}
-        style={{ filter: `drop-shadow(0 0 4px ${color})` }}
       />
     </svg>
   );

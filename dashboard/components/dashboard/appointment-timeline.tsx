@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Calendar, Clock } from "lucide-react";
+import { Calendar } from "lucide-react";
 import { updateAppointmentStatus } from "@/app/actions/appointments";
 
 type Appt = {
@@ -16,36 +16,38 @@ type Appt = {
 
 type Doctor = { id: string; name: string; name_ar: string | null };
 
+/* Status = meaning. Neutral for waiting, accent for arrived,
+   info for active, green for done, amber late, red no-show. */
 const STATUS_MAP: Record<string, { label: string; color: string; bar: string; bg: string }> = {
-  scheduled:   { label: "مجدول",  color: "#818CF8", bar: "#6366F1", bg: "rgba(99,102,241,0.07)"  },
-  confirmed:   { label: "مؤكد",   color: "#C4B5FD", bar: "#8B5CF6", bg: "rgba(139,92,246,0.07)" },
-  checked_in:  { label: "حضر",    color: "#5dd9cb", bar: "#14b8a6", bg: "rgba(20,184,166,0.07)"  },
-  in_progress: { label: "جارٍ",   color: "#38bdf8", bar: "#0ea5e9", bg: "rgba(56,189,248,0.08)"  },
-  completed:   { label: "مكتمل",  color: "#4ADE80", bar: "#22C55E", bg: "rgba(34,197,94,0.06)"   },
-  cancelled:   { label: "ملغي",   color: "#6B7280", bar: "#4B5563", bg: "rgba(75,85,99,0.04)"    },
-  no_show:     { label: "غياب",   color: "#F87171", bar: "#EF4444", bg: "rgba(239,68,68,0.06)"   },
+  scheduled:   { label: "مجدول",  color: "#a1a1aa", bar: "rgba(255,255,255,0.25)", bg: "rgba(255,255,255,0.03)" },
+  confirmed:   { label: "مؤكد",   color: "#e4e4e7", bar: "rgba(255,255,255,0.45)", bg: "rgba(255,255,255,0.04)" },
+  checked_in:  { label: "حضر",    color: "#5dd9cb", bar: "#14b8a6", bg: "rgba(20,184,166,0.06)" },
+  in_progress: { label: "جارٍ",   color: "#7dd3fc", bar: "#38bdf8", bg: "rgba(56,189,248,0.06)" },
+  completed:   { label: "مكتمل",  color: "#6ee7b7", bar: "#34d399", bg: "rgba(52,211,153,0.05)" },
+  cancelled:   { label: "ملغي",   color: "#71717a", bar: "rgba(255,255,255,0.12)", bg: "rgba(255,255,255,0.015)" },
+  no_show:     { label: "غياب",   color: "#fda4b4", bar: "#f43f5e", bg: "rgba(244,63,94,0.05)" },
 };
 
-const LATE = { label: "تأخّر", color: "#38bdf8", bar: "#fbbf24", bg: "rgba(251,191,36,0.08)" };
+const LATE = { label: "تأخّر", color: "#fcd34d", bar: "#fbbf24", bg: "rgba(251,191,36,0.06)" };
 
 const NEXT_ACTIONS: Record<string, Array<{ label: string; status: string; color: string }>> = {
   scheduled: [
     { label: "سجّل حضوره", status: "checked_in",  color: "#5dd9cb" },
-    { label: "تأكيد",       status: "confirmed",   color: "#C4B5FD" },
-    { label: "إلغاء",       status: "cancelled",   color: "#6B7280" },
-    { label: "غياب",        status: "no_show",     color: "#F87171" },
+    { label: "تأكيد",       status: "confirmed",   color: "#e4e4e7" },
+    { label: "إلغاء",       status: "cancelled",   color: "#71717a" },
+    { label: "غياب",        status: "no_show",     color: "#fda4b4" },
   ],
   confirmed: [
     { label: "سجّل حضوره", status: "checked_in",  color: "#5dd9cb" },
-    { label: "إلغاء",       status: "cancelled",   color: "#6B7280" },
-    { label: "غياب",        status: "no_show",     color: "#F87171" },
+    { label: "إلغاء",       status: "cancelled",   color: "#71717a" },
+    { label: "غياب",        status: "no_show",     color: "#fda4b4" },
   ],
   checked_in: [
-    { label: "ابدأ الجلسة", status: "in_progress", color: "#38bdf8" },
-    { label: "إلغاء",       status: "cancelled",   color: "#6B7280" },
+    { label: "ابدأ الجلسة", status: "in_progress", color: "#7dd3fc" },
+    { label: "إلغاء",       status: "cancelled",   color: "#71717a" },
   ],
   in_progress: [
-    { label: "اكتمل",       status: "completed",   color: "#4ADE80" },
+    { label: "اكتمل",       status: "completed",   color: "#6ee7b7" },
   ],
 };
 
@@ -99,42 +101,24 @@ export function AppointmentTimeline({
 
   return (
     <div className="flex flex-col gap-3">
-      {/* ── header ── */}
-      <div className="flex items-center justify-between">
-        <h2
-          className="text-[10px] font-bold uppercase tracking-[0.22em]"
-          style={{ color: "#334155" }}
-        >
-          جدول اليوم الحي
-        </h2>
-        <a
-          href="/clinic-admin/appointments"
-          className="text-[11px] font-semibold"
-          style={{ color: "#14b8a6" }}
-        >
-          عرض الكل ‹
-        </a>
-      </div>
-
       {/* ── status pills ── */}
       <div className="flex flex-wrap gap-1.5">
         {[
-          { label: "انتظار", value: pending,    color: "#818CF8" },
-          { label: "جارٍ",   value: inProgress, color: "#38bdf8" },
-          { label: "مكتمل",  value: completed,  color: "#4ADE80" },
+          { label: "انتظار", value: pending,    color: "#a1a1aa" },
+          { label: "جارٍ",   value: inProgress, color: "#7dd3fc" },
+          { label: "مكتمل",  value: completed,  color: "#6ee7b7" },
           ...(lateCount > 0
-            ? [{ label: "تأخّر", value: lateCount, color: "#38bdf8" }]
+            ? [{ label: "تأخّر", value: lateCount, color: "#fcd34d" }]
             : []),
         ].map((s) => (
           <div
             key={s.label}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px]"
-            style={{ background: `${s.color}10`, border: `1px solid ${s.color}22` }}
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
           >
-            <span className="font-black ltr-nums" style={{ color: s.color }}>
-              {s.value}
-            </span>
-            <span style={{ color: s.value > 0 ? s.color : "#334155" }}>{s.label}</span>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: s.color }} />
+            <span className="font-bold ltr-nums text-white">{s.value}</span>
+            <span style={{ color: "var(--text-3)" }}>{s.label}</span>
           </div>
         ))}
       </div>
@@ -158,12 +142,12 @@ export function AppointmentTimeline({
               style={{
                 background:
                   selectedDoc === tab.id
-                    ? "rgba(20,184,166,0.12)"
+                    ? "rgba(255,255,255,0.09)"
                     : "rgba(255,255,255,0.03)",
-                color: selectedDoc === tab.id ? "#5dd9cb" : "#475569",
+                color: selectedDoc === tab.id ? "#ffffff" : "var(--text-4)",
                 border: `1px solid ${
                   selectedDoc === tab.id
-                    ? "rgba(20,184,166,0.22)"
+                    ? "rgba(255,255,255,0.16)"
                     : "rgba(255,255,255,0.05)"
                 }`,
                 transition: "all 0.15s",
@@ -188,15 +172,15 @@ export function AppointmentTimeline({
           <div
             className="w-12 h-12 rounded-2xl flex items-center justify-center"
             style={{
-              background: "rgba(20,184,166,0.07)",
-              border: "1px solid rgba(20,184,166,0.12)",
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.08)",
             }}
           >
-            <Calendar className="w-5 h-5" style={{ color: "rgba(20,184,166,0.35)" }} />
+            <Calendar className="w-5 h-5" style={{ color: "var(--text-4)" }} />
           </div>
           <div className="text-center">
             <p className="font-semibold text-white text-sm">جدول اليوم فارغ</p>
-            <p className="text-xs mt-1" style={{ color: "#334155" }}>
+            <p className="text-xs mt-1" style={{ color: "var(--text-4)" }}>
               لا توجد مواعيد مجدولة
             </p>
           </div>
@@ -229,14 +213,14 @@ export function AppointmentTimeline({
                 key={appt.id}
                 className="relative rounded-xl overflow-hidden"
                 style={{
-                  border: `1px solid ${isHov ? s.bar + "42" : "rgba(255,255,255,0.055)"}`,
+                  border: `1px solid ${isHov ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.055)"}`,
                   transition: "border-color 0.15s, box-shadow 0.15s",
-                  boxShadow: isHov ? `0 4px 24px ${s.bar}14` : "none",
+                  boxShadow: isHov ? "0 4px 24px rgba(0,0,0,0.35)" : "none",
                 }}
                 onMouseEnter={() => setHoveredId(appt.id)}
                 onMouseLeave={() => setHoveredId(null)}
               >
-                {/* status stripe on the inline-end (right in LTR, left in RTL) */}
+                {/* status stripe on the reading edge */}
                 <div
                   className="absolute top-0 bottom-0 end-0 w-[3px]"
                   style={{ background: s.bar }}
@@ -251,13 +235,10 @@ export function AppointmentTimeline({
                 >
                   {/* time */}
                   <div
-                    className="w-[60px] flex flex-col items-center justify-center shrink-0 py-3"
+                    className="w-[64px] flex flex-col items-center justify-center shrink-0 py-3"
                     style={{ borderInlineEnd: "1px solid rgba(255,255,255,0.05)" }}
                   >
-                    <p
-                      className="text-[13px] font-black ltr-nums"
-                      style={{ color: s.color }}
-                    >
+                    <p className="text-[13px] font-bold ltr-nums text-white">
                       {time}
                     </p>
                     {late && (
@@ -275,15 +256,16 @@ export function AppointmentTimeline({
                         {patient}
                       </p>
                       <span
-                        className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                        style={{ background: `${s.bar}1A`, color: s.color }}
+                        className="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1.5"
+                        style={{ background: "rgba(255,255,255,0.045)", border: "1px solid rgba(255,255,255,0.08)", color: s.color }}
                       >
+                        <span className="w-1 h-1 rounded-full" style={{ background: s.color }} />
                         {s.label}
                       </span>
                     </div>
                     <p
                       className="text-xs mt-0.5 truncate"
-                      style={{ color: "#475569" }}
+                      style={{ color: "var(--text-4)" }}
                     >
                       {service ?? "—"}
                       {doctor && ` · ${doctor}`}
@@ -299,9 +281,9 @@ export function AppointmentTimeline({
                             onClick={() => handleAction(appt.id, action.status)}
                             className="text-[11px] font-semibold px-2.5 py-1 rounded-lg"
                             style={{
-                              background: `${action.color}14`,
+                              background: "rgba(255,255,255,0.05)",
                               color: action.color,
-                              border: `1px solid ${action.color}2A`,
+                              border: "1px solid rgba(255,255,255,0.1)",
                               opacity: isLoad ? 0.5 : 1,
                               transition: "opacity 0.1s",
                             }}

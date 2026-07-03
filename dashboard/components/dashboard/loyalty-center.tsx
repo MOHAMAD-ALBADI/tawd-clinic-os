@@ -36,11 +36,11 @@ export type NotifTemplate = {
 type Tab = "loyalty" | "campaigns" | "templates";
 
 const CAMPAIGN_STATUS: Record<string, { label: string; color: string }> = {
-  draft:     { label: "مسودة",    color: "#6B7280" },
-  scheduled: { label: "مجدول",    color: "#818CF8" },
-  running:   { label: "يُرسَل",   color: "#38bdf8" },
-  completed: { label: "مكتمل",    color: "#4ADE80" },
-  cancelled: { label: "ملغي",     color: "#F87171" },
+  draft:     { label: "مسودة",    color: "#71717a" },
+  scheduled: { label: "مجدول",    color: "#a1a1aa" },
+  running:   { label: "يُرسَل",   color: "#7dd3fc" },
+  completed: { label: "مكتمل",    color: "#6ee7b7" },
+  cancelled: { label: "ملغي",     color: "#fda4b4" },
 };
 
 const INPUT: React.CSSProperties = {
@@ -122,7 +122,7 @@ export function LoyaltyCenter({
             onClick={() => setTab(t.id)}
             className="flex-1 relative flex items-center justify-center gap-1.5 py-3 text-[11px] font-semibold"
             style={{
-              color: tab === t.id ? "#5dd9cb" : "#334155",
+              color: tab === t.id ? "#5dd9cb" : "var(--text-4)",
               transition: "color 0.15s",
             }}
           >
@@ -157,7 +157,7 @@ export function LoyaltyCenter({
           <>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold" style={{ color: "#94A3B8" }}>
+                <span className="text-xs font-semibold" style={{ color: "var(--text-2)" }}>
                   نقاط الولاء والإحالة
                 </span>
                 <span
@@ -201,7 +201,7 @@ export function LoyaltyCenter({
                   <div key={f.key}>
                     <label
                       className="text-[11px] font-semibold block mb-1"
-                      style={{ color: "#475569" }}
+                      style={{ color: "var(--text-3)" }}
                     >
                       {f.label}
                     </label>
@@ -254,40 +254,22 @@ export function LoyaltyCenter({
             ) : (
               <div className="space-y-2">
                 {[
-                  {
-                    label: "نقاط الزيارة",
-                    value: `${form.points_per_visit} نقطة`,
-                    color: "#4ADE80",
-                    bg: "rgba(74,222,128,0.05)",
-                  },
-                  {
-                    label: "نقاط الإحالة",
-                    value: `${form.points_per_referral} نقطة`,
-                    color: "#C4B5FD",
-                    bg: "rgba(196,181,253,0.05)",
-                  },
-                  {
-                    label: "قيمة النقطة",
-                    value: `${Number(form.redemption_rate).toFixed(3)} ر.ع`,
-                    color: "#5dd9cb",
-                    bg: "rgba(94,217,203,0.05)",
-                  },
+                  { label: "نقاط الزيارة", value: `${form.points_per_visit} نقطة` },
+                  { label: "نقاط الإحالة", value: `${form.points_per_referral} نقطة` },
+                  { label: "قيمة النقطة",  value: `${Number(form.redemption_rate).toFixed(3)} ر.ع` },
                 ].map((stat) => (
                   <div
                     key={stat.label}
                     className="flex items-center justify-between px-3 py-2.5 rounded-xl"
                     style={{
-                      background: stat.bg,
-                      border: "1px solid rgba(255,255,255,0.05)",
+                      background: "rgba(255,255,255,0.025)",
+                      border: "1px solid rgba(255,255,255,0.06)",
                     }}
                   >
-                    <span className="text-xs" style={{ color: "#475569" }}>
+                    <span className="text-xs" style={{ color: "var(--text-3)" }}>
                       {stat.label}
                     </span>
-                    <span
-                      className="text-sm font-black ltr-nums"
-                      style={{ color: stat.color }}
-                    >
+                    <span className="text-sm font-bold ltr-nums text-white">
                       {stat.value}
                     </span>
                   </div>
@@ -301,7 +283,7 @@ export function LoyaltyCenter({
         {tab === "campaigns" && (
           <>
             <div className="flex items-center justify-between">
-              <p className="text-[11px]" style={{ color: "#475569" }}>
+              <p className="text-[11px]" style={{ color: "var(--text-3)" }}>
                 {campaigns.length} حملة إجمالاً
               </p>
               <Link
@@ -316,7 +298,7 @@ export function LoyaltyCenter({
             {campaigns.length === 0 ? (
               <div className="flex flex-col items-center py-12 gap-3">
                 <Radio className="w-7 h-7" style={{ color: "rgba(255,255,255,0.08)" }} />
-                <p className="text-xs" style={{ color: "#334155" }}>
+                <p className="text-xs" style={{ color: "var(--text-4)" }}>
                   لا توجد حملات مسجّلة
                 </p>
               </div>
@@ -353,7 +335,7 @@ export function LoyaltyCenter({
                       <>
                         <div
                           className="flex justify-between text-[10px] mb-1"
-                          style={{ color: "#334155" }}
+                          style={{ color: "var(--text-4)" }}
                         >
                           <span className="ltr-nums">
                             {c.sent_count} / {c.total_recipients} رسالة
@@ -396,7 +378,7 @@ export function LoyaltyCenter({
         {tab === "templates" && (
           <>
             <div className="flex items-center justify-between">
-              <p className="text-[11px]" style={{ color: "#475569" }}>
+              <p className="text-[11px]" style={{ color: "var(--text-3)" }}>
                 {templates.length} قالب نشط
               </p>
               <Link
@@ -414,7 +396,7 @@ export function LoyaltyCenter({
                   className="w-7 h-7"
                   style={{ color: "rgba(255,255,255,0.08)" }}
                 />
-                <p className="text-xs" style={{ color: "#334155" }}>
+                <p className="text-xs" style={{ color: "var(--text-4)" }}>
                   لا توجد قوالب رسائل
                 </p>
               </div>
@@ -430,7 +412,7 @@ export function LoyaltyCenter({
                 >
                   <div
                     className="w-1.5 h-1.5 rounded-full shrink-0"
-                    style={{ background: t.is_active ? "#4ADE80" : "#4B5563" }}
+                    style={{ background: t.is_active ? "#4ADE80" : "var(--text-4)" }}
                   />
                   <p
                     className="text-xs font-semibold text-white flex-1 truncate"
@@ -439,7 +421,7 @@ export function LoyaltyCenter({
                   </p>
                   <span
                     className="text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0"
-                    style={{ background: "rgba(255,255,255,0.05)", color: "#475569" }}
+                    style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-3)" }}
                   >
                     {t.channel}
                   </span>

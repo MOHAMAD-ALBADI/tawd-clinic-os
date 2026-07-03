@@ -67,7 +67,7 @@ export default async function ReceptionPage() {
       <div
         className="rounded-3xl relative overflow-hidden"
         style={{
-          background: "linear-gradient(145deg, rgba(20,184,166,0.07) 0%, rgba(10,13,22,0.95) 60%)",
+          background: "linear-gradient(145deg, rgba(20,184,166,0.07) 0%, rgba(13,13,15,0.95) 60%)",
           border: "1px solid rgba(20,184,166,0.1)",
           padding: "1.5rem 2rem",
         }}

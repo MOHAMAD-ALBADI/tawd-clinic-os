@@ -50,7 +50,7 @@ export default async function SuraAnalyticsPage() {
       <div
         className="relative rounded-3xl overflow-hidden"
         style={{
-          background: "linear-gradient(145deg, rgba(20,184,166,0.10) 0%, rgba(10,13,22,0.95) 55%, rgba(10,13,22,1) 100%)",
+          background: "linear-gradient(145deg, rgba(20,184,166,0.10) 0%, rgba(13,13,15,0.95) 55%, rgba(13,13,15,1) 100%)",
           border: "1px solid rgba(20,184,166,0.14)",
           boxShadow: "0 0 0 1px rgba(255,255,255,0.03), 0 32px 64px rgba(0,0,0,0.5)",
           padding: "1.9rem 2rem",

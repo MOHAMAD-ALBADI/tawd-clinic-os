@@ -1,77 +1,67 @@
 interface TawdLogoMarkProps {
   className?: string;
   style?: React.CSSProperties;
+  glow?: boolean;
 }
 
-export function TawdLogoMark({ className, style }: TawdLogoMarkProps) {
+/**
+ * The TAWD mark: three white bars ascending left→right, leaning forward.
+ * Read at once as a mountain's steps (طود), a rising chart, and full signal.
+ */
+export function TawdLogoMark({ className, style, glow = true }: TawdLogoMarkProps) {
   return (
     <svg
-      viewBox="0 0 36 40"
+      viewBox="0 0 40 40"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       style={style}
       aria-label="طود"
     >
-      <defs>
-        {/* Shadow face — left side in darkness */}
-        <linearGradient id="tawd-gl" x1="1" y1="1" x2="0" y2="0" gradientUnits="objectBoundingBox">
-          <stop offset="0%" stopColor="#134e4a" />
-          <stop offset="100%" stopColor="#0f766e" />
-        </linearGradient>
+      {glow && (
+        <defs>
+          <filter id="tawd-soft" x="-60%" y="-60%" width="220%" height="220%">
+            <feGaussianBlur stdDeviation="2.2" result="b" />
+            <feMerge>
+              <feMergeNode in="b" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+      )}
+      <g transform="skewY(-10) translate(0 4)" filter={glow ? "url(#tawd-soft)" : undefined}>
+        <rect x="2.5"  y="19" width="8.5" height="17" rx="2.5" fill="#ffffff" />
+        <rect x="15"   y="12" width="8.5" height="24" rx="2.5" fill="#ffffff" />
+        <rect x="27.5" y="5"  width="8.5" height="31" rx="2.5" fill="#ffffff" />
+      </g>
+    </svg>
+  );
+}
 
-        {/* Light face — right side catches illumination */}
-        <linearGradient id="tawd-gr" x1="0" y1="1" x2="0.3" y2="0" gradientUnits="objectBoundingBox">
-          <stop offset="0%" stopColor="#0d9488" />
-          <stop offset="55%" stopColor="#2dd4bf" />
-          <stop offset="100%" stopColor="#ecfdf8" />
-        </linearGradient>
-
-        {/* Base — ground shadow */}
-        <linearGradient id="tawd-gb" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#134e4a" />
-          <stop offset="100%" stopColor="#115e59" />
-        </linearGradient>
-
-        {/* Summit radial halo */}
-        <radialGradient id="tawd-sg" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#cbf6ef" stopOpacity="1" />
-          <stop offset="60%" stopColor="#14b8a6" stopOpacity="0.4" />
-          <stop offset="100%" stopColor="#14b8a6" stopOpacity="0" />
-        </radialGradient>
-
-        {/* Glow filter for summit dot */}
-        <filter id="tawd-gf" x="-80%" y="-80%" width="260%" height="260%">
-          <feGaussianBlur stdDeviation="1.8" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
-
-      {/* Left face — shadow side */}
-      <polygon points="3,38 18,3 18,25" fill="url(#tawd-gl)" />
-
-      {/* Right face — illuminated side */}
-      <polygon points="18,3 33,38 18,25" fill="url(#tawd-gr)" />
-
-      {/* Base — ground */}
-      <polygon points="3,38 18,25 33,38" fill="url(#tawd-gb)" />
-
-      {/* Ridge line: center crest catches a sliver of light */}
-      <line x1="18" y1="3" x2="18" y2="25"
-        stroke="rgba(45,212,191,0.25)" strokeWidth="0.6" />
-
-      {/* Summit ambient halo — pulses via CSS */}
-      <circle cx="18" cy="3" r="7"
-        fill="url(#tawd-sg)"
-        className="tawd-summit-glow" />
-
-      {/* Summit bright point */}
-      <circle cx="18" cy="3" r="1.6"
-        fill="#fefce8"
-        filter="url(#tawd-gf)" />
+/**
+ * Tiny 3-bar glyph — the system's section marker.
+ * Replaces generic dots/rules next to section titles.
+ */
+export function TawdBarsGlyph({
+  size = 12,
+  color = "var(--accent-1)",
+  className,
+}: { size?: number; color?: string; className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 14 14"
+      width={size}
+      height={size}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden="true"
+    >
+      <g transform="skewY(-10) translate(0 1.5)">
+        <rect x="0.5" y="7.5" width="3" height="6" rx="1" fill={color} opacity="0.45" />
+        <rect x="5"   y="5"   width="3" height="8.5" rx="1" fill={color} opacity="0.7" />
+        <rect x="9.5" y="2.5" width="3" height="11" rx="1" fill={color} />
+      </g>
     </svg>
   );
 }

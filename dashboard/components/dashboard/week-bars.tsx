@@ -10,17 +10,17 @@ function CustomTooltip({ active, payload, label }: any) {
     <div
       className="rounded-xl px-3 py-2 text-xs"
       style={{
-        background: "#0D0A04",
-        border: "1px solid rgba(20,184,166,0.18)",
+        background: "#131315",
+        border: "1px solid rgba(255,255,255,0.1)",
         boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
       }}
     >
       <p className="font-bold text-white mb-1">{label}</p>
-      <p className="ltr-nums" style={{ color: "#5dd9cb" }}>
-        إجمالي: <strong>{payload[0]?.value ?? 0}</strong>
+      <p className="ltr-nums" style={{ color: "var(--text-2)" }}>
+        إجمالي: <strong style={{ color: "#fff" }}>{payload[0]?.value ?? 0}</strong>
       </p>
-      <p className="ltr-nums" style={{ color: "#14b8a6" }}>
-        مكتمل: <strong>{payload[0]?.payload?.completed ?? 0}</strong>
+      <p className="ltr-nums" style={{ color: "var(--text-2)" }}>
+        مكتمل: <strong style={{ color: "#fff" }}>{payload[0]?.payload?.completed ?? 0}</strong>
       </p>
     </div>
   );
@@ -29,27 +29,28 @@ function CustomTooltip({ active, payload, label }: any) {
 export function WeekBars({ data }: { data: DayBar[] }) {
   return (
     <ResponsiveContainer width="100%" height={72}>
-      <BarChart data={data} barSize={16} barCategoryGap="30%">
+      <BarChart data={data} barSize={14} barCategoryGap="30%">
         <XAxis
           dataKey="day"
           axisLine={false}
           tickLine={false}
-          tick={{ fill: "#374151", fontSize: 9, fontWeight: 700 }}
+          tick={{ fill: "#52525b", fontSize: 9, fontWeight: 700 }}
         />
         <Tooltip
           content={<CustomTooltip />}
-          cursor={{ fill: "rgba(20,184,166,0.04)", radius: 4 }}
+          cursor={{ fill: "rgba(255,255,255,0.03)", radius: 4 }}
         />
-        <Bar dataKey="total" radius={[5, 5, 2, 2]}>
+        {/* rounded data-end, anchored baseline */}
+        <Bar dataKey="total" radius={[4, 4, 0, 0]}>
           {data.map((d, i) => (
             <Cell
               key={i}
               fill={
                 d.isToday
-                  ? "#14b8a6"
+                  ? "var(--accent-1)"
                   : d.total === 0
-                  ? "rgba(255,255,255,0.04)"
-                  : "rgba(20,184,166,0.28)"
+                  ? "rgba(255,255,255,0.05)"
+                  : "rgba(255,255,255,0.16)"
               }
             />
           ))}
