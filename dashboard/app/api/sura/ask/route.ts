@@ -3,158 +3,323 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
-/** Ask-Sura: answers clinic questions from LIVE clinic data (Gemini, key from channel_configs). */
+/* ═══════════════════════════════════════════════════════════════
+   Ask-Sura v2 — an agent over the clinic's LIVE database.
+   The model plans structured queries (JSON, never raw SQL); the
+   server validates each against a strict whitelist, force-scopes
+   clinic_id (and doctor_id for doctors), executes via supabase,
+   computes aggregates, then the model writes the Arabic answer.
+   Up to 2 query rounds. Gemini key comes from channel_configs.
+   ═══════════════════════════════════════════════════════════════ */
+
+type Role = "clinic_admin" | "doctor" | "receptionist" | "accountant" | "platform_admin";
+
+const TABLES: Record<string, { cols: string[]; clinicCol: boolean; desc: string }> = {
+  patients: {
+    cols: ["id", "name", "name_ar", "phone", "email", "gender", "loyalty_points", "source_channel", "created_at", "last_recalled_at", "last_winback_at", "is_archived"],
+    clinicCol: true,
+    desc: "المرضى (loyalty_points=نقاط الولاء، created_at=تاريخ التسجيل)",
+  },
+  appointments: {
+    cols: ["id", "patient_id", "doctor_id", "service_id", "slot_time", "duration_minutes", "status", "type", "source_channel", "notes", "cancellation_reason", "created_at", "followup_sent_at"],
+    clinicCol: true,
+    desc: "المواعيد (slot_time=وقت الموعد UTC، status: scheduled|confirmed|checked_in|in_progress|completed|cancelled|no_show)",
+  },
+  services: {
+    cols: ["id", "name", "name_ar", "price", "duration_minutes", "is_active"],
+    clinicCol: true,
+    desc: "الخدمات والأسعار (بالريال العماني)",
+  },
+  invoices: {
+    cols: ["id", "patient_id", "appt_id", "total", "status", "created_at"],
+    clinicCol: true,
+    desc: "الفواتير (status: draft|sent|paid|partially_paid|overdue|cancelled)",
+  },
+  invoice_items: {
+    cols: ["id", "invoice_id", "service_id", "description_ar", "quantity", "unit_price_snapshot", "vat_amount", "total"],
+    clinicCol: true,
+    desc: "بنود الفواتير",
+  },
+  tawd_staff_users: {
+    cols: ["id", "name", "name_ar", "role", "is_active"],
+    clinicCol: true,
+    desc: "الكادر (role: doctor|receptionist|accountant|clinic_admin)",
+  },
+  appointment_waitlist: {
+    cols: ["id", "patient_id", "service_id", "status", "priority", "created_at"],
+    clinicCol: true,
+    desc: "قائمة انتظار الحجز (status=waiting يعني ينتظر)",
+  },
+  sura_alerts: {
+    cols: ["id", "kind", "severity", "status", "patient_name", "phone", "message", "created_at"],
+    clinicCol: true,
+    desc: "تنبيهات سُرى (kind: emergency|complaint، status: open|acknowledged)",
+  },
+  chat_sessions: {
+    cols: ["id", "patient_id", "channel_type", "created_at"],
+    clinicCol: true,
+    desc: "محادثات واتساب مع سُرى",
+  },
+  chat_messages: {
+    cols: ["id", "session_id", "sender_type", "content", "created_at"],
+    clinicCol: true,
+    desc: "رسائل المحادثات (sender_type: user|ai|staff)",
+  },
+  automation_recovery_ledger: {
+    cols: ["id", "event_type", "amount", "source", "occurred_at"],
+    clinicCol: true,
+    desc: "سجل المبالغ التي استردّتها سُرى (amount بالريال)",
+  },
+  no_show_log: {
+    cols: ["id", "appt_id", "patient_id", "marked_at"],
+    clinicCol: true,
+    desc: "سجل الغياب عن المواعيد",
+  },
+};
+
+/* embedded relations allowed per table (names resolved server-side) */
+const EMBEDS: Record<string, string> = {
+  appointments: "patients!patient_id(name,phone), services!service_id(name_ar), tawd_staff_users!doctor_id(name_ar,name)",
+  invoices: "patients!patient_id(name,phone)",
+  invoice_items: "services!service_id(name_ar)",
+  appointment_waitlist: "patients!patient_id(name,phone), services!service_id(name_ar)",
+  chat_sessions: "patients!patient_id(name,phone)",
+  no_show_log: "patients!patient_id(name,phone)",
+};
+
+const ROLE_TABLES: Record<Role, string[]> = {
+  clinic_admin: Object.keys(TABLES),
+  accountant: Object.keys(TABLES),
+  platform_admin: Object.keys(TABLES),
+  doctor: ["appointments", "patients", "services", "tawd_staff_users", "appointment_waitlist", "no_show_log"],
+  receptionist: ["appointments", "patients", "services", "tawd_staff_users", "appointment_waitlist", "sura_alerts", "no_show_log", "chat_sessions"],
+};
+
+const OPS = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "ilike", "in", "is"]);
+
+type Filter = { col: string; op: string; value: unknown };
+type Plan = {
+  table: string;
+  select?: string[];
+  embed?: boolean;
+  filters?: Filter[];
+  order?: { col: string; desc?: boolean };
+  limit?: number;
+  aggregate?: { op: "sum" | "count" | "avg"; col?: string; group_by?: string };
+};
+
+function catalogFor(role: Role): string {
+  return ROLE_TABLES[role]
+    .map((t) => `- ${t}: [${TABLES[t].cols.join(", ")}] — ${TABLES[t].desc}${EMBEDS[t] ? " (يدعم embed=true لجلب أسماء المريض/الخدمة/الطبيب)" : ""}`)
+    .join("\n");
+}
+
+async function runPlan(sb: Awaited<ReturnType<typeof createServiceRoleClient>>, plan: Plan, cid: string, role: Role, sub: string) {
+  const t = TABLES[plan.table];
+  if (!t || !ROLE_TABLES[role].includes(plan.table)) throw new Error(`جدول غير مسموح: ${plan.table}`);
+
+  const agg = plan.aggregate;
+  const wantCols = (plan.select ?? []).filter((c) => t.cols.includes(c));
+  const baseCols = wantCols.length ? wantCols : t.cols.slice(0, 8);
+  const selectStr =
+    (agg ? Array.from(new Set([...(agg.col ? [agg.col] : []), ...(agg.group_by ? [agg.group_by] : []), ...baseCols])) : baseCols).join(",") +
+    (plan.embed && EMBEDS[plan.table] ? `, ${EMBEDS[plan.table]}` : "");
+
+  let q = sb.from(plan.table).select(selectStr);
+  if (t.clinicCol) q = q.eq("clinic_id", cid);
+  if (role === "doctor" && plan.table === "appointments") q = q.eq("doctor_id", sub);
+  if ("deleted_at" in Object.fromEntries(t.cols.map((c) => [c, 1])) ) { /* noop */ }
+  if (["patients", "appointments", "invoices"].includes(plan.table)) q = q.is("deleted_at", null);
+
+  for (const f of plan.filters ?? []) {
+    if (!f || typeof f.col !== "string" || !OPS.has(f.op)) continue;
+    if (!t.cols.includes(f.col)) continue;
+    const v = f.value;
+    if (f.op === "eq") q = q.eq(f.col, v as never);
+    else if (f.op === "neq") q = q.neq(f.col, v as never);
+    else if (f.op === "gt") q = q.gt(f.col, v as never);
+    else if (f.op === "gte") q = q.gte(f.col, v as never);
+    else if (f.op === "lt") q = q.lt(f.col, v as never);
+    else if (f.op === "lte") q = q.lte(f.col, v as never);
+    else if (f.op === "in" && Array.isArray(v)) q = q.in(f.col, v as never[]);
+    else if (f.op === "is") q = q.is(f.col, v as never);
+    else if (f.op === "ilike") {
+      const s = String(v ?? "");
+      q = q.ilike(f.col, s.includes("%") ? s : `%${s}%`);
+    }
+  }
+
+  if (plan.order && t.cols.includes(plan.order.col)) {
+    q = q.order(plan.order.col, { ascending: !plan.order.desc });
+  }
+  q = q.limit(agg ? 1000 : Math.min(Math.max(plan.limit ?? 25, 1), 100));
+
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as unknown as Record<string, unknown>[];
+
+  if (agg) {
+    const num = (r: Record<string, unknown>) => Number(r[agg.col ?? ""] ?? 0);
+    if (agg.group_by) {
+      const groups: Record<string, { count: number; sum: number }> = {};
+      for (const r of rows) {
+        const k = String(r[agg.group_by] ?? "غير محدد");
+        groups[k] = groups[k] ?? { count: 0, sum: 0 };
+        groups[k].count++;
+        groups[k].sum += agg.col ? num(r) : 0;
+      }
+      const list = Object.entries(groups)
+        .map(([key, g]) => ({ [agg.group_by as string]: key, count: g.count, ...(agg.col ? { sum: +g.sum.toFixed(3), avg: +(g.sum / g.count).toFixed(3) } : {}) }))
+        .sort((a, b) => Number(b.count) - Number(a.count))
+        .slice(0, 20);
+      return { table: plan.table, aggregate: agg.op, groups: list, scanned_rows: rows.length };
+    }
+    const total = rows.reduce((s, r) => s + (agg.col ? num(r) : 0), 0);
+    return {
+      table: plan.table,
+      aggregate: agg.op,
+      count: rows.length,
+      ...(agg.col ? { sum: +total.toFixed(3), avg: rows.length ? +(total / rows.length).toFixed(3) : 0 } : {}),
+    };
+  }
+
+  return { table: plan.table, rows: rows.slice(0, 30), row_count: rows.length };
+}
+
+async function gemini(key: string, prompt: string, json: boolean) {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.25,
+          maxOutputTokens: 1200,
+          thinkingConfig: { thinkingBudget: 0 },
+          ...(json ? { responseMimeType: "application/json" } : {}),
+        },
+      }),
+    }
+  );
+  const j = await res.json();
+  const text = j?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+  if (!text) throw new Error(j?.error?.message ?? "empty model response");
+  return text;
+}
+
 export async function POST(req: Request) {
   const claims = await getUserClaims();
   if (!claims || !claims.clinic_id) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  if (!["clinic_admin", "accountant"].includes(claims.role)) {
-    return NextResponse.json(
-      { answer: "عذراً، تحليلات سُرى متاحة لمدير العيادة والمحاسب فقط." },
-      { status: 200 }
-    );
-  }
+  const role = (claims.role ?? "clinic_admin") as Role;
 
   let question = "";
+  let history: { role: string; text: string }[] = [];
   try {
     const body = await req.json();
-    question = String(body?.question ?? "").slice(0, 400).trim();
+    question = String(body?.question ?? "").slice(0, 500).trim();
+    if (Array.isArray(body?.history)) {
+      history = body.history.slice(-6).map((m: { role?: string; text?: string; content?: string }) => ({
+        role: m.role === "user" ? "المدير" : "سُرى",
+        text: String(m.text ?? m.content ?? "").slice(0, 300),
+      }));
+    }
   } catch { /* fallthrough */ }
-  if (!question) {
-    return NextResponse.json({ error: "empty question" }, { status: 400 });
-  }
+  if (!question) return NextResponse.json({ error: "empty question" }, { status: 400 });
 
   const sb = await createServiceRoleClient();
   const cid = claims.clinic_id;
-  const now = new Date();
-  const today = now.toISOString().split("T")[0];
-  const monthStart = `${today.slice(0, 7)}-01T00:00:00`;
-  const weekAgo = new Date(Date.now() - 6 * 86_400_000).toISOString().split("T")[0];
-  const tomorrow = new Date(Date.now() + 86_400_000).toISOString().split("T")[0];
 
-  const [
-    cfgRes, clinicRes,
-    todayApptsRes, tomorrowApptsRes, weekApptsRes, monthApptsRes,
-    todayPaidRes, monthPaidRes, pendingInvRes,
-    patientsRes, newPatientsMonthRes,
-    waitlistRes, recoveredRes, alertsRes, servicesRes,
-  ] = await Promise.all([
+  const [cfgRes, clinicRes] = await Promise.all([
     sb.from("channel_configs").select("config").eq("clinic_id", cid).eq("channel", "whatsapp").eq("is_active", true).limit(1).maybeSingle(),
     sb.from("tawd_clinics").select("name, name_ar, clinic_type").eq("id", cid).single(),
-
-    sb.from("appointments").select("slot_time, status, services!service_id(name_ar), tawd_staff_users!doctor_id(name_ar, name), patients!patient_id(name)")
-      .eq("clinic_id", cid).gte("slot_time", `${today}T00:00:00`).lte("slot_time", `${today}T23:59:59`).is("deleted_at", null).order("slot_time"),
-    sb.from("appointments").select("slot_time, status").eq("clinic_id", cid)
-      .gte("slot_time", `${tomorrow}T00:00:00`).lte("slot_time", `${tomorrow}T23:59:59`).is("deleted_at", null),
-    sb.from("appointments").select("slot_time, status").eq("clinic_id", cid)
-      .gte("slot_time", `${weekAgo}T00:00:00`).is("deleted_at", null).limit(1000),
-    sb.from("appointments").select("status, services!service_id(name_ar)").eq("clinic_id", cid)
-      .gte("slot_time", monthStart).is("deleted_at", null).limit(2000),
-
-    sb.from("invoices").select("total").eq("clinic_id", cid).eq("status", "paid")
-      .gte("created_at", `${today}T00:00:00`).lte("created_at", `${today}T23:59:59`),
-    sb.from("invoices").select("total").eq("clinic_id", cid).eq("status", "paid").gte("created_at", monthStart),
-    sb.from("invoices").select("total").eq("clinic_id", cid).in("status", ["sent", "partially_paid", "overdue"]).is("deleted_at", null),
-
-    sb.from("patients").select("id", { count: "exact", head: true }).eq("clinic_id", cid).is("deleted_at", null),
-    sb.from("patients").select("id", { count: "exact", head: true }).eq("clinic_id", cid).gte("created_at", monthStart),
-
-    sb.from("appointment_waitlist").select("id", { count: "exact", head: true }).eq("clinic_id", cid).eq("status", "waiting"),
-    sb.from("automation_recovery_ledger").select("amount").eq("clinic_id", cid).gte("occurred_at", monthStart),
-    sb.from("sura_alerts").select("kind").eq("clinic_id", cid).eq("status", "open"),
-    sb.from("services").select("name_ar, price, is_active").eq("clinic_id", cid).eq("is_active", true).limit(30),
   ]);
-
   const geminiKey = (cfgRes.data?.config as Record<string, string> | null)?.gemini_key;
   if (!geminiKey) {
     return NextResponse.json({ answer: "إعداد الذكاء الاصطناعي غير مكتمل لهذه العيادة — تواصل مع دعم طود." });
   }
+  const clinicName = clinicRes.data?.name_ar ?? clinicRes.data?.name ?? "العيادة";
 
-  const sum = (rows: unknown[] | null | undefined) =>
-    (rows ?? []).reduce((s: number, r) => s + Number((r as { total?: number; amount?: number }).total ?? (r as { amount?: number }).amount ?? 0), 0);
-  const byStatus = (rows: { status: string }[] | null | undefined) => {
-    const m: Record<string, number> = {};
-    for (const r of rows ?? []) m[r.status] = (m[r.status] ?? 0) + 1;
-    return m;
-  };
+  const now = new Date();
+  const header =
+    `أنتِ "سُرى"، العقل الذكي لعيادة ${clinicName}. تتحدثين مع ${role === "doctor" ? "طبيب" : role === "receptionist" ? "موظف استقبال" : role === "accountant" ? "المحاسب" : "مدير العيادة"}.\n` +
+    `اليوم (UTC): ${now.toISOString()} — توقيت مسقط = UTC+4. الأوقات في قاعدة البيانات UTC.\n` +
+    `العملة: ريال عُماني بثلاث منازل عشرية.\n\n` +
+    `لديك وصول كامل لقاعدة بيانات العيادة عبر خطط استعلام JSON. الجداول المتاحة:\n${catalogFor(role)}\n\n` +
+    `صيغة خطة الاستعلام:\n` +
+    `{"queries":[{"table":"...","select":["col",...],"embed":true|false,"filters":[{"col":"...","op":"eq|neq|gt|gte|lt|lte|ilike|in|is","value":...}],"order":{"col":"...","desc":true},"limit":25,"aggregate":{"op":"sum|count|avg","col":"...","group_by":"..."}}]}\n` +
+    `- استخدمي aggregate للمجاميع/العدّ/المتوسط (group_by للتجميع مثل أكثر خدمة/طبيب).\n` +
+    `- embed=true يجلب اسم المريض/الخدمة/الطبيب مع الصف.\n` +
+    `- ilike للبحث بالأسماء العربية (بدون %).\n` +
+    `- بحد أقصى 3 استعلامات بالجولة.\n`;
 
-  const monthAppts = (monthApptsRes.data ?? []) as { status: string; services?: { name_ar?: string } | null }[];
-  const svcCount: Record<string, number> = {};
-  for (const a of monthAppts) {
-    const n = a.services?.name_ar;
-    if (n) svcCount[n] = (svcCount[n] ?? 0) + 1;
-  }
-  const topServices = Object.entries(svcCount).sort((a, b) => b[1] - a[1]).slice(0, 5)
-    .map(([name, count]) => ({ name, count }));
-
-  const todayList = ((todayApptsRes.data ?? []) as any[]).map((a) => ({
-    time: String(a.slot_time).slice(11, 16),
-    status: a.status,
-    patient: a.patients?.name ?? null,
-    service: a.services?.name_ar ?? null,
-    doctor: a.tawd_staff_users?.name_ar ?? a.tawd_staff_users?.name ?? null,
-  }));
-
-  const alerts = (alertsRes.data ?? []) as { kind: string }[];
-  const clinic = clinicRes.data;
-
-  const data = {
-    clinic: { name: clinic?.name_ar ?? clinic?.name, type: clinic?.clinic_type },
-    currency: "ريال عُماني (OMR)",
-    today_date: today,
-    revenue: {
-      today_paid: sum(todayPaidRes.data),
-      month_paid: sum(monthPaidRes.data),
-      unpaid_pending_total: sum(pendingInvRes.data),
-      recovered_by_sura_this_month: sum(recoveredRes.data),
-    },
-    appointments: {
-      today_count: todayList.length,
-      today_by_status: byStatus(todayApptsRes.data as any),
-      today_list: todayList.slice(0, 20),
-      tomorrow_count: (tomorrowApptsRes.data ?? []).length,
-      last7days_count: (weekApptsRes.data ?? []).length,
-      this_month_by_status: byStatus(monthAppts),
-    },
-    patients: {
-      total: patientsRes.count ?? 0,
-      new_this_month: newPatientsMonthRes.count ?? 0,
-    },
-    waitlist_waiting: waitlistRes.count ?? 0,
-    open_alerts: { total: alerts.length, emergencies: alerts.filter((a) => a.kind === "emergency").length, complaints: alerts.filter((a) => a.kind === "complaint").length },
-    top_services_this_month: topServices,
-    active_services: ((servicesRes.data ?? []) as any[]).map((s) => ({ name: s.name_ar, price: Number(s.price) })),
-  };
-
-  const prompt =
-    `أنتِ "سُرى"، المساعدة الذكية لعيادة ${data.clinic.name ?? ""}. مدير العيادة يسألك عن أداء عيادته.\n` +
-    `أجيبي بالعربية، بإيجاز ووضوح (٣ أسطر كحد أقصى إلا إذا طُلب تفصيل). اعتمدي حصراً على البيانات أدناه — لا تخترعي أي رقم. ` +
-    `المبالغ بالريال العُماني بثلاث منازل عشرية (مثال: 5.000 ر.ع). إذا كانت الإجابة غير موجودة في البيانات قولي بصراحة إنها غير متوفرة حالياً.\n\n` +
-    `[بيانات العيادة الحية]\n${JSON.stringify(data)}\n\n` +
-    `[سؤال المدير]\n${question}`;
+  const historyBlock = history.length
+    ? `\n[المحادثة السابقة]\n${history.map((h) => `${h.role}: ${h.text}`).join("\n")}\n`
+    : "";
 
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 700, thinkingConfig: { thinkingBudget: 0 } },
-        }),
+    /* round 1: plan or direct answer */
+    const p1 =
+      header + historyBlock +
+      `\n[سؤال المستخدم]\n${question}\n\n` +
+      `أعيدي JSON فقط بأحد الشكلين:\n` +
+      `1) {"answer":"..."} إذا كان السؤال عاماً أو تحية أو تُجيبينه من المحادثة السابقة.\n` +
+      `2) {"queries":[...]} إذا كان يحتاج بيانات من قاعدة البيانات (المفضّل دائماً للأسئلة عن العيادة).`;
+
+    const r1 = JSON.parse(await gemini(geminiKey, p1, true));
+    if (r1.answer && !r1.queries) {
+      return NextResponse.json({ answer: String(r1.answer) });
+    }
+
+    let plans: Plan[] = Array.isArray(r1.queries) ? r1.queries.slice(0, 3) : [];
+    let results: unknown[] = [];
+    let lastError = "";
+
+    for (let round = 0; round < 2; round++) {
+      results = [];
+      lastError = "";
+      for (const plan of plans) {
+        try {
+          results.push(await runPlan(sb, plan, cid, role, claims.sub));
+        } catch (e) {
+          lastError = e instanceof Error ? e.message : String(e);
+          results.push({ table: plan?.table, error: lastError });
+        }
       }
-    );
-    const j = await res.json();
-    const answer = j?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-    if (!answer) throw new Error(j?.error?.message ?? "empty answer");
-    return NextResponse.json({ answer });
-  } catch {
+
+      const p2 =
+        header + historyBlock +
+        `\n[سؤال المستخدم]\n${question}\n\n` +
+        `[نتائج الاستعلامات]\n${JSON.stringify(results).slice(0, 14000)}\n\n` +
+        `أعيدي JSON فقط:\n` +
+        `1) {"answer":"..."} — الإجابة النهائية بالعربية، موجزة ودقيقة، اعتماداً حصراً على النتائج أعلاه (لا تخترعي أرقاماً). نسّقي المبالغ مثل 5.000 ر.ع.\n` +
+        (round === 0
+          ? `2) {"queries":[...]} — فقط إذا كانت النتائج غير كافية أو فيها خطأ وتحتاجين استعلاماً مختلفاً.`
+          : ``);
+
+      const r2 = JSON.parse(await gemini(geminiKey, p2, true));
+      if (r2.answer && !r2.queries) {
+        return NextResponse.json({ answer: String(r2.answer) });
+      }
+      if (round === 0 && Array.isArray(r2.queries) && r2.queries.length) {
+        plans = r2.queries.slice(0, 3);
+        continue;
+      }
+      if (r2.answer) return NextResponse.json({ answer: String(r2.answer) });
+      break;
+    }
+
     return NextResponse.json({
-      answer: "تعذّر التحليل الآن — حاول مرة أخرى بعد لحظات.",
+      answer: lastError
+        ? "واجهت صعوبة في قراءة هذه البيانات — جرّب صياغة السؤال بشكل مختلف."
+        : "ما قدرت أوصل لإجابة دقيقة — جرّب تحديد سؤالك أكثر.",
     });
+  } catch {
+    return NextResponse.json({ answer: "تعذّر التحليل الآن — حاول مرة أخرى بعد لحظات." });
   }
 }

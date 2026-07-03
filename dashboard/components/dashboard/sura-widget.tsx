@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
-import { Bot, X, Inbox, Clock, ChevronLeft, Sparkles } from "lucide-react";
+import { Bot, X, Inbox, Clock } from "lucide-react";
 
 export type HitlItem = {
   id: string;
@@ -14,14 +14,8 @@ export type HitlItem = {
   patients: unknown;
 };
 
-type ChatMsg = { role: "user" | "sura"; text: string };
-
-const QUICK_QUESTIONS = [
-  "كم إيراد هذا الشهر؟",
-  "كم موعد عندنا بكرة؟",
-  "وش أكثر خدمة مطلوبة؟",
-];
-
+/** HITL review queue. The FAB appears only when something needs review —
+    the conversational assistant lives in the global Sura widget. */
 export function SuraWidget({
   hitlItems,
   hitlCount,
@@ -30,35 +24,15 @@ export function SuraWidget({
   hitlCount: number;
 }) {
   const [open, setOpen] = useState(false);
-  const [question, setQuestion] = useState("");
-  const [chat, setChat] = useState<ChatMsg[]>([]);
-  const [loading, setLoading] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [chat, loading]);
+  if (hitlCount === 0 && !open) return null;
 
-  async function ask(q?: string) {
-    const text = (q ?? question).trim();
-    if (!text || loading) return;
-    setQuestion("");
-    setChat((c) => [...c, { role: "user", text }]);
-    setLoading(true);
-    try {
-      const res = await fetch("/api/sura/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: text }),
-      });
-      const j = await res.json();
-      setChat((c) => [...c, { role: "sura", text: j.answer ?? "تعذّر التحليل الآن — حاول مرة أخرى." }]);
-    } catch {
-      setChat((c) => [...c, { role: "sura", text: "تعذّر الاتصال — تأكد من الشبكة وحاول مجدداً." }]);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const ageLabel = (iso: string) => {
+    const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
+    if (min < 60) return `${min} د`;
+    if (min < 1440) return `${Math.round(min / 60)} س`;
+    return `${Math.round(min / 1440)} يوم`;
+  };
 
   const panel = open ? (
     <>
@@ -73,7 +47,7 @@ export function SuraWidget({
         onClick={() => setOpen(false)}
       />
 
-      {/* slide panel — fixed on inline-end (right in LTR / left in RTL) */}
+      {/* slide panel */}
       <div
         className="fixed top-0 bottom-0 end-0 flex flex-col"
         style={{
@@ -84,7 +58,7 @@ export function SuraWidget({
           boxShadow: "-24px 0 80px rgba(0,0,0,0.6)",
         }}
       >
-        {/* ── header ── */}
+        {/* header */}
         <div
           className="flex items-center gap-3 px-4 py-4 shrink-0"
           style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
@@ -92,288 +66,101 @@ export function SuraWidget({
           <div
             className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
             style={{
-              background:
-                "linear-gradient(135deg, rgba(20,184,166,0.28), rgba(13,148,136,0.18))",
+              background: "linear-gradient(135deg, rgba(20,184,166,0.28), rgba(13,148,136,0.18))",
               border: "1px solid rgba(20,184,166,0.28)",
             }}
           >
-            <Bot className="w-4 h-4" style={{ color: "#2dd4bf" }} />
+            <Inbox className="w-4 h-4" style={{ color: "#2dd4bf" }} />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-bold text-white text-sm">سُرى</p>
+            <p className="font-bold text-white text-sm">طابور مراجعة سُرى</p>
             <p className="text-[11px]" style={{ color: "var(--text-4)" }}>
-              المساعد الذكي للعيادة
+              محادثات تحتاج قراراً بشرياً
             </p>
           </div>
           <button
             onClick={() => setOpen(false)}
             className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-            style={{
-              background: "rgba(255,255,255,0.05)",
-              color: "var(--text-3)",
-            }}
+            style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-3)" }}
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* ── scrollable body ── */}
-        <div className="flex-1 overflow-y-auto">
-          {/* HITL queue */}
-          <div className="px-4 pt-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Inbox className="w-3.5 h-3.5" style={{ color: "#5dd9cb" }} />
-              <p
-                className="text-[10px] font-bold uppercase tracking-widest"
-                style={{ color: "var(--text-4)" }}
+        {/* body */}
+        <div className="flex-1 overflow-y-auto px-4 py-4">
+          {hitlItems.length === 0 ? (
+            <div className="flex flex-col items-center py-10 gap-2">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{
+                  background: "rgba(45,212,191,0.06)",
+                  border: "1px solid rgba(45,212,191,0.1)",
+                }}
               >
-                طابور المراجعة
-              </p>
-              {hitlCount > 0 && (
-                <span
-                  className="text-[10px] font-black px-1.5 py-0.5 rounded-full ltr-nums"
-                  style={{
-                    background: "rgba(94,217,203,0.12)",
-                    color: "#5dd9cb",
-                    border: "1px solid rgba(94,217,203,0.2)",
-                  }}
-                >
-                  {hitlCount}
-                </span>
-              )}
-            </div>
-
-            {hitlItems.length === 0 ? (
-              <div className="flex flex-col items-center py-6 gap-2">
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center"
-                  style={{
-                    background: "rgba(45,212,191,0.06)",
-                    border: "1px solid rgba(45,212,191,0.1)",
-                  }}
-                >
-                  <Inbox
-                    className="w-4 h-4"
-                    style={{ color: "rgba(45,212,191,0.45)" }}
-                  />
-                </div>
-                <p className="text-xs font-semibold" style={{ color: "#5dd9cb" }}>
-                  الطابور فارغ
-                </p>
-                <p
-                  className="text-[11px] text-center"
-                  style={{ color: "var(--text-4)" }}
-                >
-                  لا توجد محادثات تحتاج مراجعة
-                </p>
+                <Inbox className="w-4 h-4" style={{ color: "rgba(45,212,191,0.45)" }} />
               </div>
-            ) : (
-              <div className="space-y-2">
-                {hitlItems.slice(0, 8).map((item) => {
-                  const patient =
-                    (item.patients as any)?.name ?? "زائر غير مسجّل";
-                  const ageMin = Math.max(
-                    0,
-                    Math.round(
-                      (Date.now() - new Date(item.created_at).getTime()) /
-                        60_000
-                    )
-                  );
-                  const conf = Math.round(Number(item.confidence_score) * 100);
-                  const confColor =
-                    conf >= 70 ? "#5dd9cb" : conf >= 40 ? "rgba(45,212,191,0.6)" : "#fda4b4";
+              <p className="text-xs font-semibold" style={{ color: "#5dd9cb" }}>
+                الطابور فارغ
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {hitlItems.slice(0, 10).map((item) => {
+                const patient = (item.patients as any)?.name ?? "زائر غير مسجّل";
+                const conf = Math.round(Number(item.confidence_score) * 100);
+                const confColor =
+                  conf >= 70 ? "#5dd9cb" : conf >= 40 ? "rgba(45,212,191,0.6)" : "#fda4b4";
 
-                  return (
-                    <div
-                      key={item.id}
-                      className="rounded-xl p-3"
-                      style={{
-                        background: "rgba(94,217,203,0.04)",
-                        border: "1px solid rgba(94,217,203,0.1)",
-                      }}
-                    >
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <p className="text-xs font-bold text-white truncate flex-1">
-                          {patient}
-                        </p>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <Clock
-                            className="w-3 h-3"
-                            style={{ color: "#5dd9cb", opacity: 0.5 }}
-                          />
-                          <span
-                            className="text-[10px] ltr-nums"
-                            style={{ color: "var(--text-4)" }}
-                          >
-                            {ageMin} د
-                          </span>
-                        </div>
+                return (
+                  <div
+                    key={item.id}
+                    className="rounded-xl p-3"
+                    style={{
+                      background: "rgba(94,217,203,0.04)",
+                      border: "1px solid rgba(94,217,203,0.1)",
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <p className="text-xs font-bold text-white truncate flex-1">{patient}</p>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Clock className="w-3 h-3" style={{ color: "#5dd9cb", opacity: 0.5 }} />
+                        <span className="text-[10px] ltr-nums" style={{ color: "var(--text-4)" }}>
+                          {ageLabel(item.created_at)}
+                        </span>
                       </div>
+                    </div>
 
-                      {item.ai_intent && (
-                        <p className="text-[11px] mb-1" style={{ color: "var(--text-2)" }}>
-                          {item.ai_intent}
-                        </p>
-                      )}
-
-                      <p
-                        className="text-[11px] line-clamp-2"
-                        style={{ color: "var(--text-3)" }}
-                      >
-                        {item.ai_draft.substring(0, 90)}
-                        {item.ai_draft.length > 90 ? "…" : ""}
+                    {item.ai_intent && (
+                      <p className="text-[11px] mb-1" style={{ color: "var(--text-2)" }}>
+                        {item.ai_intent}
                       </p>
+                    )}
 
-                      <div className="flex items-center justify-between mt-2">
-                        <div className="flex items-center gap-1.5">
-                          <div
-                            className="h-1 w-14 rounded-full overflow-hidden"
-                            style={{ background: "rgba(255,255,255,0.07)" }}
-                          >
-                            <div
-                              className="h-full rounded-full"
-                              style={{
-                                width: `${conf}%`,
-                                background: confColor,
-                              }}
-                            />
-                          </div>
-                          <span
-                            className="text-[10px] ltr-nums"
-                            style={{ color: confColor }}
-                          >
-                            {conf}%
-                          </span>
-                        </div>
+                    <p className="text-[11px] line-clamp-2" style={{ color: "var(--text-3)" }}>
+                      {item.ai_draft.substring(0, 90)}
+                      {item.ai_draft.length > 90 ? "…" : ""}
+                    </p>
+
+                    <div className="flex items-center gap-1.5 mt-2">
+                      <div
+                        className="h-1 w-14 rounded-full overflow-hidden"
+                        style={{ background: "rgba(255,255,255,0.07)" }}
+                      >
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${conf}%`, background: confColor }}
+                        />
                       </div>
+                      <span className="text-[10px] ltr-nums" style={{ color: confColor }}>
+                        {conf}%
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* ── Ask Sura — live clinic intelligence ── */}
-          <div className="px-4 pb-4 mt-4">
-            <div
-              className="pt-4 space-y-3"
-              style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
-            >
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-3.5 h-3.5" style={{ color: "#2dd4bf" }} />
-                <p
-                  className="text-[10px] font-bold uppercase tracking-widest"
-                  style={{ color: "var(--text-4)" }}
-                >
-                  اسأل سُرى
-                </p>
-                <span className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full badge-brand">
-                  <span className="live-dot" style={{ width: 4, height: 4 }} />
-                  مباشر
-                </span>
-              </div>
-
-              {/* quick questions (before first message) */}
-              {chat.length === 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {QUICK_QUESTIONS.map((q) => (
-                    <button
-                      key={q}
-                      onClick={() => ask(q)}
-                      disabled={loading}
-                      className="text-[11px] font-medium px-2.5 py-1.5 rounded-full transition-colors"
-                      style={{
-                        background: "rgba(255,255,255,0.035)",
-                        border: "1px solid rgba(255,255,255,0.08)",
-                        color: "var(--text-2)",
-                      }}
-                    >
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* conversation */}
-              {chat.length > 0 && (
-                <div className="space-y-2 max-h-72 overflow-y-auto pe-0.5">
-                  {chat.map((m, i) => (
-                    <div
-                      key={i}
-                      className="rounded-xl px-3 py-2 text-[12px] leading-relaxed"
-                      style={
-                        m.role === "user"
-                          ? {
-                              background: "rgba(255,255,255,0.05)",
-                              border: "1px solid rgba(255,255,255,0.08)",
-                              color: "var(--text-1)",
-                              marginInlineStart: "1.5rem",
-                            }
-                          : {
-                              background: "rgba(45,212,191,0.06)",
-                              border: "1px solid rgba(45,212,191,0.14)",
-                              color: "var(--text-1)",
-                              marginInlineEnd: "1.5rem",
-                              whiteSpace: "pre-wrap",
-                            }
-                      }
-                    >
-                      {m.text}
-                    </div>
-                  ))}
-                  {loading && (
-                    <div
-                      className="rounded-xl px-3 py-2 text-[12px] flex items-center gap-1.5"
-                      style={{
-                        background: "rgba(45,212,191,0.06)",
-                        border: "1px solid rgba(45,212,191,0.14)",
-                        color: "var(--text-3)",
-                        marginInlineEnd: "1.5rem",
-                      }}
-                    >
-                      <span className="live-dot" style={{ width: 5, height: 5 }} />
-                      سُرى تحلّل بياناتك…
-                    </div>
-                  )}
-                  <div ref={chatEndRef} />
-                </div>
-              )}
-
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") ask(); }}
-                  disabled={loading}
-                  placeholder="مثال: ما إجمالي إيراد الأسبوع؟"
-                  className="flex-1 rounded-xl px-3 py-2 text-xs text-white"
-                  style={{
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    outline: "none",
-                    opacity: loading ? 0.6 : 1,
-                  }}
-                />
-                <button
-                  onClick={() => ask()}
-                  disabled={loading || !question.trim()}
-                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 disabled:opacity-50"
-                  style={{ background: "linear-gradient(135deg, #0d9488, #0f766e)" }}
-                  aria-label="إرسال السؤال"
-                >
-                  <ChevronLeft className="w-4 h-4 text-white" />
-                </button>
-              </div>
-
-              <p
-                className="text-[10px] text-center"
-                style={{ color: "var(--text-4)" }}
-              >
-                تحليل مباشر من بيانات عيادتك الحقيقية
-              </p>
+                  </div>
+                );
+              })}
             </div>
-          </div>
+          )}
         </div>
       </div>
     </>
@@ -381,7 +168,7 @@ export function SuraWidget({
 
   return (
     <>
-      {/* floating trigger button */}
+      {/* floating trigger — only when review is needed */}
       <button
         onClick={() => setOpen(true)}
         className="fixed flex items-center gap-2 px-4 py-3 rounded-2xl font-bold text-sm"
@@ -389,30 +176,20 @@ export function SuraWidget({
           bottom: "1.5rem",
           insetInlineEnd: "1.5rem",
           zIndex: 9990,
-          background: "linear-gradient(135deg, #0d9488, #0f766e)",
-          color: "white",
-          boxShadow: "0 8px 32px rgba(13,148,136,0.4)",
-          transition: "transform 0.15s, box-shadow 0.15s",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = "translateY(-2px)";
-          e.currentTarget.style.boxShadow = "0 12px 40px rgba(13,148,136,0.55)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = "";
-          e.currentTarget.style.boxShadow = "0 8px 32px rgba(13,148,136,0.4)";
+          background: "rgba(19,19,21,0.95)",
+          border: "1px solid rgba(45,212,191,0.35)",
+          color: "#5dd9cb",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
         }}
       >
         <Bot className="w-4 h-4" />
-        سُرى
-        {hitlCount > 0 && (
-          <span
-            className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ltr-nums"
-            style={{ background: "#5dd9cb", color: "#1C1917" }}
-          >
-            {hitlCount}
-          </span>
-        )}
+        مراجعة سُرى
+        <span
+          className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ltr-nums"
+          style={{ background: "#5dd9cb", color: "#0a0a0b" }}
+        >
+          {hitlCount}
+        </span>
       </button>
 
       {typeof window !== "undefined" && panel

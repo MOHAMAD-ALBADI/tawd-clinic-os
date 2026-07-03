@@ -11,11 +11,19 @@ interface Message {
 }
 
 const WELCOME: Record<Role, string> = {
-  clinic_admin:   "مرحباً! أنا سُرى، مساعدتك الذكية 🏔️ كيف أساعدك في إدارة العيادة؟",
-  doctor:         "مرحباً دكتور! أنا سُرى 🏔️ هل تحتاج مساعدة في جدول مرضاك اليوم؟",
-  receptionist:   "مرحباً! أنا سُرى 🏔️ جاهزة لمساعدتك في الحجوزات والاستقبال.",
-  accountant:     "مرحباً! أنا سُرى 🏔️ أستطيع مساعدتك في الفواتير والتقارير المالية.",
+  clinic_admin:   "مرحباً! أنا سُرى 🏔️ أطّلع على كل بيانات عيادتك لحظياً — اسألني عن الإيرادات، المواعيد، المرضى، أو أي تفصيل.",
+  doctor:         "مرحباً دكتور! أنا سُرى 🏔️ اسألني عن جدولك، مرضاك، أو مواعيدك القادمة.",
+  receptionist:   "مرحباً! أنا سُرى 🏔️ اسألني عن مواعيد اليوم، قائمة الانتظار، أو أي مريض.",
+  accountant:     "مرحباً! أنا سُرى 🏔️ اسألني عن الفواتير، الإيرادات، والمبالغ المعلقة.",
   platform_admin: "مرحباً! أنا سُرى 🏔️ مساعدتك في إدارة منصة طود شرف لي.",
+};
+
+const QUICK: Record<Role, string[]> = {
+  clinic_admin:   ["كم إيراد هذا الشهر؟", "مين أكثر مريض عنده نقاط ولاء؟", "وش أكثر خدمة مطلوبة؟"],
+  doctor:         ["كم موعد عندي اليوم؟", "مين مرضاي بكرة؟"],
+  receptionist:   ["كم موعد اليوم؟", "مين في قائمة الانتظار؟"],
+  accountant:     ["كم الفواتير غير المدفوعة؟", "كم إيراد هذا الشهر؟"],
+  platform_admin: ["كم عدد المرضى الكلي؟"],
 };
 
 export function SuraWidget({ userRole }: { userRole: Role }) {
@@ -37,85 +45,37 @@ export function SuraWidget({ userRole }: { userRole: Role }) {
     if (open) inputRef.current?.focus();
   }, [open]);
 
-  async function send() {
-    const text = input.trim();
+  async function send(preset?: string) {
+    const text = (preset ?? input).trim();
     if (!text || streaming) return;
 
-    setMessages((p) => [...p, { role: "user", content: text }]);
+    const msgsBefore = [...messages, { role: "user" as const, content: text }];
+    setMessages((p) => [...p, { role: "user", content: text }, { role: "assistant", content: "" }]);
     setInput("");
     setStreaming(true);
-
-    const msgsBefore = [...messages, { role: "user" as const, content: text }];
-    setMessages((p) => [...p, { role: "assistant", content: "" }]);
 
     abortRef.current = new AbortController();
 
     try {
-      const res = await fetch("/api/sura-widget", {
+      const res = await fetch("/api/sura/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: abortRef.current.signal,
         body: JSON.stringify({
-          message: text,
-          role: userRole,
-          history: msgsBefore.slice(-8),
+          question: text,
+          history: msgsBefore.slice(-7, -1).map((m) => ({
+            role: m.role === "user" ? "user" : "sura",
+            text: m.content,
+          })),
         }),
       });
-
-      if (!res.ok || !res.body) {
-        const err = await res.json().catch(() => ({ error: "خطأ في الاتصال" }));
-        setMessages((p) => {
-          const copy = [...p];
-          copy[copy.length - 1] = { role: "assistant", content: err.error ?? "حدث خطأ." };
-          return copy;
-        });
-        return;
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const raw = line.slice(6).trim();
-          if (!raw) continue;
-
-          try {
-            const event = JSON.parse(raw) as
-              | { type: "delta"; text: string }
-              | { type: "done" }
-              | { type: "error"; message: string };
-
-            if (event.type === "delta") {
-              setMessages((p) => {
-                const copy = [...p];
-                copy[copy.length - 1] = {
-                  role: "assistant",
-                  content: (copy[copy.length - 1].content ?? "") + event.text,
-                };
-                return copy;
-              });
-            } else if (event.type === "error") {
-              setMessages((p) => {
-                const copy = [...p];
-                copy[copy.length - 1] = { role: "assistant", content: event.message };
-                return copy;
-              });
-            }
-          } catch {
-            // malformed SSE line — skip
-          }
-        }
-      }
+      const j = await res.json().catch(() => ({}));
+      const answer = j.answer ?? j.error ?? "تعذّر التحليل الآن — حاول مرة أخرى.";
+      setMessages((p) => {
+        const copy = [...p];
+        copy[copy.length - 1] = { role: "assistant", content: String(answer) };
+        return copy;
+      });
     } catch (err) {
       if (err instanceof Error && err.name === "AbortError") return;
       setMessages((p) => {
@@ -138,7 +98,7 @@ export function SuraWidget({ userRole }: { userRole: Role }) {
         <div
           className="fixed bottom-24 start-5 w-80 rounded-2xl shadow-2xl z-50 flex flex-col overflow-hidden"
           style={{
-            background: "rgba(6,14,28,0.98)",
+            background: "rgba(14,14,16,0.98)",
             border: "1px solid rgba(255,255,255,0.09)",
             backdropFilter: "blur(28px)",
             boxShadow: "0 24px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(20,184,166,0.08)",
@@ -162,10 +122,10 @@ export function SuraWidget({ userRole }: { userRole: Role }) {
                 <div className="flex items-center gap-1 mt-0.5">
                   <span
                     className="w-1.5 h-1.5 rounded-full"
-                    style={{ background: streaming ? "#2dd4bf" : "#34D399", animation: "pulse 2s infinite" }}
+                    style={{ background: "#2dd4bf", animation: "pulse 2s infinite" }}
                   />
-                  <span className="text-[10px]" style={{ color: streaming ? "#2dd4bf" : "#34D399" }}>
-                    {streaming ? "تكتب..." : "نشطة"}
+                  <span className="text-[10px]" style={{ color: "#5dd9cb" }}>
+                    {streaming ? "تحلّل بياناتك…" : "متصلة ببيانات عيادتك"}
                   </span>
                 </div>
               </div>
@@ -206,6 +166,27 @@ export function SuraWidget({ userRole }: { userRole: Role }) {
             <div ref={endRef} />
           </div>
 
+          {/* Quick questions — before the conversation starts */}
+          {messages.length <= 1 && (
+            <div className="px-3 pb-1 flex flex-wrap gap-1.5">
+              {(QUICK[userRole] ?? []).map((q) => (
+                <button
+                  key={q}
+                  onClick={() => send(q)}
+                  disabled={streaming}
+                  className="text-[11px] font-medium px-2.5 py-1.5 rounded-full transition-colors hover:bg-white/10"
+                  style={{
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.09)",
+                    color: "rgba(226,232,240,0.75)",
+                  }}
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Input */}
           <div
             className="p-3 flex gap-2"
@@ -228,7 +209,7 @@ export function SuraWidget({ userRole }: { userRole: Role }) {
               onBlur={(e)  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; }}
             />
             <button
-              onClick={send}
+              onClick={() => send()}
               disabled={streaming || !input.trim()}
               className="w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-90 disabled:opacity-35"
               style={{ background: "linear-gradient(135deg, #0d9488, #0f766e)" }}
