@@ -4,7 +4,8 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { AddNoteForm } from "@/components/doctor/add-note-form";
 import { RecordVitalsForm } from "@/components/doctor/record-vitals-form";
-import { ArrowRight, Phone, Cake, NotebookPen, Activity, Lock, CalendarDays } from "lucide-react";
+import { MedicalHistoryForm, type MedicalHistory } from "@/components/doctor/medical-history-form";
+import { ArrowRight, Phone, Cake, NotebookPen, Activity, Lock, CalendarDays, AlertTriangle } from "lucide-react";
 
 const STATUS: Record<string, { label: string; color: string }> = {
   scheduled: { label: "مجدول", color: "#94A3B8" }, confirmed: { label: "مؤكد", color: "#5dd9cb" },
@@ -34,11 +35,14 @@ export default async function PatientFilePage({ params }: { params: Promise<{ id
     .eq("id", id).eq("clinic_id", claims.clinic_id).single();
   if (!patient) notFound();
 
-  const [{ data: vitals }, { data: notes }, { data: appts }] = await Promise.all([
+  const [{ data: vitals }, { data: notes }, { data: appts }, { data: history }] = await Promise.all([
     supabase.from("patient_vitals").select("*").eq("patient_id", id).order("recorded_at", { ascending: false }).limit(10),
     supabase.from("patient_notes").select("id, note_text, is_private, created_at, doctor_id").eq("patient_id", id).order("created_at", { ascending: false }).limit(30),
     supabase.from("appointments").select("id, slot_time, status, services(name_ar)").eq("patient_id", id).is("deleted_at", null).order("slot_time", { ascending: false }).limit(15),
+    supabase.from("medical_histories").select("blood_type, allergies, chronic_diseases, current_medications, notes").eq("patient_id", id).maybeSingle(),
   ]);
+
+  const allergies = ((history?.allergies as string[] | null) ?? []);
 
   const v = vitals ?? []; const latest = v[0];
   const noteList = notes ?? [];
@@ -74,13 +78,24 @@ export default async function PatientFilePage({ params }: { params: Promise<{ id
           {patient.name.charAt(0)}
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-lg font-bold text-white truncate">{patient.name}</h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-lg font-bold text-white truncate">{patient.name}</h2>
+            {allergies.length > 0 && (
+              <span className="badge badge-bad">
+                <AlertTriangle className="w-3 h-3" />
+                حساسية: {allergies.slice(0, 3).join("، ")}
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-4 mt-1 text-xs" style={{ color: "rgba(148,163,184,0.6)" }}>
             {patient.phone && <span className="flex items-center gap-1 ltr-nums"><Phone className="w-3 h-3" /> {patient.phone}</span>}
             {a !== null && <span className="flex items-center gap-1"><Cake className="w-3 h-3" /> {a} سنة</span>}
           </div>
         </div>
       </div>
+
+      {/* Unified medical history */}
+      <MedicalHistoryForm patientId={id} history={history as MedicalHistory} />
 
       {/* Latest vitals */}
       {latest && (
