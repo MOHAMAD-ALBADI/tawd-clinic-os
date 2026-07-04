@@ -204,6 +204,38 @@ export async function requestLeave(dateISO: string, reason: string) {
   revalidatePath("/doctor/schedule");
 }
 
+/** Update the doctor's own display names. */
+export async function updateMyProfile(nameAr: string, nameEn: string) {
+  const claims = await getUserClaims();
+  if (!claims || claims.role !== "doctor") throw new Error("غير مصرح");
+  if (!nameAr.trim() && !nameEn.trim()) throw new Error("الاسم فارغ");
+
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase
+    .from("tawd_staff_users")
+    .update({
+      name_ar: nameAr.trim() || null,
+      name: nameEn.trim() || nameAr.trim(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", claims.sub)
+    .eq("clinic_id", claims.clinic_id);
+  if (error) throw new Error(error.message);
+  revalidatePath("/doctor/settings");
+  revalidatePath("/doctor");
+}
+
+/** Change the doctor's own password (via the authenticated session). */
+export async function changeMyPassword(newPassword: string) {
+  const claims = await getUserClaims();
+  if (!claims) throw new Error("غير مصرح");
+  if (newPassword.length < 8) throw new Error("كلمة المرور يجب أن تكون 8 أحرف على الأقل");
+
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw new Error(error.message);
+}
+
 /** Cancel one of the doctor's own upcoming leaves. */
 export async function cancelLeave(leaveId: string) {
   const claims = await getUserClaims();

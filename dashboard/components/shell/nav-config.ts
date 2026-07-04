@@ -44,6 +44,7 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "مرضاي",          href: "/doctor/patients",      icon: UserCircle },
     { label: "دوامي وإجازاتي", href: "/doctor/schedule",      icon: ClipboardList },
     { label: "إحصائياتي",      href: "/doctor/stats",         icon: BarChart3 },
+    { label: "إعداداتي",       href: "/doctor/settings",      icon: Settings },
   ],
   receptionist: [
     { label: "لوحة الاستقبال", href: "/reception",       icon: ClipboardList, exact: true },

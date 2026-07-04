@@ -235,20 +235,34 @@ export async function POST(req: Request) {
   const sb = await createServiceRoleClient();
   const cid = claims.clinic_id;
 
-  const [cfgRes, clinicRes] = await Promise.all([
+  const [cfgRes, clinicRes, meRes] = await Promise.all([
     sb.from("channel_configs").select("config").eq("clinic_id", cid).eq("channel", "whatsapp").eq("is_active", true).limit(1).maybeSingle(),
     sb.from("tawd_clinics").select("name, name_ar, clinic_type").eq("id", cid).single(),
+    sb.from("tawd_staff_users").select("name, name_ar").eq("id", claims.sub).maybeSingle(),
   ]);
   const geminiKey = (cfgRes.data?.config as Record<string, string> | null)?.gemini_key;
   if (!geminiKey) {
     return NextResponse.json({ answer: "إعداد الذكاء الاصطناعي غير مكتمل لهذه العيادة — تواصل مع دعم طود." });
   }
   const clinicName = clinicRes.data?.name_ar ?? clinicRes.data?.name ?? "العيادة";
+  const userName = meRes.data?.name_ar ?? meRes.data?.name ?? "";
 
   const now = new Date();
+  const muscat = new Date(now.getTime() + 4 * 3600_000);
+  const muscatDate = muscat.toISOString().split("T")[0];
+  const muscatDay = new Intl.DateTimeFormat("ar", { weekday: "long" }).format(now);
+  const roleLabel =
+    role === "doctor" ? `الطبيب ${userName}` :
+    role === "receptionist" ? "موظف الاستقبال" :
+    role === "accountant" ? "المحاسب" : `مدير العيادة ${userName}`;
   const header =
-    `أنتِ "سُرى"، العقل الذكي لعيادة ${clinicName}. تتحدثين مع ${role === "doctor" ? "طبيب" : role === "receptionist" ? "موظف استقبال" : role === "accountant" ? "المحاسب" : "مدير العيادة"}.\n` +
-    `اليوم (UTC): ${now.toISOString()} — توقيت مسقط = UTC+4. الأوقات في قاعدة البيانات UTC.\n` +
+    `أنتِ "سُرى"، العقل الذكي لعيادة ${clinicName}. تتحدثين مع ${roleLabel}.\n` +
+    `هوية المتحدث معروفة ومؤكدة تلقائياً من تسجيل دخوله — لا تسأليه أبداً عن اسمه أو معرفه أو هويته.\n` +
+    (role === "doctor"
+      ? `كل استعلامات جدول appointments تُفلتر تلقائياً على مواعيد هذا الطبيب فقط — "مواعيدي/مرضاي" تعني نتائج الاستعلام مباشرة.\n`
+      : "") +
+    `تاريخ اليوم في مسقط: ${muscatDate} (${muscatDay}). "غداً" = اليوم التالي لهذا التاريخ. الأوقات في قاعدة البيانات UTC (مسقط = UTC+4).\n` +
+    `نتيجة استعلام فارغة [] تعني ببساطة: لا بيانات مطابقة — أجيبي بذلك بثقة (مثال: "لا مواعيد غداً"). لا تفترضي أبداً وجود مشكلة في الهوية أو خطأ تقني.\n` +
     `العملة: ريال عُماني بثلاث منازل عشرية.\n\n` +
     `لديك وصول كامل لقاعدة بيانات العيادة عبر خطط استعلام JSON. الجداول المتاحة:\n${catalogFor(role)}\n\n` +
     `صيغة خطة الاستعلام:\n` +
