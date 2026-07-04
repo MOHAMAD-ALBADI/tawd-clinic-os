@@ -98,6 +98,62 @@ const ROLE_TABLES: Record<Role, string[]> = {
 };
 
 const OPS = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "ilike", "in", "is"]);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type AgentAction = { type: string; appointment_id?: string; reason?: string };
+
+/* Real, tightly-scoped mutations Sura may perform on explicit user request. */
+async function runAction(
+  sb: Awaited<ReturnType<typeof createServiceRoleClient>>,
+  action: AgentAction,
+  cid: string,
+  role: Role,
+  sub: string
+) {
+  if (role === "accountant") throw new Error("هذا الدور لا يملك صلاحية تنفيذ إجراءات على المواعيد");
+  const id = String(action.appointment_id ?? "");
+  if (!UUID_RE.test(id)) throw new Error("appointment_id يجب أن يكون UUID حقيقياً من نتيجة استعلام");
+
+  const nowIso = new Date().toISOString();
+  let patch: Record<string, unknown>;
+  let allowedFrom: string[];
+
+  if (action.type === "cancel_appointment") {
+    patch = {
+      status: "cancelled",
+      cancelled_at: nowIso,
+      cancelled_by: sub,
+      cancellation_reason: String(action.reason ?? "").trim() || "إلغاء عبر سُرى (لوحة التحكم)",
+      updated_at: nowIso,
+    };
+    allowedFrom = ["scheduled", "confirmed", "checked_in"];
+  } else if (action.type === "confirm_appointment") {
+    patch = { status: "confirmed", updated_at: nowIso };
+    allowedFrom = ["scheduled"];
+  } else {
+    throw new Error(`إجراء غير مدعوم: ${action.type}`);
+  }
+
+  let q = sb
+    .from("appointments")
+    .update(patch)
+    .eq("id", id)
+    .eq("clinic_id", cid)
+    .is("deleted_at", null)
+    .in("status", allowedFrom);
+  if (role === "doctor") q = q.eq("doctor_id", sub);
+
+  const { data, error } = await q.select("id, slot_time, status").maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) {
+    return {
+      action: action.type,
+      done: false,
+      reason: "لا يوجد موعد بهذا المعرف قابل للتعديل (تحققي من الحالة أو الصلاحية)",
+    };
+  }
+  return { action: action.type, done: true, appointment: data };
+}
 
 type Filter = { col: string; op: string; value: unknown };
 type Plan = {
@@ -133,7 +189,6 @@ async function runPlan(sb: Awaited<ReturnType<typeof createServiceRoleClient>>, 
   if ("deleted_at" in Object.fromEntries(t.cols.map((c) => [c, 1])) ) { /* noop */ }
   if (["patients", "appointments", "invoices"].includes(plan.table)) q = q.is("deleted_at", null);
 
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   for (const f of plan.filters ?? []) {
     if (!f || typeof f.col !== "string" || !OPS.has(f.op)) continue;
     if (!t.cols.includes(f.col)) continue;
@@ -285,69 +340,75 @@ export async function POST(req: Request) {
     `- لا تضيفي أبداً فلاتر clinic_id أو doctor_id أو deleted_at — تُضاف تلقائياً من النظام.\n` +
     `- أعمدة *_id تقبل UUID حقيقياً فقط (من نتيجة استعلام سابق) — للبحث بالاسم استخدمي ilike على name.\n` +
     `- فلاتر التاريخ/الوقت على slot_time أو created_at بصيغة ISO مثل "2026-07-04T00:00:00+04:00" أو "2026-07-04".\n` +
-    `- بحد أقصى 3 استعلامات بالجولة.\n`;
+    `- بحد أقصى 3 استعلامات بالجولة، وضمّني "id" في select دائماً.\n\n` +
+    (role === "accountant"
+      ? ""
+      : `[الإجراءات المتاحة — عند طلب المستخدم الصريح فقط]\n` +
+        `{"action":{"type":"cancel_appointment","appointment_id":"<uuid>","reason":"اختياري"}} — إلغاء موعد\n` +
+        `{"action":{"type":"confirm_appointment","appointment_id":"<uuid>"}} — تأكيد موعد مجدول\n` +
+        `- appointment_id يجب أن يأتي من نتيجة استعلام في هذه المحادثة (استعلمي أولاً إن لزم، ثم نفّذي في الرد التالي).\n` +
+        `- لا تنفّذي إجراء إلا إذا طلبه المستخدم صراحة في رسالته الأخيرة، وأكّدي له النتيجة الفعلية بعد التنفيذ.\n` +
+        `- أعيدي إما queries أو action في الرد الواحد — ليس كليهما.\n`);
 
   const historyBlock = history.length
     ? `\n[المحادثة السابقة]\n${history.map((h) => `${h.role}: ${h.text}`).join("\n")}\n`
     : "";
 
   try {
-    /* round 1: plan or direct answer */
-    const p1 =
+    /* agent loop: each model turn returns answer | queries | action (max 4 turns) */
+    const context: unknown[] = [];
+    let actionsDone = 0;
+
+    const ask = (final: boolean) =>
       header + historyBlock +
-      `\n[سؤال المستخدم]\n${question}\n\n` +
-      `أعيدي JSON فقط بأحد الشكلين:\n` +
-      `1) {"answer":"..."} إذا كان السؤال عاماً أو تحية أو تُجيبينه من المحادثة السابقة.\n` +
-      `2) {"queries":[...]} إذا كان يحتاج بيانات من قاعدة البيانات (المفضّل دائماً للأسئلة عن العيادة).`;
+      `\n[سؤال المستخدم]\n${question}\n` +
+      (context.length ? `\n[نتائج الاستعلامات والإجراءات حتى الآن]\n${JSON.stringify(context).slice(0, 14000)}\n` : "") +
+      `\nأعيدي JSON فقط بأحد الأشكال:\n` +
+      `1) {"answer":"..."} — الإجابة/التأكيد النهائي بالعربية، موجز ودقيق، اعتماداً حصراً على النتائج أعلاه (لا تخترعي أرقاماً؛ المبالغ مثل 5.000 ر.ع).` +
+      (final
+        ? ``
+        : `\n2) {"queries":[...]} — إذا كنت تحتاجين بيانات (أو تصحيح استعلام خاطئ).\n` +
+          (role === "accountant" || actionsDone >= 2
+            ? ``
+            : `3) {"action":{...}} — لتنفيذ إجراء طلبه المستخدم صراحة (بعد حصولك على id من استعلام).`));
 
-    const r1 = JSON.parse(await gemini(geminiKey, p1, true));
-    if (r1.answer && !r1.queries) {
-      return NextResponse.json({ answer: String(r1.answer) });
-    }
+    let resp = JSON.parse(await gemini(geminiKey, ask(false), true));
 
-    let plans: Plan[] = Array.isArray(r1.queries) ? r1.queries.slice(0, 3) : [];
-    let results: unknown[] = [];
-    let lastError = "";
+    for (let step = 0; step < 4; step++) {
+      if (resp.answer && !resp.queries && !resp.action) {
+        return NextResponse.json({ answer: String(resp.answer) });
+      }
 
-    for (let round = 0; round < 2; round++) {
-      results = [];
-      lastError = "";
-      for (const plan of plans) {
+      if (resp.action && typeof resp.action === "object" && role !== "accountant" && actionsDone < 2) {
+        actionsDone++;
         try {
-          results.push(await runPlan(sb, plan, cid, role, claims.sub));
+          const res = await runAction(sb, resp.action as AgentAction, cid, role, claims.sub);
+          context.push({ action_result: res });
         } catch (e) {
-          lastError = e instanceof Error ? e.message : String(e);
-          console.error("[sura/ask] plan failed:", plan?.table, lastError);
-          results.push({ table: plan?.table, error: lastError, hint: "صحّحي الاستعلام وأعيدي المحاولة" });
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error("[sura/ask] action failed:", msg);
+          context.push({ action_result: { action: (resp.action as AgentAction).type, done: false, error: msg } });
         }
+      } else if (Array.isArray(resp.queries) && resp.queries.length) {
+        for (const plan of (resp.queries as Plan[]).slice(0, 3)) {
+          try {
+            context.push(await runPlan(sb, plan, cid, role, claims.sub));
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            console.error("[sura/ask] plan failed:", plan?.table, msg);
+            context.push({ table: plan?.table, error: msg, hint: "صحّحي الاستعلام وأعيدي المحاولة" });
+          }
+        }
+      } else {
+        break;
       }
 
-      const p2 =
-        header + historyBlock +
-        `\n[سؤال المستخدم]\n${question}\n\n` +
-        `[نتائج الاستعلامات]\n${JSON.stringify(results).slice(0, 14000)}\n\n` +
-        `أعيدي JSON فقط:\n` +
-        `1) {"answer":"..."} — الإجابة النهائية بالعربية، موجزة ودقيقة، اعتماداً حصراً على النتائج أعلاه (لا تخترعي أرقاماً). نسّقي المبالغ مثل 5.000 ر.ع.\n` +
-        (round === 0
-          ? `2) {"queries":[...]} — فقط إذا كانت النتائج غير كافية أو فيها خطأ وتحتاجين استعلاماً مختلفاً.`
-          : ``);
-
-      const r2 = JSON.parse(await gemini(geminiKey, p2, true));
-      if (r2.answer && !r2.queries) {
-        return NextResponse.json({ answer: String(r2.answer) });
-      }
-      if (round === 0 && Array.isArray(r2.queries) && r2.queries.length) {
-        plans = r2.queries.slice(0, 3);
-        continue;
-      }
-      if (r2.answer) return NextResponse.json({ answer: String(r2.answer) });
-      break;
+      resp = JSON.parse(await gemini(geminiKey, ask(step >= 2), true));
     }
 
+    if (resp?.answer) return NextResponse.json({ answer: String(resp.answer) });
     return NextResponse.json({
-      answer: lastError
-        ? "واجهت صعوبة في قراءة هذه البيانات — جرّب صياغة السؤال بشكل مختلف."
-        : "ما قدرت أوصل لإجابة دقيقة — جرّب تحديد سؤالك أكثر.",
+      answer: "ما قدرت أكمل هذا الطلب — جرّب صياغته بشكل أوضح أو قسّمه لخطوتين.",
     });
   } catch {
     return NextResponse.json({ answer: "تعذّر التحليل الآن — حاول مرة أخرى بعد لحظات." });
