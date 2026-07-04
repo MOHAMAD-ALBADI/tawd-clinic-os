@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarClock, Plane, Save, Trash2 } from "lucide-react";
+import { CalendarClock, Plane, Save, Trash2, CheckCircle2 } from "lucide-react";
 import { saveWeeklySchedule, requestLeave, cancelLeave, type WeekDayInput } from "@/app/actions/doctor";
 
 const DAYS: { key: WeekDayInput["day"]; label: string }[] = [
@@ -40,6 +40,7 @@ export function ScheduleEditor({
   const [days, setDays] = useState<WeekDayInput[]>(initial);
   const [leaveDate, setLeaveDate] = useState("");
   const [leaveReason, setLeaveReason] = useState("");
+  const [saved, setSaved] = useState(false);
 
   const patch = (i: number, p: Partial<WeekDayInput>) =>
     setDays((prev) => prev.map((d, j) => (j === i ? { ...d, ...p } : d)));
@@ -48,6 +49,8 @@ export function ScheduleEditor({
     startSave(async () => {
       try {
         await saveWeeklySchedule(days);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
         router.refresh();
       } catch (e) {
         alert(e instanceof Error ? e.message : "حدث خطأ");
@@ -138,9 +141,14 @@ export function ScheduleEditor({
           })}
         </div>
 
-        <button onClick={saveSchedule} disabled={saving} className="btn-primary w-full mt-4">
-          <Save className="w-3.5 h-3.5" />
-          {saving ? "جارٍ الحفظ…" : "حفظ الدوام"}
+        <button
+          onClick={saveSchedule}
+          disabled={saving}
+          className="btn-primary w-full mt-4"
+          style={saved ? { background: "linear-gradient(135deg, #34d399, #10b981)", borderColor: "rgba(52,211,153,0.5)" } : undefined}
+        >
+          {saved ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-3.5 h-3.5" />}
+          {saved ? "تم حفظ الدوام ✓" : saving ? "جارٍ الحفظ…" : "حفظ الدوام"}
         </button>
       </div>
 

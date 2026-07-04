@@ -133,9 +133,21 @@ async function runPlan(sb: Awaited<ReturnType<typeof createServiceRoleClient>>, 
   if ("deleted_at" in Object.fromEntries(t.cols.map((c) => [c, 1])) ) { /* noop */ }
   if (["patients", "appointments", "invoices"].includes(plan.table)) q = q.is("deleted_at", null);
 
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   for (const f of plan.filters ?? []) {
     if (!f || typeof f.col !== "string" || !OPS.has(f.op)) continue;
     if (!t.cols.includes(f.col)) continue;
+    /* reserved scoping columns are set by the server — silently ignore model attempts */
+    if (["clinic_id", "doctor_id", "deleted_at"].includes(f.col) && !(f.col === "doctor_id" && role !== "doctor")) {
+      if (f.col !== "doctor_id") continue;
+    }
+    /* *_id columns must carry real UUIDs — otherwise teach the model to search by name */
+    if (f.col.endsWith("_id") && ["eq", "neq"].includes(f.op) && !UUID_RE.test(String(f.value ?? ""))) {
+      throw new Error(`قيمة ${f.col} ليست UUID صالحاً — للبحث بالاسم استعلمي أولاً عن patients بـ ilike على name ثم استخدمي الـ id الناتج، أو استخدمي embed=true`);
+    }
+    if (f.col.endsWith("_id") && f.op === "in" && Array.isArray(f.value) && !f.value.every((x) => UUID_RE.test(String(x)))) {
+      throw new Error(`قيم ${f.col} يجب أن تكون UUIDs صالحة`);
+    }
     const v = f.value;
     if (f.op === "eq") q = q.eq(f.col, v as never);
     else if (f.op === "neq") q = q.neq(f.col, v as never);
@@ -270,6 +282,9 @@ export async function POST(req: Request) {
     `- استخدمي aggregate للمجاميع/العدّ/المتوسط (group_by للتجميع مثل أكثر خدمة/طبيب).\n` +
     `- embed=true يجلب اسم المريض/الخدمة/الطبيب مع الصف.\n` +
     `- ilike للبحث بالأسماء العربية (بدون %).\n` +
+    `- لا تضيفي أبداً فلاتر clinic_id أو doctor_id أو deleted_at — تُضاف تلقائياً من النظام.\n` +
+    `- أعمدة *_id تقبل UUID حقيقياً فقط (من نتيجة استعلام سابق) — للبحث بالاسم استخدمي ilike على name.\n` +
+    `- فلاتر التاريخ/الوقت على slot_time أو created_at بصيغة ISO مثل "2026-07-04T00:00:00+04:00" أو "2026-07-04".\n` +
     `- بحد أقصى 3 استعلامات بالجولة.\n`;
 
   const historyBlock = history.length
@@ -302,7 +317,8 @@ export async function POST(req: Request) {
           results.push(await runPlan(sb, plan, cid, role, claims.sub));
         } catch (e) {
           lastError = e instanceof Error ? e.message : String(e);
-          results.push({ table: plan?.table, error: lastError });
+          console.error("[sura/ask] plan failed:", plan?.table, lastError);
+          results.push({ table: plan?.table, error: lastError, hint: "صحّحي الاستعلام وأعيدي المحاولة" });
         }
       }
 
