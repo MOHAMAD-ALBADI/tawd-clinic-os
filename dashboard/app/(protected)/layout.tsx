@@ -33,6 +33,7 @@ export default async function ProtectedLayout({
       {/* Dark sidebar — fixed on end (RTL = right) */}
       <AppSidebar
         role={claims.role}
+        allRoles={claims.all_roles}
         userName={staffData?.name ?? claims.email.split("@")[0]}
         clinicName={clinicData?.name}
       />

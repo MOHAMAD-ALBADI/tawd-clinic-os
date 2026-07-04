@@ -14,6 +14,7 @@ import {
   Star,
   Scissors,
   Bot,
+  Scale,
   type LucideIcon,
 } from "lucide-react";
 
@@ -51,9 +52,10 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "حجز موعد",       href: "/reception/book",  icon: Calendar },
   ],
   accountant: [
-    { label: "لوحة المالية",  href: "/accountant",          icon: CreditCard, exact: true },
-    { label: "الفواتير",      href: "/accountant/invoices", icon: ClipboardList },
-    { label: "نقاط الولاء",  href: "/accountant/loyalty",  icon: Star },
+    { label: "لوحة المالية",  href: "/accountant",           icon: CreditCard, exact: true },
+    { label: "الفواتير",      href: "/accountant/invoices",  icon: ClipboardList },
+    { label: "إغلاق اليوم",  href: "/accountant/day-close", icon: Scale },
+    { label: "نقاط الولاء",  href: "/accountant/loyalty",   icon: Star },
   ],
   platform_admin: [
     { label: "نظرة المنصة", href: "/platform-admin",           icon: LayoutDashboard, exact: true },

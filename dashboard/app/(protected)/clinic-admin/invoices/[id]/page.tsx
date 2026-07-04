@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
+import { hasRole } from "@/lib/auth/role-redirect";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { PrintInvoiceButton } from "@/components/invoices/print-button";
 import { ChevronRight } from "lucide-react";
@@ -20,7 +21,7 @@ type Item = { id: string; description: string; quantity: number; unit_price_snap
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const claims = await getUserClaims();
-  if (!claims || claims.role !== "clinic_admin") redirect("/login");
+  if (!claims || !(claims.role === "clinic_admin" || hasRole(claims, "accountant"))) redirect("/login");
 
   const supabase = await createServerSupabaseClient();
   const [{ data: inv }, { data: items }, { data: clinic }] = await Promise.all([
@@ -56,7 +57,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           {/* Header */}
           <div className="flex items-start justify-between gap-6 pb-6" style={{ borderBottom: "1px solid var(--hairline)" }}>
             <div>
-              <p className="eyebrow mb-1" style={{ color: "var(--color-brand-400)" }}>INVOICE · فاتورة</p>
+              <p className="eyebrow mb-1" style={{ color: "var(--color-brand-400)" }}>
+                {clinic?.vat_number && Number(inv.total) < 500 ? "فاتورة ضريبية مبسطة · SIMPLIFIED TAX INVOICE" : "INVOICE · فاتورة"}
+              </p>
               <h1 className="text-2xl font-black text-white print:text-black leading-none">{clinicName}</h1>
               {clinic?.address && <p className="text-[12px] mt-2" style={{ color: "var(--text-3)" }}>{clinic.address}</p>}
               {clinic?.phone && <p className="text-[12px] ltr-nums" style={{ color: "var(--text-3)" }}>{clinic.phone}</p>}

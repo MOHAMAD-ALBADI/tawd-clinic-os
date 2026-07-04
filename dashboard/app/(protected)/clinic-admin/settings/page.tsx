@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { ClinicInfoForm } from "@/components/settings/clinic-info-form";
 import { WorkingHoursForm } from "@/components/settings/working-hours-form";
 import { ReviewLinkForm } from "@/components/settings/review-link-form";
+import { VatNumberForm } from "@/components/settings/vat-number-form";
 import { Shield, CreditCard, Users, Activity } from "lucide-react";
 
 export const metadata = { title: "الإعدادات — طود" };
@@ -28,7 +29,7 @@ export default async function SettingsPage() {
     await Promise.all([
       supabase
         .from("tawd_clinics")
-        .select("id, name, name_ar, timezone, country_code, currency, vat_enabled, plan, status")
+        .select("id, name, name_ar, timezone, country_code, currency, vat_enabled, vat_number, plan, status")
         .eq("id", claims.clinic_id)
         .single(),
       supabase
@@ -133,6 +134,9 @@ export default async function SettingsPage() {
 
       {/* Google review link — editable (used by Sura post-visit follow-up) */}
       <ReviewLinkForm currentUrl={(settings?.google_review_url as string | null) ?? null} />
+
+      {/* VAT registration number — printed on tax invoices */}
+      <VatNumberForm current={(clinic?.vat_number as string | null) ?? null} />
 
       {/* Security info */}
       <div

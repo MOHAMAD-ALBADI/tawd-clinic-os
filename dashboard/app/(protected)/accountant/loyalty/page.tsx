@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
+import { hasRole } from "@/lib/auth/role-redirect";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { Star } from "lucide-react";
 
@@ -9,7 +10,7 @@ type Patient = { id: string; name: string; loyalty_points: number };
 
 export default async function LoyaltyPage() {
   const claims = await getUserClaims();
-  if (!claims || claims.role !== "accountant") redirect("/login");
+  if (!claims || !(hasRole(claims, "accountant") || claims.role === "clinic_admin")) redirect("/login");
 
   const supabase = await createServerSupabaseClient();
   const { data } = await supabase

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
+import { hasRole } from "@/lib/auth/role-redirect";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { CreditCard } from "lucide-react";
@@ -20,7 +21,7 @@ const STATUS: Record<string, { label: string; color: string; bg: string }> = {
 
 export default async function InvoicesPage() {
   const claims = await getUserClaims();
-  if (!claims || claims.role !== "accountant") redirect("/login");
+  if (!claims || !(hasRole(claims, "accountant") || claims.role === "clinic_admin")) redirect("/login");
 
   const supabase = await createServerSupabaseClient();
   const { data, count } = await supabase

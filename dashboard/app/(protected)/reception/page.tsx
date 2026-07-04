@@ -1,247 +1,211 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { TodayTimeline } from "@/components/dashboard/today-timeline";
-import { BookingTrigger } from "@/components/reception/booking-trigger";
-import type { TimelineSlot } from "@/types/tawd";
+import { hasRole } from "@/lib/auth/role-redirect";
+import { CheckinButton } from "@/components/reception/checkin-button";
+import { WaitingRoom, type QueueEntry } from "@/components/reception/waiting-room";
+import { WalkinDialog } from "@/components/reception/walkin-dialog";
+import { EmergencyAlerts } from "@/components/dashboard/emergency-alerts";
+import { TawdBarsGlyph } from "@/components/shell/tawd-logo";
+import { CalendarPlus, ClipboardList, Hourglass } from "lucide-react";
 
 export const metadata = { title: "لوحة الاستقبال — طود" };
 
-type JoinedPatient = { name: string } | null;
-type JoinedService = { name: string } | null;
-type JoinedDoctor  = { name: string } | null;
+const STATUS: Record<string, { label: string; color: string }> = {
+  scheduled:   { label: "مجدول",  color: "#a1a1aa" },
+  confirmed:   { label: "مؤكد",   color: "#e4e4e7" },
+  checked_in:  { label: "وصل",    color: "#5dd9cb" },
+  in_progress: { label: "جارٍ",   color: "#2dd4bf" },
+  completed:   { label: "مكتمل",  color: "#5dd9cb" },
+  cancelled:   { label: "ملغي",   color: "#71717a" },
+  no_show:     { label: "لم يحضر", color: "#fda4b4" },
+};
+
+const fmtTime = (iso: string) =>
+  new Intl.DateTimeFormat("ar", { timeZone: "Asia/Muscat", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(iso));
+
+const relMin = (iso: string) => {
+  const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
+  return m < 60 ? `منذ ${m} د` : `منذ ${Math.round(m / 60)} س`;
+};
 
 export default async function ReceptionPage() {
   const claims = await getUserClaims();
-  if (!claims || claims.role !== "receptionist") redirect("/login");
+  if (!claims || !(hasRole(claims, "receptionist") || claims.role === "clinic_admin")) redirect("/login");
 
-  const supabase = await createServerSupabaseClient();
+  const sb = await createServerSupabaseClient();
   const today = new Date().toISOString().split("T")[0];
 
-  const [appointmentsRes, patientsRes, servicesRes, doctorsRes] = await Promise.all([
-    supabase
-      .from("appointments")
-      .select("id,slot_time,status,patients(name),services(name),tawd_staff_users!doctor_id(name)")
+  const [apptsRes, queueRes, alertsRes, waitlistRes, doctorsRes, servicesRes, patientsRes] = await Promise.all([
+    sb.from("appointments")
+      .select("id, slot_time, status, patient_id, patients!patient_id(name, phone), services!service_id(name_ar), tawd_staff_users!doctor_id(name_ar, name)")
       .eq("clinic_id", claims.clinic_id)
-      .gte("slot_time", `${today}T00:00:00`)
-      .lte("slot_time", `${today}T23:59:59`)
-      .order("slot_time"),
-    supabase.from("patients").select("id,name,phone").eq("clinic_id", claims.clinic_id).order("name"),
-    supabase.from("services").select("id,name,price").eq("clinic_id", claims.clinic_id).order("name"),
-    supabase.from("tawd_staff_users").select("id,name,name_ar").eq("clinic_id", claims.clinic_id).eq("role", "doctor"),
+      .gte("slot_time", `${today}T00:00:00`).lte("slot_time", `${today}T23:59:59`)
+      .is("deleted_at", null).order("slot_time"),
+    sb.from("waiting_queue")
+      .select("id, queue_position, status, check_in_at, patients!patient_id(name), appointments!appt_id(services!service_id(name_ar), tawd_staff_users!doctor_id(name_ar, name))")
+      .eq("clinic_id", claims.clinic_id)
+      .in("status", ["waiting", "called", "in_room"])
+      .gte("check_in_at", `${today}T00:00:00`)
+      .order("queue_position"),
+    sb.from("sura_alerts")
+      .select("id, kind, phone, patient_name, message, created_at")
+      .eq("clinic_id", claims.clinic_id).in("kind", ["emergency", "complaint"]).eq("status", "open")
+      .order("created_at", { ascending: false }).limit(10),
+    sb.from("appointment_waitlist")
+      .select("id", { count: "exact", head: true })
+      .eq("clinic_id", claims.clinic_id).eq("status", "waiting"),
+    sb.from("tawd_staff_users").select("id, name, name_ar")
+      .eq("clinic_id", claims.clinic_id).eq("role", "doctor").eq("is_active", true).is("deleted_at", null),
+    sb.from("services").select("id, name_ar").eq("clinic_id", claims.clinic_id).eq("is_active", true).order("name_ar"),
+    sb.from("patients").select("id", { count: "exact", head: true }).eq("clinic_id", claims.clinic_id).is("deleted_at", null),
   ]);
 
-  const appts    = appointmentsRes.data ?? [];
-  const patients = patientsRes.data ?? [];
-  const services = servicesRes.data ?? [];
-  const doctors  = doctorsRes.data ?? [];
+  const appts = apptsRes.data ?? [];
+  const doctors = (doctorsRes.data ?? []).map((d) => ({ id: d.id, label: (d.name_ar ?? d.name) as string }));
+  const services = (servicesRes.data ?? []).map((s) => ({ id: s.id, label: s.name_ar as string }));
 
-  const inClinic  = appts.filter((a) => ["checked_in", "in_progress"].includes(a.status)).length;
-  const waiting   = appts.filter((a) => ["scheduled", "confirmed"].includes(a.status)).length;
-  const completed = appts.filter((a) => a.status === "completed").length;
-  const noShow    = appts.filter((a) => a.status === "no_show").length;
+  const queue: QueueEntry[] = (queueRes.data ?? []).map((q) => {
+    const appt = q.appointments as unknown as {
+      services?: { name_ar?: string } | null;
+      tawd_staff_users?: { name_ar?: string; name?: string } | null;
+    } | null;
+    return {
+      id: q.id,
+      position: q.queue_position,
+      status: q.status,
+      patientName: (q.patients as unknown as { name?: string } | null)?.name ?? "مريض",
+      serviceName: appt?.services?.name_ar ?? null,
+      doctorName: appt?.tawd_staff_users?.name_ar ?? appt?.tawd_staff_users?.name ?? null,
+      waitingSince: relMin(q.check_in_at),
+    };
+  });
 
-  const slots: TimelineSlot[] = appts.map((a) => ({
-    id:           a.id,
-    patient_name: (a.patients as unknown as JoinedPatient)?.name ?? "مجهول",
-    time:         a.slot_time,
-    service:      (a.services as unknown as JoinedService)?.name ?? "",
-    status:       a.status,
-    doctor_name:  (a.tawd_staff_users as unknown as JoinedDoctor)?.name,
+  const relTime = (iso: string) => {
+    const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000);
+    return h < 1 ? "الآن" : h < 24 ? `منذ ${h} ساعة` : `منذ ${Math.floor(h / 24)} يوم`;
+  };
+  const alerts = (alertsRes.data ?? []).map((a) => ({
+    id: a.id, kind: a.kind ?? "emergency", phone: a.phone ?? null,
+    patientName: a.patient_name ?? null, message: a.message ?? null, ago: relTime(a.created_at),
   }));
 
-  const nextAppt = appts.find((a) => ["scheduled", "confirmed"].includes(a.status));
-  const nextName = (nextAppt?.patients as unknown as JoinedPatient)?.name;
+  const upcoming = appts.filter((a) => ["scheduled", "confirmed"].includes(a.status));
+  const inClinic = appts.filter((a) => ["checked_in", "in_progress"].includes(a.status)).length;
+  const completed = appts.filter((a) => a.status === "completed").length;
+  const next = upcoming.find((a) => new Date(a.slot_time) > new Date()) ?? upcoming[0] ?? null;
 
-  const todayFmt = new Intl.DateTimeFormat("ar-SA", {
-    weekday: "long", day: "numeric", month: "long",
-  }).format(new Date());
-
-  /* Completion arc */
-  const completionPct = appts.length > 0 ? Math.round((completed / appts.length) * 100) : 0;
+  const todayAr = new Intl.DateTimeFormat("ar", { timeZone: "Asia/Muscat", weekday: "long", day: "numeric", month: "long" }).format(new Date());
 
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div className="space-y-4 animate-fade-in pb-20">
+      <EmergencyAlerts alerts={alerts} />
 
-      {/* ── COMMAND STRIP ── */}
-      <div
-        className="rounded-3xl relative overflow-hidden"
-        style={{
-          background: "linear-gradient(145deg, rgba(20,184,166,0.07) 0%, rgba(13,13,15,0.95) 60%)",
-          border: "1px solid rgba(20,184,166,0.1)",
-          padding: "1.5rem 2rem",
-        }}
-      >
-        {/* Ambient orb */}
-        <div aria-hidden style={{
-          position: "absolute", top: -50, right: -50,
-          width: 180, height: 180, borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(20,184,166,0.08) 0%, transparent 70%)",
-          pointerEvents: "none",
-        }} />
-
-        <div className="relative flex items-center justify-between gap-4">
+      {/* ══ command strip ══ */}
+      <div className="panel-feature relative overflow-hidden" style={{ padding: "1.5rem 1.75rem" }}>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1" style={{ color: "rgba(20,184,166,0.45)" }}>
-              {todayFmt}
-            </p>
-            <h1 className="text-xl font-black text-white mb-1.5 leading-none">لوحة الاستقبال</h1>
-            {nextAppt ? (
-              <p className="text-[12px]" style={{ color: "rgba(148,163,184,0.55)" }}>
-                الموعد القادم:{" "}
-                <span className="font-bold" style={{ color: "#5dd9cb" }}>{nextName ?? "مجهول"}</span>
+            <p className="text-xs font-medium" style={{ color: "var(--text-3)" }}>{todayAr}</p>
+            <h1 className="text-xl font-bold text-white mt-1">لوحة الاستقبال</h1>
+            {next ? (
+              <p className="text-[12px] mt-1.5" style={{ color: "var(--text-3)" }}>
+                القادم: <span className="font-bold text-white">{(next.patients as unknown as { name?: string } | null)?.name ?? "مريض"}</span>
                 {" · "}
-                <span className="ltr-nums font-medium" style={{ color: "rgba(20,184,166,0.6)" }}>
-                  {nextAppt.slot_time.substring(11, 16)}
-                </span>
+                <span className="ltr-nums font-bold" style={{ color: "#5dd9cb" }}>{fmtTime(next.slot_time)}</span>
               </p>
             ) : (
-              <p className="text-[12px]" style={{ color: "rgba(148,163,184,0.35)" }}>لا مواعيد قادمة</p>
+              <p className="text-[12px] mt-1.5" style={{ color: "var(--text-4)" }}>لا مواعيد قادمة اليوم</p>
             )}
           </div>
-          <BookingTrigger
-            patients={patients as { id: string; name: string; phone?: string }[]}
-            services={services as { id: string; name: string; price?: number }[]}
-            doctors={doctors  as { id: string; name: string; name_ar?: string }[]}
-          />
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link href="/reception/book" className="btn-primary">
+              <CalendarPlus className="w-4 h-4" />
+              حجز موعد
+            </Link>
+            <WalkinDialog services={services} doctors={doctors} />
+          </div>
         </div>
 
-        {/* Inline stats strip */}
-        <div className="relative flex items-center gap-1 mt-5 flex-wrap">
+        <div className="flex items-center gap-5 mt-5 flex-wrap">
           {[
-            { label: "المواعيد",   value: appts.length, color: "#5dd9cb",  live: appts.length > 0 },
-            { label: "في العيادة", value: inClinic,     color: "#4ADE80",  live: inClinic > 0 },
-            { label: "ينتظرون",   value: waiting,      color: "#38bdf8",  live: false },
-            { label: "مكتملة",    value: completed,    color: "#94A3B8",  live: false },
+            { l: "مواعيد اليوم", v: appts.length },
+            { l: "بانتظار الوصول", v: upcoming.length },
+            { l: "داخل العيادة", v: inClinic },
+            { l: "مكتمل", v: completed },
+            { l: "قائمة انتظار الحجز", v: waitlistRes.count ?? 0 },
           ].map((s, i) => (
-            <div key={s.label} className="flex items-center gap-2">
-              {i > 0 && <span style={{ color: "rgba(255,255,255,0.08)" }}>·</span>}
-              <div className="flex items-center gap-1.5">
-                {s.live && (
-                  <span className="w-1.5 h-1.5 rounded-full animate-pulse-slow shrink-0"
-                    style={{ background: s.color, boxShadow: `0 0 6px ${s.color}` }} />
-                )}
-                <span className="text-[13px] font-black ltr-nums" style={{ color: s.color }}>{s.value}</span>
-                <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.4)" }}>{s.label}</span>
-              </div>
+            <div key={s.l} className="flex items-baseline gap-2">
+              {i > 0 && <span className="w-px h-4 -ms-2.5" style={{ background: "rgba(255,255,255,0.08)" }} />}
+              <span className="text-lg font-bold ltr-nums text-white">{s.v}</span>
+              <span className="text-[10px]" style={{ color: "var(--text-4)" }}>{s.l}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ── MAIN CONTENT ── */}
-      <div className="grid grid-cols-12 gap-4">
+      {/* ══ main grid ══ */}
+      <div className="grid grid-cols-12 gap-4 items-start">
+        {/* today board */}
+        <div className="col-span-12 lg:col-span-7 panel" style={{ padding: "1.25rem" }}>
+          <div className="section-title mb-4">
+            <TawdBarsGlyph size={13} />
+            <h2>مواعيد اليوم</h2>
+            <span className="live-dot" />
+          </div>
 
-        {/* Timeline — 8 cols */}
-        <div
-          className="col-span-12 lg:col-span-8 rounded-3xl overflow-hidden"
-          style={{
-            background: "rgba(255,255,255,0.018)",
-            border: "1px solid rgba(255,255,255,0.055)",
-            backdropFilter: "blur(20px)",
-          }}
-        >
-          <div className="flex items-center justify-between px-5 py-4"
-            style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: "rgba(148,163,184,0.3)" }}>QUEUE</p>
-              <p className="text-sm font-bold text-white mt-0.5">قائمة الانتظار</p>
+          {appts.length === 0 ? (
+            <div className="text-center py-14">
+              <ClipboardList className="w-9 h-9 mx-auto mb-3" style={{ color: "var(--text-4)" }} />
+              <p className="text-sm" style={{ color: "var(--text-3)" }}>لا مواعيد اليوم</p>
             </div>
-            {waiting > 0 && (
-              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full ltr-nums"
-                style={{ background: "rgba(251,146,60,0.1)", color: "#38bdf8", border: "1px solid rgba(251,146,60,0.2)" }}>
-                {waiting} ينتظر
-              </span>
-            )}
-          </div>
-          <div className="p-2">
-            <TodayTimeline slots={slots} />
-          </div>
+          ) : (
+            <div className="space-y-1.5">
+              {appts.map((a) => {
+                const st = STATUS[a.status] ?? STATUS.scheduled;
+                const p = a.patients as unknown as { name?: string; phone?: string } | null;
+                const svcName = (a.services as unknown as { name_ar?: string } | null)?.name_ar ?? "";
+                const doc = a.tawd_staff_users as unknown as { name_ar?: string; name?: string } | null;
+                return (
+                  <div
+                    key={a.id}
+                    className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl flex-wrap"
+                    style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}
+                  >
+                    <span className="text-[13px] font-bold ltr-nums w-16 shrink-0 text-white">{fmtTime(a.slot_time)}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-bold text-white truncate">{p?.name ?? "مريض"}</p>
+                      <p className="text-[11px] truncate" style={{ color: "var(--text-4)" }}>
+                        {svcName}{doc ? ` · ${doc.name_ar ?? doc.name}` : ""}
+                      </p>
+                    </div>
+                    <span
+                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1"
+                      style={{ background: "rgba(255,255,255,0.045)", border: "1px solid rgba(255,255,255,0.08)", color: st.color }}
+                    >
+                      <span className="w-1 h-1 rounded-full" style={{ background: st.color }} />
+                      {st.label}
+                    </span>
+                    {["scheduled", "confirmed"].includes(a.status) && (
+                      <CheckinButton appointmentId={a.id} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* Sidebar — 4 cols */}
-        <div className="col-span-12 lg:col-span-4 flex flex-col gap-4">
+        {/* waiting room */}
+        <div className="col-span-12 lg:col-span-5 space-y-4">
+          <WaitingRoom entries={queue} />
 
-          {/* Completion donut */}
-          <div
-            className="rounded-3xl flex flex-col items-center justify-center py-6 px-5 relative overflow-hidden"
-            style={{ background: "rgba(255,255,255,0.018)", border: "1px solid rgba(255,255,255,0.055)" }}
-          >
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] mb-4" style={{ color: "rgba(148,163,184,0.3)" }}>
-              معدل الإنجاز
+          <div className="panel flex items-center gap-3" style={{ padding: "1rem 1.25rem" }}>
+            <Hourglass className="w-4 h-4 shrink-0" style={{ color: "var(--text-3)" }} />
+            <p className="text-[11px] leading-relaxed" style={{ color: "var(--text-3)" }}>
+              <span className="font-bold text-white ltr-nums">{waitlistRes.count ?? 0}</span> في قائمة انتظار الحجز —
+              عند أي إلغاء سُرى تعرض الموعد عليهم تلقائياً
             </p>
-            <div className="relative mb-2">
-              <svg width={110} height={110} viewBox="0 0 110 110">
-                <circle cx="55" cy="55" r="42" fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="7" />
-                <circle
-                  cx="55" cy="55" r="42" fill="none"
-                  stroke="url(#rec-grad)" strokeWidth="7"
-                  strokeLinecap="round"
-                  strokeDasharray={2 * Math.PI * 42}
-                  strokeDashoffset={2 * Math.PI * 42 * (1 - completionPct / 100)}
-                  transform="rotate(-90 55 55)"
-                />
-                <defs>
-                  <linearGradient id="rec-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#0f766e" />
-                    <stop offset="100%" stopColor="#5dd9cb" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="font-black ltr-nums text-2xl leading-none"
-                  style={{ color: completionPct > 0 ? "#14b8a6" : "rgba(148,163,184,0.2)" }}>
-                  {completionPct}%
-                </span>
-              </div>
-            </div>
-            <p className="text-[11px] text-center" style={{ color: "rgba(148,163,184,0.35)" }}>
-              {completed} من {appts.length} موعد
-            </p>
-          </div>
-
-          {/* Status breakdown */}
-          <div
-            className="rounded-3xl flex-1 p-5"
-            style={{ background: "rgba(255,255,255,0.018)", border: "1px solid rgba(255,255,255,0.055)" }}
-          >
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] mb-4" style={{ color: "rgba(148,163,184,0.3)" }}>
-              توزيع الحالات
-            </p>
-            <div className="space-y-3">
-              {[
-                { label: "بانتظار الوصول", count: waiting,   color: "#38bdf8", pct: appts.length > 0 ? waiting   / appts.length : 0 },
-                { label: "داخل العيادة",   count: inClinic,  color: "#4ADE80", pct: appts.length > 0 ? inClinic  / appts.length : 0 },
-                { label: "مكتمل",          count: completed, color: "#5dd9cb", pct: appts.length > 0 ? completed / appts.length : 0 },
-                { label: "لم يحضر",        count: noShow,    color: "#F87171", pct: appts.length > 0 ? noShow    / appts.length : 0 },
-              ].map((s) => (
-                <div key={s.label}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[11px]" style={{ color: "rgba(148,163,184,0.5)" }}>{s.label}</span>
-                    <span className="text-[12px] font-bold ltr-nums" style={{ color: s.color }}>{s.count}</span>
-                  </div>
-                  <div className="rounded-full overflow-hidden" style={{ height: 4, background: "rgba(255,255,255,0.04)" }}>
-                    <div className="h-full rounded-full"
-                      style={{ width: `${s.pct * 100}%`, background: s.color, opacity: 0.7, minWidth: s.count > 0 ? 4 : 0 }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Quick counts */}
-            <div className="grid grid-cols-3 gap-2 mt-5 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
-              {[
-                { label: "مرضى",  val: patients.length, color: "#5dd9cb" },
-                { label: "خدمات", val: services.length, color: "#38bdf8" },
-                { label: "أطباء", val: doctors.length,  color: "#4ADE80" },
-              ].map((s) => (
-                <div key={s.label} className="text-center rounded-2xl py-2.5"
-                  style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                  <p className="text-base font-black ltr-nums leading-none mb-0.5" style={{ color: s.color }}>{s.val}</p>
-                  <p className="text-[9px]" style={{ color: "rgba(148,163,184,0.35)" }}>{s.label}</p>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       </div>

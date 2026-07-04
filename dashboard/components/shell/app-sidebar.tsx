@@ -12,15 +12,25 @@ import type { Role } from "@/types/tawd";
 
 interface AppSidebarProps {
   role: Role;
+  allRoles?: Role[];
   userName: string;
   clinicName?: string;
 }
 
-export function AppSidebar({ role, userName, clinicName }: AppSidebarProps) {
+export function AppSidebar({ role, allRoles, userName, clinicName }: AppSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
-  const navItems = NAV_ITEMS[role] ?? [];
+
+  /* one account may hold several roles (front-desk PC = reception + accounting):
+     the nav is the union of its roles' menus */
+  const roles = [...new Set([role, ...(allRoles ?? [])])];
+  const seen = new Set<string>();
+  const navItems = roles.flatMap((r) => NAV_ITEMS[r] ?? []).filter((item) => {
+    if (seen.has(item.href)) return false;
+    seen.add(item.href);
+    return true;
+  });
 
   async function handleSignOut() {
     await supabase.auth.signOut();
