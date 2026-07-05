@@ -26,15 +26,27 @@ export default async function CheckoutPage({ params }: { params: Promise<{ apptI
   if (!appt) notFound();
 
   /* outstanding balance from previous invoices — collect it while they're here */
-  const { data: oldInv } = await sb
-    .from("invoices")
-    .select("total, status")
-    .eq("clinic_id", claims.clinic_id)
-    .eq("patient_id", appt.patient_id)
-    .in("status", ["sent", "partially_paid", "overdue"])
-    .neq("appt_id", apptId)
-    .is("deleted_at", null);
+  const [{ data: oldInv }, { data: pat }, { data: loyaltyCfg }] = await Promise.all([
+    sb.from("invoices")
+      .select("total, status")
+      .eq("clinic_id", claims.clinic_id)
+      .eq("patient_id", appt.patient_id)
+      .in("status", ["sent", "partially_paid", "overdue"])
+      .neq("appt_id", apptId)
+      .is("deleted_at", null),
+    sb.from("patients").select("loyalty_points").eq("id", appt.patient_id).single(),
+    sb.from("loyalty_settings")
+      .select("is_active, redemption_rate, min_redeem_points, max_redeem_pct")
+      .eq("clinic_id", claims.clinic_id).maybeSingle(),
+  ]);
   const outstanding = (oldInv ?? []).reduce((s, i) => s + Number(i.total ?? 0), 0);
+  const loyalty = {
+    active: !!loyaltyCfg?.is_active,
+    balance: Number(pat?.loyalty_points ?? 0),
+    rate: Number(loyaltyCfg?.redemption_rate ?? 0.03),
+    minPoints: Number(loyaltyCfg?.min_redeem_points ?? 100),
+    maxPct: Number(loyaltyCfg?.max_redeem_pct ?? 30),
+  };
 
   const patient = appt.patients as unknown as { name?: string; phone?: string } | null;
   const svc = appt.services as unknown as { name_ar?: string; price?: number } | null;
@@ -90,7 +102,7 @@ export default async function CheckoutPage({ params }: { params: Promise<{ apptI
         </div>
       )}
 
-      {appt.status === "completed" && <CheckoutFlow appointmentId={apptId} />}
+      {appt.status === "completed" && <CheckoutFlow appointmentId={apptId} loyalty={loyalty} />}
     </div>
   );
 }

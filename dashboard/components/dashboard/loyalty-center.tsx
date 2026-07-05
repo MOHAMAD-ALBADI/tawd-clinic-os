@@ -11,6 +11,10 @@ export type LoyaltySettings = {
   points_per_referral: number;
   redemption_rate: number;
   is_active: boolean;
+  points_per_omr?: number;
+  min_redeem_points?: number;
+  max_redeem_pct?: number;
+  expiry_months?: number;
 } | null;
 
 export type Campaign = {
@@ -70,8 +74,12 @@ export function LoyaltyCenter({
   const [form, setForm]   = useState({
     points_per_visit:    loyaltySettings?.points_per_visit    ?? 10,
     points_per_referral: loyaltySettings?.points_per_referral ?? 50,
-    redemption_rate:     loyaltySettings?.redemption_rate     ?? 0.1,
+    redemption_rate:     loyaltySettings?.redemption_rate     ?? 0.03,
     is_active:           loyaltySettings?.is_active           ?? true,
+    points_per_omr:      loyaltySettings?.points_per_omr      ?? 1,
+    min_redeem_points:   loyaltySettings?.min_redeem_points   ?? 100,
+    max_redeem_pct:      loyaltySettings?.max_redeem_pct      ?? 30,
+    expiry_months:       loyaltySettings?.expiry_months       ?? 6,
   });
 
   function handleSave() {
@@ -82,6 +90,10 @@ export function LoyaltyCenter({
           points_per_referral: Number(form.points_per_referral),
           redemption_rate:     Number(form.redemption_rate),
           is_active:           form.is_active,
+          points_per_omr:      Number(form.points_per_omr),
+          min_redeem_points:   Number(form.min_redeem_points),
+          max_redeem_pct:      Number(form.max_redeem_pct),
+          expiry_months:       Number(form.expiry_months),
         });
         setEditing(false);
         router.refresh();
@@ -194,9 +206,12 @@ export function LoyaltyCenter({
             {editing ? (
               <div className="space-y-3">
                 {[
-                  { key: "points_per_visit",    label: "نقاط لكل زيارة",           step: "1"     },
-                  { key: "points_per_referral", label: "نقاط لكل إحالة",           step: "1"     },
+                  { key: "points_per_omr",      label: "نقاط لكل 1 ر.ع مدفوع",      step: "0.5"   },
                   { key: "redemption_rate",     label: "قيمة النقطة (ريال عُماني)", step: "0.001" },
+                  { key: "min_redeem_points",   label: "حد أدنى للاستبدال (نقاط)", step: "1"     },
+                  { key: "max_redeem_pct",      label: "سقف الخصم ٪ من الفاتورة",  step: "1"     },
+                  { key: "expiry_months",       label: "صلاحية النقاط (أشهر)",     step: "1"     },
+                  { key: "points_per_referral", label: "نقاط لكل إحالة",           step: "1"     },
                 ].map((f) => (
                   <div key={f.key}>
                     <label
@@ -254,9 +269,11 @@ export function LoyaltyCenter({
             ) : (
               <div className="space-y-2">
                 {[
-                  { label: "نقاط الزيارة", value: `${form.points_per_visit} نقطة` },
-                  { label: "نقاط الإحالة", value: `${form.points_per_referral} نقطة` },
-                  { label: "قيمة النقطة",  value: `${Number(form.redemption_rate).toFixed(3)} ر.ع` },
+                  { label: "الكسب", value: `${form.points_per_omr} نقطة / 1 ر.ع` },
+                  { label: "قيمة النقطة", value: `${Number(form.redemption_rate).toFixed(3)} ر.ع` },
+                  { label: "الاستبدال", value: `من ${form.min_redeem_points} نقطة · حتى ${form.max_redeem_pct}٪ من الفاتورة` },
+                  { label: "الصلاحية", value: `${form.expiry_months} أشهر بلا نشاط` },
+                  { label: "الإحالة", value: `${form.points_per_referral} نقطة` },
                 ].map((stat) => (
                   <div
                     key={stat.label}

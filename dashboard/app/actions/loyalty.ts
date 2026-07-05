@@ -9,6 +9,10 @@ export async function updateLoyaltySettings(data: {
   points_per_referral: number;
   redemption_rate: number;
   is_active: boolean;
+  points_per_omr?: number;
+  min_redeem_points?: number;
+  max_redeem_pct?: number;
+  expiry_months?: number;
 }) {
   const claims = await getUserClaims();
   if (!claims || claims.role !== "clinic_admin") throw new Error("غير مصرح");
@@ -23,6 +27,10 @@ export async function updateLoyaltySettings(data: {
         points_per_referral: data.points_per_referral,
         redemption_rate:     data.redemption_rate,
         is_active:           data.is_active,
+        points_per_omr:      Math.max(0, Number(data.points_per_omr ?? 1)),
+        min_redeem_points:   Math.max(1, Math.floor(Number(data.min_redeem_points ?? 100))),
+        max_redeem_pct:      Math.min(100, Math.max(1, Math.floor(Number(data.max_redeem_pct ?? 30)))),
+        expiry_months:       Math.max(1, Math.floor(Number(data.expiry_months ?? 6))),
         updated_at:          new Date().toISOString(),
       },
       { onConflict: "clinic_id" }

@@ -69,7 +69,7 @@ export default async function ClinicAdminPage() {
       .eq("clinic_id", claims.clinic_id).order("created_at", { ascending: false }).limit(10),
 
     sb.from("loyalty_settings")
-      .select("points_per_visit, points_per_referral, redemption_rate, is_active")
+      .select("points_per_visit, points_per_referral, redemption_rate, is_active, points_per_omr, min_redeem_points, max_redeem_pct, expiry_months")
       .eq("clinic_id", claims.clinic_id).maybeSingle(),
 
     sb.from("notification_templates")

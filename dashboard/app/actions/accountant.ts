@@ -15,6 +15,104 @@ async function requireAccountant() {
 
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
+type LoyaltyCfg = {
+  is_active: boolean;
+  points_per_omr: number;
+  redemption_rate: number;
+  min_redeem_points: number;
+  max_redeem_pct: number;
+  expiry_months: number;
+};
+
+async function getLoyaltyCfg(
+  sb: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  clinicId: string
+): Promise<LoyaltyCfg | null> {
+  const { data } = await sb
+    .from("loyalty_settings")
+    .select("is_active, points_per_omr, redemption_rate, min_redeem_points, max_redeem_pct, expiry_months")
+    .eq("clinic_id", clinicId)
+    .maybeSingle();
+  if (!data || !data.is_active) return null;
+  return {
+    is_active: true,
+    points_per_omr: Number(data.points_per_omr ?? 1),
+    redemption_rate: Number(data.redemption_rate ?? 0.03),
+    min_redeem_points: Number(data.min_redeem_points ?? 100),
+    max_redeem_pct: Number(data.max_redeem_pct ?? 30),
+    expiry_months: Number(data.expiry_months ?? 6),
+  };
+}
+
+/** Lazy expiry: no loyalty activity for expiry_months → balance zeroed (logged). Returns current balance. */
+async function expireIfStale(
+  sb: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  clinicId: string,
+  patientId: string,
+  expiryMonths: number
+): Promise<number> {
+  const { data: p } = await sb
+    .from("patients").select("loyalty_points").eq("id", patientId).single();
+  const balance = Number(p?.loyalty_points ?? 0);
+  if (balance <= 0) return 0;
+
+  const { data: lastTx } = await sb
+    .from("loyalty_transactions")
+    .select("created_at")
+    .eq("patient_id", patientId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const lastActivity = lastTx?.[0]?.created_at ? new Date(lastTx[0].created_at) : null;
+  if (!lastActivity) return balance; // balance with no ledger history — leave as-is
+
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - expiryMonths);
+  if (lastActivity > cutoff) return balance;
+
+  await sb.from("patients").update({ loyalty_points: 0 }).eq("id", patientId);
+  await sb.from("loyalty_transactions").insert({
+    clinic_id: clinicId,
+    patient_id: patientId,
+    type: "expire",
+    points: -balance,
+    balance_after: 0,
+    note: `انتهاء صلاحية النقاط (عدم نشاط ${expiryMonths} أشهر)`,
+  });
+  return 0;
+}
+
+/** Earn on paid amount (best-effort — never fails the payment). Returns earned points. */
+async function earnOnPayment(
+  sb: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  claims: { clinic_id: string; sub: string },
+  patientId: string,
+  appointmentId: string | null,
+  amountPaid: number
+): Promise<number> {
+  try {
+    const cfg = await getLoyaltyCfg(sb, claims.clinic_id);
+    if (!cfg) return 0;
+    const balance = await expireIfStale(sb, claims.clinic_id, patientId, cfg.expiry_months);
+    const points = Math.floor(amountPaid * cfg.points_per_omr);
+    if (points <= 0) return 0;
+    const newBalance = balance + points;
+    await sb.from("patients").update({ loyalty_points: newBalance }).eq("id", patientId);
+    await sb.from("loyalty_transactions").insert({
+      clinic_id: claims.clinic_id,
+      patient_id: patientId,
+      appointment_id: appointmentId,
+      type: "earn_visit",
+      points,
+      balance_after: newBalance,
+      note: `كسب تلقائي — دفعة ${round3(amountPaid)} ر.ع`,
+      created_by: claims.sub,
+    });
+    return points;
+  } catch {
+    return 0;
+  }
+}
+
 /** Invoice a completed appointment (idempotent — returns the existing one if present).
     VAT: service-specific vat_rules row → clinic default rule → Oman standard 5%. */
 export async function createInvoiceForAppointment(appointmentId: string) {
@@ -117,7 +215,7 @@ export async function recordPayment(
   if (!(amount > 0)) return { ok: false as const, reason: "المبلغ غير صالح" };
 
   const { data: inv, error: ierr } = await sb
-    .from("invoices").select("id, total, status")
+    .from("invoices").select("id, total, status, patient_id, appt_id")
     .eq("id", invoiceId).eq("clinic_id", claims.clinic_id).is("deleted_at", null).single();
   if (ierr || !inv) return { ok: false as const, reason: "الفاتورة غير موجودة" };
   if (["paid", "cancelled", "refunded"].includes(inv.status)) {
@@ -147,8 +245,64 @@ export async function recordPayment(
     .eq("id", invoiceId);
   if (uerr) return { ok: false as const, reason: "سُجّلت الدفعة لكن تعذّر تحديث حالة الفاتورة" };
 
+  /* loyalty: earn on what was actually paid (never blocks the payment) */
+  const earnedPoints = await earnOnPayment(sb, claims, inv.patient_id, inv.appt_id, amount);
+
   revalidatePath("/accountant");
-  return { ok: true as const, status: newStatus, paidSum };
+  return { ok: true as const, status: newStatus, paidSum, earnedPoints };
+}
+
+/** Redeem points as a discount on an open invoice (capped, thresholded, audited). */
+export async function redeemPoints(invoiceId: string, points: number) {
+  const claims = await requireAccountant();
+  const sb = await createServerSupabaseClient();
+
+  const cfg = await getLoyaltyCfg(sb, claims.clinic_id);
+  if (!cfg) return { ok: false as const, reason: "نظام الولاء غير مفعّل" };
+
+  const { data: inv } = await sb
+    .from("invoices")
+    .select("id, subtotal, discount_amount, vat_amount, total, status, patient_id")
+    .eq("id", invoiceId).eq("clinic_id", claims.clinic_id).is("deleted_at", null).single();
+  if (!inv) return { ok: false as const, reason: "الفاتورة غير موجودة" };
+  if (!["sent", "partially_paid", "overdue", "draft"].includes(inv.status)) {
+    return { ok: false as const, reason: "الفاتورة غير قابلة للخصم" };
+  }
+
+  const balance = await expireIfStale(sb, claims.clinic_id, inv.patient_id, cfg.expiry_months);
+  if (balance < cfg.min_redeem_points) {
+    return { ok: false as const, reason: `الاستبدال يبدأ من ${cfg.min_redeem_points} نقطة — رصيده ${balance}` };
+  }
+
+  const maxValue = round3((Number(inv.total) * cfg.max_redeem_pct) / 100);
+  const maxPoints = Math.floor(maxValue / cfg.redemption_rate);
+  const usePoints = Math.min(Math.max(1, Math.floor(points)), balance, maxPoints);
+  if (usePoints <= 0) return { ok: false as const, reason: "لا يمكن الاستبدال على هذه الفاتورة" };
+  const value = round3(usePoints * cfg.redemption_rate);
+
+  const newDiscount = round3(Number(inv.discount_amount ?? 0) + value);
+  const newTotal = round3(Number(inv.total) - value);
+
+  const { error: uerr } = await sb
+    .from("invoices")
+    .update({ discount_amount: newDiscount, total: newTotal, updated_at: new Date().toISOString() })
+    .eq("id", invoiceId);
+  if (uerr) return { ok: false as const, reason: "تعذّر تطبيق الخصم" };
+
+  const newBalance = balance - usePoints;
+  await sb.from("patients").update({ loyalty_points: newBalance }).eq("id", inv.patient_id);
+  await sb.from("loyalty_transactions").insert({
+    clinic_id: claims.clinic_id,
+    patient_id: inv.patient_id,
+    type: "redeem",
+    points: -usePoints,
+    balance_after: newBalance,
+    note: `استبدال نقاط — خصم ${value} ر.ع على الفاتورة`,
+    created_by: claims.sub,
+  });
+
+  revalidatePath("/accountant");
+  return { ok: true as const, usedPoints: usePoints, value, newTotal, balanceAfter: newBalance };
 }
 
 export type DayCloseInput = {
