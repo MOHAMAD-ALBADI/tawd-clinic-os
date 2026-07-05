@@ -2,13 +2,14 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarPlus, CheckCircle2, Search } from "lucide-react";
+import { CalendarPlus, CheckCircle2, Search, AlertCircle, Clock } from "lucide-react";
 import { bookQuick } from "@/app/actions/reception";
 
 type PatientOpt = { id: string; name: string; phone: string | null };
 type Opt = { id: string; label: string };
 
-/** Desk booking — availability-checked server-side (overlap + schedules + leaves). */
+/** Desk booking — availability-checked server-side (overlap + schedules + leaves).
+    All feedback is in-app: no browser dialogs. */
 export function QuickBook({
   patients,
   services,
@@ -22,7 +23,9 @@ export function QuickBook({
   const [pending, start] = useTransition();
   const [mode, setMode] = useState<"existing" | "new">("existing");
   const [search, setSearch] = useState("");
-  const [ok, setOk] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [alts, setAlts] = useState<string[]>([]);
+  const [success, setSuccess] = useState<{ patient: string; doctor: string; service: string; date: string; time: string } | null>(null);
   const [form, setForm] = useState({
     patientId: "",
     name: "",
@@ -43,10 +46,12 @@ export function QuickBook({
 
   const selected = patients.find((p) => p.id === form.patientId);
 
-  function submit() {
-    if (mode === "existing" && !form.patientId) { alert("اختر المريض"); return; }
-    if (mode === "new" && !form.name.trim()) { alert("اسم المريض مطلوب"); return; }
-    setOk(null);
+  function submit(timeOverride?: string) {
+    const time = timeOverride ?? form.time;
+    if (timeOverride) setForm((p) => ({ ...p, time: timeOverride }));
+    if (mode === "existing" && !form.patientId) { setErr("اختر المريض أولاً"); return; }
+    if (mode === "new" && !form.name.trim()) { setErr("اسم المريض مطلوب"); return; }
+    setErr(null); setAlts([]);
     start(async () => {
       try {
         const r = await bookQuick({
@@ -56,15 +61,56 @@ export function QuickBook({
           serviceId: form.serviceId,
           doctorId: form.doctorId,
           date: form.date,
-          time: form.time,
+          time,
         });
-        if (!r.ok) { alert(r.reason); return; }
-        setOk(`تم الحجز ✓ — ${r.doctor} · ${form.date} ${form.time}`);
+        if (!r.ok) {
+          setErr(r.reason);
+          setAlts(("alternatives" in r ? r.alternatives : []) ?? []);
+          return;
+        }
+        setSuccess({
+          patient: mode === "existing" ? (selected?.name ?? "المريض") : form.name,
+          doctor: r.doctor,
+          service: r.service ?? "",
+          date: form.date,
+          time,
+        });
         router.refresh();
-      } catch (e) {
-        alert(e instanceof Error ? e.message : "حدث خطأ");
+      } catch {
+        setErr("تعذّر الاتصال — حاول مجدداً");
       }
     });
+  }
+
+  function reset() {
+    setSuccess(null); setErr(null); setAlts([]);
+    setForm((p) => ({ ...p, patientId: "", name: "", phone: "" }));
+    setSearch("");
+  }
+
+  /* ── success card ── */
+  if (success) {
+    const dateAr = new Intl.DateTimeFormat("ar", { weekday: "long", day: "numeric", month: "long" })
+      .format(new Date(success.date + "T12:00:00"));
+    return (
+      <div className="panel-feature text-center" style={{ padding: "2.25rem", maxWidth: 620 }}>
+        <CheckCircle2 className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--accent-1)" }} />
+        <p className="text-xl font-bold text-white mb-2">تم الحجز بنجاح</p>
+        <p className="text-sm leading-relaxed" style={{ color: "var(--text-2)" }}>
+          <span className="font-bold text-white">{success.patient}</span>
+          {" · "}{success.service}
+          <br />
+          {dateAr} · <span className="ltr-nums font-bold text-white">{success.time}</span>
+          {" · "}{success.doctor}
+        </p>
+        <div className="flex items-center justify-center gap-2 mt-6">
+          <button onClick={reset} className="btn-primary">
+            <CalendarPlus className="w-4 h-4" /> حجز موعد آخر
+          </button>
+          <a href="/reception" className="btn-ghost">رجوع للوحة</a>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -79,7 +125,7 @@ export function QuickBook({
         {([["existing", "مريض مسجّل"], ["new", "مريض جديد"]] as const).map(([m, label]) => (
           <button
             key={m}
-            onClick={() => setMode(m)}
+            onClick={() => { setMode(m); setErr(null); }}
             className="text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors"
             style={{
               background: mode === m ? "rgba(45,212,191,0.12)" : "rgba(255,255,255,0.03)",
@@ -104,13 +150,18 @@ export function QuickBook({
             />
           </div>
           {selected ? (
-            <div className="badge badge-brand">{selected.name} {selected.phone ? `· ${selected.phone}` : ""}</div>
+            <div className="flex items-center gap-2">
+              <span className="badge badge-brand">{selected.name} {selected.phone ? `· ${selected.phone}` : ""}</span>
+              <button onClick={() => setForm((f) => ({ ...f, patientId: "" }))} className="text-[11px]" style={{ color: "var(--text-4)" }}>
+                تغيير
+              </button>
+            </div>
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {filtered.map((p) => (
                 <button
                   key={p.id}
-                  onClick={() => setForm((f) => ({ ...f, patientId: p.id }))}
+                  onClick={() => { setForm((f) => ({ ...f, patientId: p.id })); setErr(null); }}
                   className="text-[11px] font-medium px-2.5 py-1.5 rounded-full"
                   style={{ background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.08)", color: "var(--text-2)" }}
                 >
@@ -119,11 +170,6 @@ export function QuickBook({
               ))}
               {filtered.length === 0 && <p className="text-[11px]" style={{ color: "var(--text-4)" }}>لا نتائج — سجّله كمريض جديد</p>}
             </div>
-          )}
-          {selected && (
-            <button onClick={() => setForm((f) => ({ ...f, patientId: "" }))} className="text-[11px]" style={{ color: "var(--text-4)" }}>
-              تغيير المريض
-            </button>
           )}
         </div>
       ) : (
@@ -166,9 +212,37 @@ export function QuickBook({
         </div>
       </div>
 
-      {ok && <div className="badge badge-ok mt-4"><CheckCircle2 className="w-3 h-3" /> {ok}</div>}
+      {/* in-app feedback */}
+      {err && (
+        <div className="rounded-xl px-4 py-3 mt-4" style={{ background: "rgba(244,63,94,0.06)", border: "1px solid rgba(244,63,94,0.22)" }}>
+          <p className="text-[13px] font-semibold flex items-center gap-2" style={{ color: "#fda4b4" }}>
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            {err}
+          </p>
+          {alts.length > 0 && (
+            <div className="mt-3">
+              <p className="text-[11px] mb-2 flex items-center gap-1.5" style={{ color: "var(--text-2)" }}>
+                <Clock className="w-3 h-3" /> أوقات متاحة نفس اليوم — اضغط للحجز مباشرة:
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {alts.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => submit(t)}
+                    disabled={pending}
+                    className="text-[12px] font-bold ltr-nums px-3 py-1.5 rounded-lg"
+                    style={{ background: "rgba(45,212,191,0.1)", border: "1px solid rgba(45,212,191,0.3)", color: "#5dd9cb" }}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
-      <button onClick={submit} disabled={pending} className="btn-primary w-full mt-4">
+      <button onClick={() => submit()} disabled={pending} className="btn-primary w-full mt-4">
         <CalendarPlus className="w-4 h-4" />
         {pending ? "جارٍ التحقق من التوفر…" : "تأكيد الحجز"}
       </button>

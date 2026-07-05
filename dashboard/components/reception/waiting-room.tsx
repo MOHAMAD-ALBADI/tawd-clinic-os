@@ -25,20 +25,28 @@ export function WaitingRoom({ entries }: { entries: QueueEntry[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [waMsg, setWaMsg] = useState<string | null>(null);
+  const [waMsg, setWaMsg] = useState<{ text: string; bad?: boolean } | null>(null);
 
   function move(id: string, status: "called" | "in_room" | "done" | "left") {
     setBusyId(id);
     start(async () => {
       try {
         const r = await setQueueStatus(id, status);
+        if (!r.ok) {
+          setWaMsg({ text: r.reason ?? "حدث خطأ", bad: true });
+          setTimeout(() => setWaMsg(null), 4000);
+          return;
+        }
         if (status === "called") {
-          setWaMsg(r.whatsappSent ? "أُرسلت رسالة «دورك الآن» واتساب ✓" : "تمت المناداة (تعذّر إرسال واتساب)");
+          setWaMsg(r.whatsappSent
+            ? { text: "أُرسلت رسالة «دورك الآن» واتساب ✓" }
+            : { text: "تمت المناداة (تعذّر إرسال واتساب)", bad: true });
           setTimeout(() => setWaMsg(null), 4000);
         }
         router.refresh();
-      } catch (e) {
-        alert(e instanceof Error ? e.message : "حدث خطأ");
+      } catch {
+        setWaMsg({ text: "تعذّر الاتصال — حاول مجدداً", bad: true });
+        setTimeout(() => setWaMsg(null), 4000);
       } finally {
         setBusyId(null);
       }
@@ -59,9 +67,9 @@ export function WaitingRoom({ entries }: { entries: QueueEntry[] }) {
       </p>
 
       {waMsg && (
-        <div className="badge badge-brand mb-3 self-start">
+        <div className={`badge ${waMsg.bad ? "badge-warn" : "badge-brand"} mb-3 self-start`}>
           <MessageCircle className="w-3 h-3" />
-          {waMsg}
+          {waMsg.text}
         </div>
       )}
 

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ReceiptText, Banknote, CreditCard, CheckCircle2 } from "lucide-react";
+import { ReceiptText, Banknote, CreditCard, CheckCircle2, AlertCircle } from "lucide-react";
 import { createInvoiceForAppointment, recordPayment } from "@/app/actions/accountant";
 
 const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
@@ -14,28 +14,33 @@ export function CheckoutFlow({ appointmentId }: { appointmentId: string }) {
   const [invoice, setInvoice] = useState<{ id: string; total: number; number: string } | null>(null);
   const [gateway, setGateway] = useState<"cash" | "bank_transfer">("cash");
   const [amount, setAmount] = useState("");
+  const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<{ status: string; paidSum: number } | null>(null);
 
   function issue() {
+    setErr(null);
     start(async () => {
       try {
         const r = await createInvoiceForAppointment(appointmentId);
+        if (!r.ok) { setErr(r.reason); return; }
         setInvoice({ id: r.invoiceId, total: r.total, number: r.invoiceNumber });
         setAmount(String(r.total));
         router.refresh();
-      } catch (e) { alert(e instanceof Error ? e.message : "حدث خطأ"); }
+      } catch { setErr("تعذّر الاتصال — حاول مجدداً"); }
     });
   }
 
   function pay() {
     const amt = parseFloat(amount);
-    if (!invoice || !(amt > 0)) { alert("المبلغ غير صالح"); return; }
+    if (!invoice || !(amt > 0)) { setErr("المبلغ غير صالح"); return; }
+    setErr(null);
     start(async () => {
       try {
         const r = await recordPayment(invoice.id, gateway, amt);
-        setResult(r);
+        if (!r.ok) { setErr(r.reason); return; }
+        setResult({ status: r.status, paidSum: r.paidSum });
         router.refresh();
-      } catch (e) { alert(e instanceof Error ? e.message : "حدث خطأ"); }
+      } catch { setErr("تعذّر الاتصال — حاول مجدداً"); }
     });
   }
 
@@ -59,6 +64,12 @@ export function CheckoutFlow({ appointmentId }: { appointmentId: string }) {
 
   return (
     <div className="panel" style={{ padding: "1.5rem" }}>
+      {err && (
+        <p className="text-[12px] font-semibold flex items-center gap-1.5 rounded-lg px-3 py-2 mb-3"
+          style={{ background: "rgba(244,63,94,0.07)", border: "1px solid rgba(244,63,94,0.22)", color: "#fda4b4" }}>
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {err}
+        </p>
+      )}
       {!invoice ? (
         <button onClick={issue} disabled={pending} className="btn-primary w-full">
           <ReceiptText className="w-4 h-4" />

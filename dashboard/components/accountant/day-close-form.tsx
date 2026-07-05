@@ -19,13 +19,15 @@ export function DayCloseForm({
   const [openingFloat, setOpeningFloat] = useState("0");
   const [countedCash, setCountedCash] = useState("");
   const [notes, setNotes] = useState("");
+  const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<{ variance: number; expectedCash: number } | null>(null);
 
   const expected = Number(openingFloat || 0) + systemCash;
   const liveVariance = countedCash === "" ? null : Number(countedCash) - expected;
 
   function submit() {
-    if (countedCash === "") { alert("أدخل الكاش المعدود فعلياً"); return; }
+    if (countedCash === "") { setErr("أدخل الكاش المعدود فعلياً"); return; }
+    setErr(null);
     start(async () => {
       try {
         const r = await closeDay({
@@ -33,9 +35,10 @@ export function DayCloseForm({
           countedCash: Number(countedCash),
           notes,
         });
+        if (!r.ok) { setErr(r.reason); return; }
         setResult({ variance: r.variance, expectedCash: r.expectedCash });
         router.refresh();
-      } catch (e) { alert(e instanceof Error ? e.message : "حدث خطأ"); }
+      } catch { setErr("تعذّر الاتصال — حاول مجدداً"); }
     });
   }
 
@@ -101,6 +104,12 @@ export function DayCloseForm({
           <input value={notes} onChange={(e) => setNotes(e.target.value)} className="field" placeholder="سبب الفرق إن وجد…" />
         </div>
 
+        {err && (
+          <p className="text-[12px] font-semibold rounded-lg px-3 py-2"
+            style={{ background: "rgba(244,63,94,0.07)", border: "1px solid rgba(244,63,94,0.22)", color: "#fda4b4" }}>
+            {err}
+          </p>
+        )}
         <button onClick={submit} disabled={pending} className="btn-primary w-full">
           <Lock className="w-4 h-4" />
           {pending ? "جارٍ الإغلاق…" : result ? "تحديث الإغلاق" : "إغلاق اليوم"}

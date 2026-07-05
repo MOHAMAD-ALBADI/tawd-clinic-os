@@ -40,8 +40,8 @@ export async function checkInArrival(appointmentId: string) {
     .in("status", ["scheduled", "confirmed"])
     .select("id, patient_id")
     .maybeSingle();
-  if (aerr) throw new Error(aerr.message);
-  if (!appt) throw new Error("الموعد غير قابل لتسجيل الوصول");
+  if (aerr) return { ok: false as const, reason: "تعذّر تسجيل الوصول — حاول مجدداً" };
+  if (!appt) return { ok: false as const, reason: "الموعد غير قابل لتسجيل الوصول" };
 
   const { data: existing } = await sb
     .from("waiting_queue")
@@ -62,11 +62,11 @@ export async function checkInArrival(appointmentId: string) {
       check_in_at: new Date().toISOString(),
       estimated_wait_minutes: (position - 1) * 15,
     });
-    if (qerr) throw new Error(qerr.message);
+    if (qerr) return { ok: false as const, reason: "وصل لكن تعذّر إدخاله للطابور" };
   }
 
   revalidatePath("/reception");
-  return { position };
+  return { ok: true as const, position };
 }
 
 export type WalkInInput = {
@@ -87,7 +87,7 @@ export async function walkIn(input: WalkInInput) {
   if (!patientId) {
     const phone = (input.phone ?? "").trim();
     const name = (input.name ?? "").trim();
-    if (!name) throw new Error("اسم المريض مطلوب");
+    if (!name) return { ok: false as const, reason: "اسم المريض مطلوب" };
     if (phone) {
       const { data: found } = await sb
         .from("patients").select("id").eq("clinic_id", claims.clinic_id)
@@ -99,7 +99,7 @@ export async function walkIn(input: WalkInInput) {
         .from("patients")
         .insert({ clinic_id: claims.clinic_id, name, phone: phone || null, source_channel: "walk_in" })
         .select("id").single();
-      if (error) throw new Error(error.message);
+      if (error) return { ok: false as const, reason: "تعذّر تسجيل المريض" };
       patientId = created.id;
     }
   }
@@ -123,7 +123,7 @@ export async function walkIn(input: WalkInInput) {
     })
     .select("id")
     .single();
-  if (aerr) throw new Error(aerr.message);
+  if (aerr || !appt) return { ok: false as const, reason: "تعذّر إنشاء الزيارة" };
 
   const position = await nextQueuePosition(sb, claims.clinic_id);
   const { error: qerr } = await sb.from("waiting_queue").insert({
@@ -135,10 +135,10 @@ export async function walkIn(input: WalkInInput) {
     check_in_at: new Date().toISOString(),
     estimated_wait_minutes: (position - 1) * 15,
   });
-  if (qerr) throw new Error(qerr.message);
+  if (qerr) return { ok: false as const, reason: "سُجّل لكن تعذّر إدخاله للطابور" };
 
   revalidatePath("/reception");
-  return { position };
+  return { ok: true as const, position };
 }
 
 /** Move a waiting-room entry through its lifecycle. "called" also pings the patient on WhatsApp. */
@@ -160,8 +160,7 @@ export async function setQueueStatus(
     .eq("clinic_id", claims.clinic_id)
     .select("id, patient_id")
     .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!row) throw new Error("سجل الانتظار غير موجود");
+  if (error || !row) return { ok: false as const, reason: "سجل الانتظار غير موجود", whatsappSent: false };
 
   let whatsappSent = false;
   if (status === "called") {
@@ -169,7 +168,7 @@ export async function setQueueStatus(
   }
 
   revalidatePath("/reception");
-  return { whatsappSent };
+  return { ok: true as const, whatsappSent };
 }
 
 /** WhatsApp "دورك الآن" — best-effort (marks called regardless). */
@@ -216,15 +215,15 @@ export async function bookQuick(input: QuickBookInput) {
   const sb = await createServerSupabaseClient();
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || !/^\d{2}:\d{2}$/.test(input.time)) {
-    throw new Error("تاريخ أو وقت غير صالح");
+    return { ok: false as const, reason: "تاريخ أو وقت غير صالح" };
   }
   const slotISO = `${input.date}T${input.time}:00+04:00`;
   const slot = new Date(slotISO);
-  if (slot.getTime() <= Date.now()) throw new Error("الوقت المطلوب في الماضي");
+  if (slot.getTime() <= Date.now()) return { ok: false as const, reason: "الوقت المطلوب في الماضي" };
 
   const { data: svc } = await sb
     .from("services").select("id, duration_minutes, name_ar").eq("id", input.serviceId).single();
-  if (!svc) throw new Error("الخدمة غير موجودة");
+  if (!svc) return { ok: false as const, reason: "الخدمة غير موجودة" };
   const dur = svc.duration_minutes ?? 30;
   const slotEnd = new Date(slot.getTime() + dur * 60_000);
 
@@ -233,7 +232,7 @@ export async function bookQuick(input: QuickBookInput) {
   if (!patientId) {
     const name = (input.name ?? "").trim();
     const phone = (input.phone ?? "").trim();
-    if (!name) throw new Error("اسم المريض مطلوب");
+    if (!name) return { ok: false as const, reason: "اسم المريض مطلوب" };
     if (phone) {
       const { data: found } = await sb
         .from("patients").select("id").eq("clinic_id", claims.clinic_id)
@@ -245,7 +244,7 @@ export async function bookQuick(input: QuickBookInput) {
         .from("patients")
         .insert({ clinic_id: claims.clinic_id, name, phone: phone || null, source_channel: "reception" })
         .select("id").single();
-      if (error) throw new Error(error.message);
+      if (error) return { ok: false as const, reason: "تعذّر تسجيل المريض" };
       patientId = created.id;
     }
   }
@@ -256,7 +255,7 @@ export async function bookQuick(input: QuickBookInput) {
     const { data: d } = await sb
       .from("tawd_staff_users").select("id, name, name_ar")
       .eq("id", input.doctorId).eq("clinic_id", claims.clinic_id).single();
-    if (!d) throw new Error("الطبيب غير موجود");
+    if (!d) return { ok: false as const, reason: "الطبيب غير موجود" };
     candidates = [{ id: d.id, label: d.name_ar ?? d.name }];
   } else {
     const { data: ds } = await sb
@@ -269,7 +268,7 @@ export async function bookQuick(input: QuickBookInput) {
     const mapped = new Set((maps ?? []).map((m) => m.doctor_id));
     if (mapped.size > 0) candidates = candidates.filter((c) => mapped.has(c.id));
   }
-  if (!candidates.length) throw new Error("لا يوجد طبيب يقدم هذه الخدمة");
+  if (!candidates.length) return { ok: false as const, reason: "لا يوجد طبيب يقدم هذه الخدمة" };
 
   /* availability data for that day */
   const dayStart = `${input.date}T00:00:00+04:00`;
@@ -295,28 +294,45 @@ export async function bookQuick(input: QuickBookInput) {
 
   const toMin = (t: string) => parseInt(t.slice(0, 2), 10) * 60 + parseInt(t.slice(3, 5), 10);
 
-  const pick = candidates.find((c) => {
-    /* leave that day? */
+  /* is this candidate free at [startMs, startMs+dur) with day-minute m? */
+  const freeAt = (c: { id: string }, m: number, startMs: number) => {
     if ((holidays ?? []).some((h) => h.applies_to_all_doctors || h.doctor_id === c.id)) return false;
-    /* weekly schedule (no rows = always available) */
     const mySched = (schedules ?? []).filter((s) => s.doctor_id === c.id);
     if (mySched.length > 0) {
       const fits = mySched.some(
-        (s) => s.day_of_week === dayKey && slotMinDay >= toMin(s.start_time) && slotMinDay + dur <= toMin(s.end_time)
+        (s) => s.day_of_week === dayKey && m >= toMin(s.start_time) && m + dur <= toMin(s.end_time)
       );
       if (!fits) return false;
     }
-    /* overlap with existing appointments */
+    const endMs = startMs + dur * 60_000;
     const clash = (dayAppts ?? []).some((a) => {
       if (a.doctor_id !== c.id) return false;
       const aStart = new Date(a.slot_time).getTime();
       const aEnd = aStart + (a.duration_minutes ?? 30) * 60_000;
-      return aStart < slotEnd.getTime() && aEnd > slot.getTime();
+      return aStart < endMs && aEnd > startMs;
     });
     return !clash;
-  });
+  };
 
-  if (!pick) return { ok: false as const, reason: "لا يوجد طبيب متاح في هذا الوقت — جرّب وقتاً آخر" };
+  const pick = candidates.find((c) => freeAt(c, slotMinDay, slot.getTime()));
+
+  if (!pick) {
+    /* suggest up to 4 alternative times that day (30-min grid, 9→18 fallback window) */
+    const alternatives: string[] = [];
+    for (let m = 9 * 60; m + dur <= 18 * 60 && alternatives.length < 4; m += 30) {
+      if (m === slotMinDay) continue;
+      const hh = String(Math.floor(m / 60)).padStart(2, "0");
+      const mm = String(m % 60).padStart(2, "0");
+      const t = new Date(`${input.date}T${hh}:${mm}:00+04:00`);
+      if (t.getTime() <= Date.now()) continue;
+      if (candidates.some((c) => freeAt(c, m, t.getTime()))) alternatives.push(`${hh}:${mm}`);
+    }
+    return {
+      ok: false as const,
+      reason: "هذا الوقت محجوز أو خارج دوام الطبيب",
+      alternatives,
+    };
+  }
 
   const { error: ierr } = await sb.from("appointments").insert({
     clinic_id: claims.clinic_id,
@@ -330,7 +346,7 @@ export async function bookQuick(input: QuickBookInput) {
     source_channel: "reception",
     notes: "حجز عبر الاستقبال",
   });
-  if (ierr) throw new Error(ierr.message);
+  if (ierr) return { ok: false as const, reason: "تعذّر إنشاء الحجز — حاول مجدداً" };
 
   revalidatePath("/reception");
   return { ok: true as const, doctor: pick.label, service: svc.name_ar as string | null };

@@ -28,14 +28,15 @@ export async function createInvoiceForAppointment(appointmentId: string) {
     .eq("clinic_id", claims.clinic_id)
     .is("deleted_at", null)
     .single();
-  if (aerr || !appt) throw new Error("الموعد غير موجود");
-  if (appt.status !== "completed") throw new Error("الفوترة متاحة للمواعيد المكتملة فقط");
+  if (aerr || !appt) return { ok: false as const, reason: "الموعد غير موجود" };
+  if (appt.status !== "completed") return { ok: false as const, reason: "الفوترة متاحة للمواعيد المكتملة فقط" };
 
   const { data: existing } = await sb
     .from("invoices").select("id, total, invoice_number")
     .eq("appt_id", appointmentId).is("deleted_at", null).limit(1);
   if (existing?.length) {
     return {
+      ok: true as const,
       invoiceId: existing[0].id,
       total: Number(existing[0].total),
       invoiceNumber: existing[0].invoice_number as string,
@@ -84,7 +85,7 @@ export async function createInvoiceForAppointment(appointmentId: string) {
     })
     .select("id")
     .single();
-  if (ierr) throw new Error(ierr.message);
+  if (ierr || !inv) return { ok: false as const, reason: "تعذّر إنشاء الفاتورة" };
 
   const { error: iterr } = await sb.from("invoice_items").insert({
     invoice_id: inv.id,
@@ -99,10 +100,10 @@ export async function createInvoiceForAppointment(appointmentId: string) {
     total,
     sort_order: 1,
   });
-  if (iterr) throw new Error(iterr.message);
+  if (iterr) return { ok: false as const, reason: "أُنشئت الفاتورة لكن تعذّر تسجيل بنودها" };
 
   revalidatePath("/accountant");
-  return { invoiceId: inv.id, total, invoiceNumber, existed: false };
+  return { ok: true as const, invoiceId: inv.id, total, invoiceNumber, existed: false };
 }
 
 /** Record a payment against an invoice and roll the invoice status forward. */
@@ -113,14 +114,14 @@ export async function recordPayment(
 ) {
   const claims = await requireAccountant();
   const sb = await createServerSupabaseClient();
-  if (!(amount > 0)) throw new Error("المبلغ غير صالح");
+  if (!(amount > 0)) return { ok: false as const, reason: "المبلغ غير صالح" };
 
   const { data: inv, error: ierr } = await sb
     .from("invoices").select("id, total, status")
     .eq("id", invoiceId).eq("clinic_id", claims.clinic_id).is("deleted_at", null).single();
-  if (ierr || !inv) throw new Error("الفاتورة غير موجودة");
+  if (ierr || !inv) return { ok: false as const, reason: "الفاتورة غير موجودة" };
   if (["paid", "cancelled", "refunded"].includes(inv.status)) {
-    throw new Error("الفاتورة غير قابلة للتحصيل");
+    return { ok: false as const, reason: "الفاتورة غير قابلة للتحصيل" };
   }
 
   const { error: perr } = await sb.from("payments").insert({
@@ -132,7 +133,7 @@ export async function recordPayment(
     status: "completed",
     paid_at: new Date().toISOString(),
   });
-  if (perr) throw new Error(perr.message);
+  if (perr) return { ok: false as const, reason: "تعذّر تسجيل الدفعة" };
 
   const { data: pays } = await sb
     .from("payments").select("amount")
@@ -144,10 +145,10 @@ export async function recordPayment(
     .from("invoices")
     .update({ status: newStatus, updated_at: new Date().toISOString() })
     .eq("id", invoiceId);
-  if (uerr) throw new Error(uerr.message);
+  if (uerr) return { ok: false as const, reason: "سُجّلت الدفعة لكن تعذّر تحديث حالة الفاتورة" };
 
   revalidatePath("/accountant");
-  return { status: newStatus, paidSum };
+  return { ok: true as const, status: newStatus, paidSum };
 }
 
 export type DayCloseInput = {
@@ -197,10 +198,10 @@ export async function closeDay(input: DayCloseInput) {
     },
     { onConflict: "clinic_id,close_date" }
   );
-  if (error) throw new Error(error.message);
+  if (error) return { ok: false as const, reason: "تعذّر حفظ الإغلاق" };
 
   revalidatePath("/accountant/day-close");
-  return { systemCash: cash, systemCard: card, systemOther: other, expectedCash, variance };
+  return { ok: true as const, systemCash: cash, systemCard: card, systemOther: other, expectedCash, variance };
 }
 
 /** Save the clinic VAT registration number (shown on printed tax invoices). */

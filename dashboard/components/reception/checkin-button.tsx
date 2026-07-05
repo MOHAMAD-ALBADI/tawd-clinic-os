@@ -2,24 +2,41 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { LogIn, CheckCircle2 } from "lucide-react";
+import { LogIn, CheckCircle2, AlertCircle } from "lucide-react";
 import { checkInArrival } from "@/app/actions/reception";
 
 export function CheckinButton({ appointmentId }: { appointmentId: string }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [done, setDone] = useState<number | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
   function go() {
+    setErr(null);
     start(async () => {
       try {
         const r = await checkInArrival(appointmentId);
+        if (!r.ok) {
+          setErr(r.reason);
+          setTimeout(() => setErr(null), 4000);
+          return;
+        }
         setDone(r.position ?? 0);
         router.refresh();
-      } catch (e) {
-        alert(e instanceof Error ? e.message : "حدث خطأ");
+      } catch {
+        setErr("تعذّر الاتصال");
+        setTimeout(() => setErr(null), 4000);
       }
     });
+  }
+
+  if (err) {
+    return (
+      <span className="badge badge-bad shrink-0">
+        <AlertCircle className="w-3 h-3" />
+        {err}
+      </span>
+    );
   }
 
   if (done !== null) {
