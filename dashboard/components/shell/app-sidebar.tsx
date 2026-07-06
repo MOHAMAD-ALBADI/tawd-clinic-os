@@ -169,8 +169,8 @@ export function AppSidebar({ role, allRoles, userName, clinicName }: AppSidebarP
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-white text-[13px] font-semibold truncate">{userName}</div>
-            <div className="text-[11px]" style={{ color: "var(--text-4)" }}>
-              {ROLE_LABELS[role]}
+            <div className="text-[11px] truncate" style={{ color: "var(--text-4)" }}>
+              {roles.map((r) => ROLE_LABELS[r]).join(" + ")}
             </div>
           </div>
         </div>
