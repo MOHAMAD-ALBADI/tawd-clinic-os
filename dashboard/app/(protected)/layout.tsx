@@ -40,7 +40,13 @@ export default async function ProtectedLayout({
 
       {/* Main content — offset by sidebar width */}
       <div className="pe-64 min-h-screen flex flex-col">
-        <TopBar />
+        <TopBar
+          searchPlaceholder={
+            claims.role === "platform_admin" ? "ابحث عن عيادة..."
+            : claims.role === "doctor" ? "ابحث عن مريض..."
+            : "ابحث عن مريض، خدمة، فاتورة..."
+          }
+        />
         <main className="flex-1 p-6 max-w-[1400px] w-full mx-auto">
           {children}
         </main>

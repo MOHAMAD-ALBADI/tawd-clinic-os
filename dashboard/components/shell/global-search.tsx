@@ -2,13 +2,13 @@
 
 import { useState, useRef, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Search, User, Stethoscope, FileText, Loader2 } from "lucide-react";
+import { Search, User, Stethoscope, FileText, Building2, Users, Loader2 } from "lucide-react";
 import { globalSearch, type SearchResult } from "@/app/actions/search";
 
-const ICONS = { patient: User, service: Stethoscope, invoice: FileText };
-const KIND_LABEL = { patient: "مريض", service: "خدمة", invoice: "فاتورة" };
+const ICONS = { patient: User, service: Stethoscope, invoice: FileText, clinic: Building2, staff: Users };
+const KIND_LABEL = { patient: "مريض", service: "خدمة", invoice: "فاتورة", clinic: "عيادة", staff: "موظف" };
 
-export function GlobalSearch() {
+export function GlobalSearch({ placeholder = "ابحث عن مريض، خدمة، فاتورة..." }: { placeholder?: string }) {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -51,7 +51,7 @@ export function GlobalSearch() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => { if (results.length) setOpen(true); }}
-          placeholder="ابحث عن مريض، خدمة، فاتورة..."
+          placeholder={placeholder}
           className="field h-8 pe-9 ps-3 text-[13px]"
         />
       </div>

@@ -7,6 +7,7 @@ import { GlobalSearch } from "./global-search";
 
 interface TopBarProps {
   title?: string;
+  searchPlaceholder?: string;
 }
 
 type NotifItem = {
@@ -23,7 +24,7 @@ const SEV: Record<string, { color: string; Icon: typeof Info }> = {
   info: { color: "#5dd9cb", Icon: Info },
 };
 
-export function TopBar({ title }: TopBarProps) {
+export function TopBar({ title, searchPlaceholder }: TopBarProps) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [items, setItems] = useState<NotifItem[] | null>(null);
   const [count, setCount] = useState(0);
@@ -72,7 +73,7 @@ export function TopBar({ title }: TopBarProps) {
         <span className="flex-1" />
       )}
 
-      <GlobalSearch />
+      <GlobalSearch placeholder={searchPlaceholder} />
 
       {/* live notifications */}
       <div className="relative" ref={panelRef}>
