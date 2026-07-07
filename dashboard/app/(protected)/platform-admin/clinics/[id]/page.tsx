@@ -5,6 +5,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { AddStaffForm } from "@/components/platform/add-staff-form";
 import { ClinicStatusToggle } from "@/components/platform/clinic-status-toggle";
+import { SubscriptionCard, ClinicWhatsApp } from "@/components/platform/manage-widgets";
 import { TawdBarsGlyph } from "@/components/shell/tawd-logo";
 import { ArrowRight, Users, MessageCircle, Scissors } from "lucide-react";
 
@@ -33,7 +34,7 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
     sb.from("tawd_staff_users").select("id, name, name_ar, email, role, is_active").eq("clinic_id", id).is("deleted_at", null).order("created_at"),
     sb.from("services").select("id").eq("clinic_id", id).eq("is_active", true),
     sb.from("channel_configs").select("is_active").eq("clinic_id", id).eq("channel", "whatsapp").limit(1).maybeSingle(),
-    sb.from("tawd_subscriptions").select("plan, status, trial_ends_at").eq("clinic_id", id).maybeSingle(),
+    sb.from("tawd_subscriptions").select("plan, status, trial_ends_at, price_omr, current_period_end").eq("clinic_id", id).maybeSingle(),
   ]);
   if (!clinic) notFound();
 
@@ -115,7 +116,15 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
         </div>
 
         {/* add staff */}
-        <div className="col-span-12 lg:col-span-5">
+        <div className="col-span-12 lg:col-span-5 space-y-4">
+          <SubscriptionCard
+            clinicId={clinic.id}
+            plan={(sub?.plan as string) ?? clinic.plan}
+            status={(sub?.status as string) ?? clinic.status}
+            priceOmr={Number(sub?.price_omr ?? 0)}
+            periodEnd={(sub?.current_period_end as string | null) ?? (sub?.trial_ends_at as string | null)}
+          />
+          <ClinicWhatsApp clinicId={clinic.id} hasPhone={!!clinic.phone} />
           <AddStaffForm clinicId={clinic.id} />
         </div>
       </div>

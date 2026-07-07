@@ -72,6 +72,9 @@ export type NewClinicInput = {
   adminName: string;
   adminEmail: string;
   adminPassword: string;
+  /* flexible team: any number of doctors, optional front-desk account */
+  doctors?: { name: string; email: string; password: string }[];
+  frontdesk?: { email: string; password: string } | null;
 };
 
 /** Full clinic onboarding: clinic + settings + loyalty + trial subscription
@@ -155,6 +158,65 @@ export async function createClinic(input: NewClinicInput) {
     is_active: true,
   });
 
+  /* 5 — flexible team: N doctors + optional front-desk (استقبال+محاسبة) */
+  const teamWarnings: string[] = [];
+  let doctorsCreated = 0;
+  for (const d of (input.doctors ?? []).slice(0, 30)) {
+    const dEmail = d.email.trim().toLowerCase();
+    if (!d.name.trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(dEmail) || d.password.length < 8) {
+      teamWarnings.push(`طبيب متجاهل (بيانات ناقصة): ${d.name || dEmail || "?"}`);
+      continue;
+    }
+    const dc = await sb.auth.admin.createUser({
+      email: dEmail,
+      password: d.password,
+      email_confirm: true,
+      app_metadata: { role: "doctor", all_roles: ["doctor"], clinic_id: clinicId },
+    });
+    if (dc.error) { teamWarnings.push(`${dEmail}: ${dc.error.message}`); continue; }
+    const { error: dse } = await sb.from("tawd_staff_users").insert({
+      id: dc.data.user.id,
+      clinic_id: clinicId,
+      name: d.name.trim(),
+      name_ar: d.name.trim(),
+      email: dEmail,
+      role: "doctor",
+      is_active: true,
+    });
+    if (dse) teamWarnings.push(`${dEmail}: ${dse.message}`);
+    else doctorsCreated++;
+  }
+
+  let frontdeskCreated = false;
+  if (input.frontdesk?.email) {
+    const fEmail = input.frontdesk.email.trim().toLowerCase();
+    if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(fEmail) && input.frontdesk.password.length >= 8) {
+      const fc = await sb.auth.admin.createUser({
+        email: fEmail,
+        password: input.frontdesk.password,
+        email_confirm: true,
+        app_metadata: {
+          role: "receptionist",
+          all_roles: ["receptionist", "accountant"],
+          is_multi_role: true,
+          clinic_id: clinicId,
+        },
+      });
+      if (!fc.error) {
+        await sb.from("tawd_staff_users").insert({
+          id: fc.data.user.id,
+          clinic_id: clinicId,
+          name: "Front Desk",
+          name_ar: "الاستقبال والمحاسبة",
+          email: fEmail,
+          role: "receptionist",
+          is_active: true,
+        });
+        frontdeskCreated = true;
+      } else teamWarnings.push(`${fEmail}: ${fc.error.message}`);
+    }
+  }
+
   revalidatePath("/platform-admin");
   revalidatePath("/platform-admin/clinics");
   return {
@@ -162,7 +224,9 @@ export async function createClinic(input: NewClinicInput) {
     clinicId,
     adminEmail: email,
     servicesSeeded: sverr ? 0 : tpl.length,
-    warnings: [seedErr?.message, sverr?.message, sterr?.message].filter(Boolean) as string[],
+    doctorsCreated,
+    frontdeskCreated,
+    warnings: [seedErr?.message, sverr?.message, sterr?.message, ...teamWarnings].filter(Boolean) as string[],
     createdBy: claims.sub,
   };
 }
@@ -221,6 +285,115 @@ export async function createStaffAccount(clinicId: string, input: NewStaffInput)
 
   revalidatePath(`/platform-admin/clinics/${clinicId}`);
   return { ok: true as const, email };
+}
+
+/** Update a clinic's subscription (plan / price / status). */
+export async function updateSubscription(
+  clinicId: string,
+  input: { plan: "starter" | "growth" | "pro" | "enterprise"; price_omr: number; status: "trial" | "active" | "suspended" }
+) {
+  await requirePlatform();
+  const sb = await createServiceRoleClient();
+  const { error } = await sb
+    .from("tawd_subscriptions")
+    .update({
+      plan: input.plan,
+      price_omr: Math.max(0, Number(input.price_omr) || 0),
+      status: input.status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("clinic_id", clinicId);
+  if (error) return { ok: false as const, reason: error.message };
+  /* keep clinic plan/status in sync */
+  await sb.from("tawd_clinics").update({ plan: input.plan, status: input.status }).eq("id", clinicId);
+  revalidatePath(`/platform-admin/clinics/${clinicId}`);
+  revalidatePath("/platform-admin");
+  return { ok: true as const };
+}
+
+/** Renew: extend the period one month from max(now, current end) and activate. */
+export async function renewSubscriptionMonth(clinicId: string) {
+  await requirePlatform();
+  const sb = await createServiceRoleClient();
+  const { data: sub } = await sb
+    .from("tawd_subscriptions").select("current_period_end").eq("clinic_id", clinicId).maybeSingle();
+  const base = sub?.current_period_end && new Date(sub.current_period_end) > new Date()
+    ? new Date(sub.current_period_end) : new Date();
+  base.setMonth(base.getMonth() + 1);
+  const { error } = await sb
+    .from("tawd_subscriptions")
+    .update({
+      status: "active",
+      current_period_start: new Date().toISOString(),
+      current_period_end: base.toISOString(),
+      renews_at: base.toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("clinic_id", clinicId);
+  if (error) return { ok: false as const, reason: error.message };
+  await sb.from("tawd_clinics").update({ status: "active" }).eq("id", clinicId);
+  revalidatePath(`/platform-admin/clinics/${clinicId}`);
+  revalidatePath("/platform-admin");
+  return { ok: true as const, until: base.toISOString().split("T")[0] };
+}
+
+/** WhatsApp from the PLATFORM to clinic owners' phones (single or bulk).
+    Uses the platform sender (first active WhatsApp channel config).
+    Business-initiated messages may require an approved template outside
+    the 24h window — we report per-clinic success honestly. */
+export async function sendClinicWhatsApp(clinicIds: string[], message: string) {
+  await requirePlatform();
+  const sb = await createServiceRoleClient();
+  const text = message.trim();
+  if (!text) return { ok: false as const, reason: "الرسالة فارغة" };
+  if (!clinicIds.length) return { ok: false as const, reason: "اختر عيادة واحدة على الأقل" };
+
+  const { data: cfg } = await sb
+    .from("channel_configs").select("config").eq("channel", "whatsapp").eq("is_active", true).limit(1).maybeSingle();
+  const conf = cfg?.config as Record<string, string> | null;
+  if (!conf?.access_token || !conf?.phone_number_id) {
+    return { ok: false as const, reason: "لا يوجد مرسل واتساب مفعّل للمنصة" };
+  }
+
+  const { data: clinics } = await sb
+    .from("tawd_clinics").select("id, name_ar, name, phone").in("id", clinicIds);
+
+  const results: { clinic: string; sent: boolean; reason?: string }[] = [];
+  for (const c of clinics ?? []) {
+    const to = (c.phone ?? "").replace(/\D/g, "");
+    if (!to) { results.push({ clinic: c.name_ar ?? c.name, sent: false, reason: "لا يوجد رقم" }); continue; }
+    try {
+      const res = await fetch(`https://graph.facebook.com/v20.0/${conf.phone_number_id}/messages`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${conf.access_token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ messaging_product: "whatsapp", to, type: "text", text: { body: text } }),
+      });
+      results.push({ clinic: c.name_ar ?? c.name, sent: res.ok, reason: res.ok ? undefined : `HTTP ${res.status}` });
+    } catch {
+      results.push({ clinic: c.name_ar ?? c.name, sent: false, reason: "فشل الاتصال" });
+    }
+  }
+  return { ok: true as const, results, sentCount: results.filter((r) => r.sent).length };
+}
+
+/** Founder's fixed monthly costs (Vercel/Supabase/n8n/Meta ...). */
+export async function addPlatformCost(name: string, monthlyOmr: number) {
+  await requirePlatform();
+  const sb = await createServiceRoleClient();
+  if (!name.trim()) return { ok: false as const, reason: "الاسم مطلوب" };
+  const { error } = await sb.from("platform_costs").insert({ name: name.trim(), monthly_omr: Math.max(0, Number(monthlyOmr) || 0) });
+  if (error) return { ok: false as const, reason: error.message };
+  revalidatePath("/platform-admin");
+  return { ok: true as const };
+}
+
+export async function deletePlatformCost(id: string) {
+  await requirePlatform();
+  const sb = await createServiceRoleClient();
+  const { error } = await sb.from("platform_costs").delete().eq("id", id);
+  if (error) return { ok: false as const, reason: error.message };
+  revalidatePath("/platform-admin");
+  return { ok: true as const };
 }
 
 /** Activate / suspend a clinic. */

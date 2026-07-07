@@ -255,7 +255,10 @@ async function runPlan(sb: Awaited<ReturnType<typeof createServiceRoleClient>>, 
   return { table: plan.table, rows: rows.slice(0, 30), row_count: rows.length };
 }
 
-async function gemini(key: string, prompt: string, json: boolean) {
+/* running token counters for platform usage monitoring */
+type Usage = { input: number; output: number };
+
+async function gemini(key: string, prompt: string, json: boolean, usage?: Usage) {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
     {
@@ -273,9 +276,33 @@ async function gemini(key: string, prompt: string, json: boolean) {
     }
   );
   const j = await res.json();
+  if (usage && j?.usageMetadata) {
+    usage.input += Number(j.usageMetadata.promptTokenCount ?? 0);
+    usage.output += Number(j.usageMetadata.candidatesTokenCount ?? 0);
+  }
   const text = j?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
   if (!text) throw new Error(j?.error?.message ?? "empty model response");
   return text;
+}
+
+/** Best-effort token accounting into ai_usage_metrics (never blocks the reply). */
+async function logUsage(
+  sb: Awaited<ReturnType<typeof createServiceRoleClient>>,
+  clinicId: string,
+  usage: Usage
+) {
+  if (usage.input + usage.output <= 0) return;
+  try {
+    await sb.from("ai_usage_metrics").insert({
+      clinic_id: clinicId,
+      workflow_id: "dashboard-ask",
+      model: "gemini-2.5-flash",
+      channel: "web_chat",
+      tokens_input: usage.input,
+      tokens_output: usage.output,
+      tokens_total: usage.input + usage.output,
+    });
+  } catch { /* observability must never break the product */ }
 }
 
 export async function POST(req: Request) {
@@ -358,6 +385,7 @@ export async function POST(req: Request) {
     /* agent loop: each model turn returns answer | queries | action (max 4 turns) */
     const context: unknown[] = [];
     let actionsDone = 0;
+    const usage: Usage = { input: 0, output: 0 };
 
     const ask = (final: boolean) =>
       header + historyBlock +
@@ -372,10 +400,11 @@ export async function POST(req: Request) {
             ? ``
             : `3) {"action":{...}} — لتنفيذ إجراء طلبه المستخدم صراحة (بعد حصولك على id من استعلام).`));
 
-    let resp = JSON.parse(await gemini(geminiKey, ask(false), true));
+    let resp = JSON.parse(await gemini(geminiKey, ask(false), true, usage));
 
     for (let step = 0; step < 4; step++) {
       if (resp.answer && !resp.queries && !resp.action) {
+        await logUsage(sb, cid, usage);
         return NextResponse.json({ answer: String(resp.answer) });
       }
 
@@ -403,9 +432,10 @@ export async function POST(req: Request) {
         break;
       }
 
-      resp = JSON.parse(await gemini(geminiKey, ask(step >= 2), true));
+      resp = JSON.parse(await gemini(geminiKey, ask(step >= 2), true, usage));
     }
 
+    await logUsage(sb, cid, usage);
     if (resp?.answer) return NextResponse.json({ answer: String(resp.answer) });
     return NextResponse.json({
       answer: "ما قدرت أكمل هذا الطلب — جرّب صياغته بشكل أوضح أو قسّمه لخطوتين.",

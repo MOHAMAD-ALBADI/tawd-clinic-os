@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, CheckCircle2, AlertCircle, Copy, KeyRound, Wand2 } from "lucide-react";
+import { Building2, CheckCircle2, AlertCircle, Copy, KeyRound, Wand2, Stethoscope, Plus, Trash2 } from "lucide-react";
 import { createClinic } from "@/app/actions/platform";
 
 const TYPES = [
@@ -36,13 +36,27 @@ export function NewClinicForm() {
     adminEmail: "",
     adminPassword: genPassword(),
   });
+  const [doctors, setDoctors] = useState<{ name: string; email: string; password: string }[]>([]);
+  const [withFrontdesk, setWithFrontdesk] = useState(false);
+  const [frontdesk, setFrontdesk] = useState({ email: "", password: genPassword() });
+  const [teamInfo, setTeamInfo] = useState<{ doctors: number; frontdesk: boolean }>({ doctors: 0, frontdesk: false });
+
+  const addDoctor = () => setDoctors((d) => [...d, { name: "", email: "", password: genPassword() }]);
+  const patchDoctor = (i: number, p: Partial<{ name: string; email: string; password: string }>) =>
+    setDoctors((d) => d.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  const removeDoctor = (i: number) => setDoctors((d) => d.filter((_, j) => j !== i));
 
   function submit() {
     setErr(null);
     start(async () => {
       try {
-        const r = await createClinic(form);
+        const r = await createClinic({
+          ...form,
+          doctors: doctors.filter((d) => d.name.trim() && d.email.trim()),
+          frontdesk: withFrontdesk && frontdesk.email.trim() ? frontdesk : null,
+        });
         if (!r.ok) { setErr(r.reason); return; }
+        setTeamInfo({ doctors: r.doctorsCreated ?? 0, frontdesk: !!r.frontdeskCreated });
         setDone({ clinicId: r.clinicId, email: r.adminEmail, password: form.adminPassword, services: r.servicesSeeded });
         router.refresh();
       } catch {
@@ -67,7 +81,9 @@ export function NewClinicForm() {
         <p className="text-xl font-bold text-white mb-2">عيادة «{form.nameAr}» جاهزة 🎉</p>
         <p className="text-sm mb-5" style={{ color: "var(--text-2)" }}>
           أُنشئت بكل شيء: الإعدادات، دوام افتراضي، نظام الولاء الذكي، اشتراك تجريبي 14 يوماً،
-          و{done.services} خدمات جاهزة حسب التخصص
+          {done.services} خدمات حسب التخصص
+          {teamInfo.doctors > 0 && `، ${teamInfo.doctors} حساب طبيب`}
+          {teamInfo.frontdesk && "، وحساب استقبال+محاسبة"}
         </p>
 
         <div className="rounded-2xl p-4 text-start mx-auto" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.09)", maxWidth: 420 }}>
@@ -160,6 +176,40 @@ export function NewClinicForm() {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* الفريق — مرن: أي عدد أطباء + استقبال اختياري */}
+        <div className="pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="flex items-center justify-between mb-3">
+            <p className="eyebrow flex items-center gap-1.5">
+              <Stethoscope className="w-3 h-3" /> فريق العيادة (اختياري — أضف بأي عدد)
+            </p>
+            <button onClick={addDoctor} className="btn-ghost" style={{ padding: "0.3rem 0.75rem", fontSize: 11 }}>
+              <Plus className="w-3.5 h-3.5" /> طبيب
+            </button>
+          </div>
+
+          {doctors.map((d, i) => (
+            <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 mb-2">
+              <input value={d.name} onChange={(e) => patchDoctor(i, { name: e.target.value })} className="field" placeholder={`اسم الطبيب ${i + 1}`} style={{ fontSize: 12 }} />
+              <input value={d.email} onChange={(e) => patchDoctor(i, { email: e.target.value })} className="field ltr-nums" dir="ltr" placeholder="doctor@clinic.om" style={{ fontSize: 12 }} />
+              <button onClick={() => removeDoctor(i)} className="w-9 rounded-lg flex items-center justify-center" style={{ background: "rgba(244,63,94,0.07)", color: "#fda4b4" }} aria-label="حذف الطبيب">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+          {doctors.length > 0 && (
+            <p className="text-[10px] mb-2" style={{ color: "var(--text-4)" }}>كلمات مرور الأطباء تتولّد تلقائياً وتظهر في ملف العيادة</p>
+          )}
+
+          <label className="flex items-center gap-2 text-[12px] cursor-pointer mt-2" style={{ color: "var(--text-2)" }}>
+            <input type="checkbox" checked={withFrontdesk} onChange={(e) => setWithFrontdesk(e.target.checked)} className="accent-teal-500" />
+            إنشاء حساب استقبال + محاسبة (لعيادة بكمبيوتر واحد)
+          </label>
+          {withFrontdesk && (
+            <input value={frontdesk.email} onChange={(e) => setFrontdesk((p) => ({ ...p, email: e.target.value }))}
+              className="field mt-2 ltr-nums" dir="ltr" placeholder="frontdesk@clinic.om" style={{ fontSize: 12 }} />
+          )}
         </div>
 
         {err && (

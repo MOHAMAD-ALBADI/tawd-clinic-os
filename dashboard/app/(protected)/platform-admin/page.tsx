@@ -4,6 +4,7 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { TawdBarsGlyph } from "@/components/shell/tawd-logo";
+import { CostsCard } from "@/components/platform/manage-widgets";
 import {
   Building2, Plus, ChevronLeft, Workflow, AlertTriangle,
   MessageCircle, Bot, Timer, Wallet,
@@ -67,6 +68,7 @@ export default async function PlatformAdminPage() {
     suraBookRes, { data: recovered },
     { data: openAlerts }, hitlRes, { data: sysErrors }, { data: channels },
     automation,
+    { data: costs }, { data: tokenRows }, waMsgsMonthRes,
   ] = await Promise.all([
     sb.from("tawd_clinics").select("id, name, name_ar, clinic_type, status, plan, created_at").order("created_at", { ascending: false }),
     sb.from("tawd_subscriptions").select("clinic_id, plan, status, price_omr, trial_ends_at"),
@@ -82,6 +84,9 @@ export default async function PlatformAdminPage() {
     sb.from("sura_errors").select("workflow_name, error_message, created_at").order("created_at", { ascending: false }).limit(5),
     sb.from("channel_configs").select("clinic_id, is_active").eq("channel", "whatsapp"),
     getAutomationHealth(),
+    sb.from("platform_costs").select("id, name, monthly_omr").order("created_at"),
+    sb.from("ai_usage_metrics").select("tokens_total").gte("recorded_at", monthStart).limit(100000),
+    sb.from("chat_messages").select("id", { count: "exact", head: true }).gte("created_at", monthStart),
   ]);
 
   const list = clinics ?? [];
@@ -232,6 +237,14 @@ export default async function PlatformAdminPage() {
           </p>
         </div>
       </div>
+
+      {/* ══ اقتصاد المنصة ══ */}
+      <CostsCard
+        costs={(costs ?? []) as { id: string; name: string; monthly_omr: number }[]}
+        geminiTokensMonth={(tokenRows ?? []).reduce((s, r) => s + Number(r.tokens_total ?? 0), 0)}
+        waMessagesMonth={waMsgsMonthRes.count ?? 0}
+        mrr={mrr}
+      />
 
       {/* ══ العيادات — صحة كل مستأجر ══ */}
       <div className="panel" style={{ padding: "1.25rem" }}>
