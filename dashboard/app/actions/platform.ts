@@ -396,11 +396,49 @@ export async function deletePlatformCost(id: string) {
   return { ok: true as const };
 }
 
-/** Support impersonation: one-time magic link to log in AS the clinic's admin.
-    Open it in a private window so your platform session stays intact. */
+/** Step 1: ask the clinic's permission for support access (WhatsApp + in-app). */
+export async function requestClinicAccess(clinicId: string) {
+  await requirePlatform();
+  const sb = await createServiceRoleClient();
+  /* one open request at a time */
+  await sb.from("support_access_requests").update({ status: "expired" })
+    .eq("clinic_id", clinicId).eq("status", "pending");
+  const { error } = await sb.from("support_access_requests")
+    .insert({ clinic_id: clinicId, reason: "دعم فني من فريق طود" });
+  if (error) return { ok: false as const, reason: error.message };
+  await sendClinicWhatsApp([clinicId],
+    "🛠️ فريق منصة طود يطلب إذن الدخول للوحة عيادتكم للدعم الفني.\nللموافقة: افتحوا لوحة التحكم وستجدون الطلب في الأعلى.").catch(() => null);
+  revalidatePath(`/platform-admin/clinics/${clinicId}`);
+  return { ok: true as const };
+}
+
+/** Clinic admin answers the request (approve = 60 minutes of access). */
+export async function respondSupportAccess(requestId: string, approve: boolean) {
+  const claims = await getUserClaims();
+  if (!claims || claims.role !== "clinic_admin") throw new Error("غير مصرح");
+  const sb = await createServiceRoleClient();
+  const { error } = await sb.from("support_access_requests")
+    .update({
+      status: approve ? "approved" : "denied",
+      responded_at: new Date().toISOString(),
+      expires_at: approve ? new Date(Date.now() + 3600_000).toISOString() : null,
+    })
+    .eq("id", requestId).eq("clinic_id", claims.clinic_id).eq("status", "pending");
+  if (error) return { ok: false as const, reason: error.message };
+  revalidatePath("/clinic-admin");
+  return { ok: true as const };
+}
+
+/** Step 2: impersonation link — ONLY with a live approval from the clinic. */
 export async function impersonateClinic(clinicId: string) {
   await requirePlatform();
   const sb = await createServiceRoleClient();
+  const { data: ok } = await sb.from("support_access_requests")
+    .select("id").eq("clinic_id", clinicId).eq("status", "approved")
+    .gt("expires_at", new Date().toISOString()).limit(1);
+  if (!ok?.length) {
+    return { ok: false as const, reason: "لا توجد موافقة سارية من العيادة — أرسل طلب إذن أولاً", needsRequest: true };
+  }
   const { data: admin } = await sb
     .from("tawd_staff_users")
     .select("email")

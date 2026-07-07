@@ -11,6 +11,7 @@ import { SparkLine }                 from "@/components/dashboard/spark-line";
 import { KpiGrid }                   from "@/components/dashboard/kpi-grid";
 import { SuraRecoveryPanel }         from "@/components/dashboard/sura-recovery";
 import { EmergencyAlerts }           from "@/components/dashboard/emergency-alerts";
+import { SupportAccessBanner }       from "@/components/platform/manage-widgets";
 import { TawdBarsGlyph }             from "@/components/shell/tawd-logo";
 
 export const metadata = { title: "لوحة التحكم — طود" };
@@ -96,6 +97,14 @@ export default async function ClinicAdminPage() {
       .order("created_at", { ascending: false }).limit(10),
   ]);
 
+  const { data: supportReq } = await sb
+    .from("support_access_requests")
+    .select("id")
+    .eq("clinic_id", claims.clinic_id)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(1);
+
   const appts           = apptRes.data       ?? [];
   const clinic          = clinicRes.data;
   const clinicName      = clinic?.name_ar    ?? clinic?.name ?? "عيادتك";
@@ -179,6 +188,9 @@ export default async function ClinicAdminPage() {
 
   return (
     <div className="space-y-4 pb-28 animate-fade-in">
+
+      {/* support access consent (platform asked for permission) */}
+      {supportReq?.[0] && <SupportAccessBanner requestId={supportReq[0].id} />}
 
       {/* ══ EMERGENCY ALERTS (safety-critical, top) ══ */}
       <EmergencyAlerts alerts={emergencyAlerts} />

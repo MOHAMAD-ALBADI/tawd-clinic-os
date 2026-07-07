@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Wallet, RefreshCcw, Send, Trash2, Plus, CheckCircle2 } from "lucide-react";
 import {
   updateSubscription, renewSubscriptionMonth, sendClinicWhatsApp,
-  addPlatformCost, deletePlatformCost, impersonateClinic,
+  addPlatformCost, deletePlatformCost, impersonateClinic, requestClinicAccess,
 } from "@/app/actions/platform";
 
 const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
@@ -239,23 +239,67 @@ export function ImpersonateButton({ clinicId }: { clinicId: string }) {
     });
   }
 
+  const [reqMsg, setReqMsg] = useState<string | null>(null);
+  function askPermission() {
+    setErr(null);
+    start(async () => {
+      const r = await requestClinicAccess(clinicId);
+      setReqMsg(r.ok ? "أُرسل طلب الإذن للعيادة (واتساب + داخل لوحتهم) — انتظر موافقتهم ثم ولّد الرابط" : r.reason);
+    });
+  }
+
   return (
     <div className="panel" style={{ padding: "1.25rem" }}>
-      <h3 className="font-bold text-white text-sm mb-1">🕶️ دخول كالعيادة (دعم فني)</h3>
+      <h3 className="font-bold text-white text-sm mb-1">🕶️ دخول كالعيادة (بإذنهم)</h3>
       <p className="text-[11px] mb-3" style={{ color: "var(--text-3)" }}>
-        رابط دخول لمرة واحدة بحساب مدير العيادة — افتحه في نافذة خفية حتى تبقى جلستك
+        ١) اطلب الإذن → يوصلهم تنبيه ٢) بعد موافقتهم (سارية ساعة) ولّد الرابط —
+        وافتحه دائماً في <b>نافذة خفية</b> (الرابط يبدّل الجلسة)
       </p>
       {link ? (
         <div className="flex gap-2">
-          <a href={link} target="_blank" rel="noreferrer" className="btn-primary flex-1">فتح لوحتهم</a>
+          <a href={link} target="_blank" rel="noreferrer" className="btn-primary flex-1">فتح لوحتهم (نافذة خفية!)</a>
           <button onClick={() => { navigator.clipboard.writeText(link); }} className="btn-ghost">نسخ</button>
         </div>
       ) : (
-        <button onClick={go} disabled={pending} className="btn-ghost w-full">
-          {pending ? "جارٍ التوليد…" : "توليد رابط الدخول"}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={askPermission} disabled={pending} className="btn-ghost flex-1">
+            {pending ? "…" : "١· طلب إذن العيادة"}
+          </button>
+          <button onClick={go} disabled={pending} className="btn-primary flex-1">
+            {pending ? "…" : "٢· توليد الرابط"}
+          </button>
+        </div>
       )}
+      {reqMsg && <p className="text-[12px] mt-2" style={{ color: "#5dd9cb" }}>{reqMsg}</p>}
       {err && <p className="text-[12px] mt-2" style={{ color: "#fda4b4" }}>{err}</p>}
+    </div>
+  );
+}
+
+/* ─── clinic-admin side: approve/deny the support access request ─── */
+export function SupportAccessBanner({ requestId }: { requestId: string }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [done, setDone] = useState<string | null>(null);
+
+  function answer(approve: boolean) {
+    start(async () => {
+      const { respondSupportAccess } = await import("@/app/actions/platform");
+      const r = await respondSupportAccess(requestId, approve);
+      setDone(r.ok ? (approve ? "تمت الموافقة — وصول الدعم ساري لمدة ساعة ✓" : "تم الرفض") : r.reason);
+      router.refresh();
+    });
+  }
+
+  if (done) return <div className="badge badge-brand mb-1">{done}</div>;
+  return (
+    <div className="rounded-2xl flex items-center gap-3 px-4 py-3 flex-wrap"
+      style={{ background: "rgba(45,212,191,0.06)", border: "1px solid rgba(45,212,191,0.25)" }}>
+      <p className="text-[13px] font-semibold text-white flex-1">
+        🛠️ فريق طود يطلب إذن الدخول للوحتكم للدعم الفني (صلاحية ساعة واحدة)
+      </p>
+      <button onClick={() => answer(true)} disabled={pending} className="btn-primary" style={{ padding: "0.4rem 1rem", fontSize: 12 }}>أوافق</button>
+      <button onClick={() => answer(false)} disabled={pending} className="btn-danger">أرفض</button>
     </div>
   );
 }
