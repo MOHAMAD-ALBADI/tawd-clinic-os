@@ -15,6 +15,9 @@ import {
   Scissors,
   Bot,
   Scale,
+  Plus,
+  Wallet,
+  Workflow,
   type LucideIcon,
 } from "lucide-react";
 
@@ -58,8 +61,12 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "نقاط الولاء",  href: "/accountant/loyalty",   icon: Star },
   ],
   platform_admin: [
-    { label: "نظرة المنصة",  href: "/platform-admin",             icon: LayoutDashboard, exact: true },
-    { label: "إضافة عيادة", href: "/platform-admin/clinics/new", icon: Building2 },
-    { label: "حملات المنصة", href: "/platform-admin/broadcast",   icon: Megaphone },
+    { label: "نظرة المنصة",  href: "/platform-admin",               icon: LayoutDashboard, exact: true },
+    { label: "العيادات",      href: "/platform-admin/clinics",       icon: Building2 },
+    { label: "إضافة عيادة",  href: "/platform-admin/clinics/new",   icon: Plus },
+    { label: "الاشتراكات",   href: "/platform-admin/subscriptions", icon: CreditCard },
+    { label: "اقتصاد المنصة", href: "/platform-admin/economy",       icon: Wallet },
+    { label: "الأتمتة",       href: "/platform-admin/automation",    icon: Workflow },
+    { label: "حملات المنصة", href: "/platform-admin/broadcast",     icon: Megaphone },
   ],
 };

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Wallet, RefreshCcw, Send, Trash2, Plus, CheckCircle2 } from "lucide-react";
 import {
   updateSubscription, renewSubscriptionMonth, sendClinicWhatsApp,
-  addPlatformCost, deletePlatformCost,
+  addPlatformCost, deletePlatformCost, impersonateClinic,
 } from "@/app/actions/platform";
 
 const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
@@ -200,6 +200,42 @@ export function CostsCard({
         <button onClick={add} disabled={pending || !name.trim()} className="btn-ghost shrink-0"><Plus className="w-4 h-4" /></button>
       </div>
       <p className="text-[9px] mt-2" style={{ color: "var(--text-4)" }}>* التوكنز المرصودة من مساعد اللوحة؛ رصد واتساب n8n يُضاف لاحقاً</p>
+    </div>
+  );
+}
+
+/* ─── support impersonation: log in AS the clinic (clinic file) ─── */
+export function ImpersonateButton({ clinicId }: { clinicId: string }) {
+  const [pending, start] = useTransition();
+  const [link, setLink] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  function go() {
+    setErr(null);
+    start(async () => {
+      const r = await impersonateClinic(clinicId);
+      if (!r.ok) { setErr(r.reason); return; }
+      setLink(r.link);
+    });
+  }
+
+  return (
+    <div className="panel" style={{ padding: "1.25rem" }}>
+      <h3 className="font-bold text-white text-sm mb-1">🕶️ دخول كالعيادة (دعم فني)</h3>
+      <p className="text-[11px] mb-3" style={{ color: "var(--text-3)" }}>
+        رابط دخول لمرة واحدة بحساب مدير العيادة — افتحه في نافذة خفية حتى تبقى جلستك
+      </p>
+      {link ? (
+        <div className="flex gap-2">
+          <a href={link} target="_blank" rel="noreferrer" className="btn-primary flex-1">فتح لوحتهم</a>
+          <button onClick={() => { navigator.clipboard.writeText(link); }} className="btn-ghost">نسخ</button>
+        </div>
+      ) : (
+        <button onClick={go} disabled={pending} className="btn-ghost w-full">
+          {pending ? "جارٍ التوليد…" : "توليد رابط الدخول"}
+        </button>
+      )}
+      {err && <p className="text-[12px] mt-2" style={{ color: "#fda4b4" }}>{err}</p>}
     </div>
   );
 }

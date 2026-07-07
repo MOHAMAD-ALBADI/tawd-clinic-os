@@ -5,7 +5,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { AddStaffForm } from "@/components/platform/add-staff-form";
 import { ClinicStatusToggle } from "@/components/platform/clinic-status-toggle";
-import { SubscriptionCard, ClinicWhatsApp } from "@/components/platform/manage-widgets";
+import { SubscriptionCard, ClinicWhatsApp, ImpersonateButton } from "@/components/platform/manage-widgets";
 import { TawdBarsGlyph } from "@/components/shell/tawd-logo";
 import { ArrowRight, Users, MessageCircle, Scissors } from "lucide-react";
 
@@ -125,6 +125,7 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
             periodEnd={(sub?.current_period_end as string | null) ?? (sub?.trial_ends_at as string | null)}
           />
           <ClinicWhatsApp clinicId={clinic.id} hasPhone={!!clinic.phone} />
+          <ImpersonateButton clinicId={clinic.id} />
           <AddStaffForm clinicId={clinic.id} />
         </div>
       </div>

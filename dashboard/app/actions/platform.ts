@@ -396,6 +396,32 @@ export async function deletePlatformCost(id: string) {
   return { ok: true as const };
 }
 
+/** Support impersonation: one-time magic link to log in AS the clinic's admin.
+    Open it in a private window so your platform session stays intact. */
+export async function impersonateClinic(clinicId: string) {
+  await requirePlatform();
+  const sb = await createServiceRoleClient();
+  const { data: admin } = await sb
+    .from("tawd_staff_users")
+    .select("email")
+    .eq("clinic_id", clinicId)
+    .eq("role", "admin")
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+  if (!admin?.email) return { ok: false as const, reason: "لا يوجد حساب مدير لهذه العيادة" };
+
+  const { data, error } = await sb.auth.admin.generateLink({
+    type: "magiclink",
+    email: admin.email,
+    options: { redirectTo: "https://tawd-clinic-os.vercel.app/clinic-admin" },
+  });
+  if (error || !data?.properties?.action_link) {
+    return { ok: false as const, reason: error?.message ?? "تعذّر توليد الرابط" };
+  }
+  return { ok: true as const, link: data.properties.action_link, email: admin.email };
+}
+
 /** Activate / suspend a clinic. */
 export async function setClinicStatus(clinicId: string, status: "trial" | "active" | "suspended") {
   await requirePlatform();
