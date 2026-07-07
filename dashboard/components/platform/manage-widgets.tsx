@@ -309,7 +309,13 @@ export function PlatformBroadcast({
         ))}
       </div>
       <p className="text-[11px] mb-3" style={{ color: "var(--text-3)" }}>
-        سيستقبلها <span className="font-bold ltr-nums text-white">{targets.length}</span> عيادة (اللي لها رقم مسجّل)
+        سيستقبلها <span className="font-bold ltr-nums text-white">{targets.length}</span> عيادة
+        {(() => {
+          const noPhone = clinics.filter((c) => !c.phone && (audience === "all" || c.group === audience)).length;
+          return noPhone > 0 ? (
+            <span style={{ color: "#fcd34d" }}> — {noPhone} مستبعدة بلا رقم هاتف (أضف الرقم من ملف العيادة)</span>
+          ) : null;
+        })()}
       </p>
 
       <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4} className="field" style={{ resize: "vertical" }}
