@@ -129,14 +129,18 @@ export function ClinicWhatsApp({ clinicId, hasPhone }: { clinicId: string; hasPh
   );
 }
 
-/* ─── founder's fixed costs editor (overview) ─── */
+/* ─── platform economy: AUTO usage from live sources + manual only for no-API items ─── */
 export function CostsCard({
   costs, geminiTokensMonth, waMessagesMonth, mrr,
+  dbSizeMb = null, waConversationsMonth = null, n8nRuns24h = null,
 }: {
   costs: { id: string; name: string; monthly_omr: number }[];
   geminiTokensMonth: number;
   waMessagesMonth: number;
   mrr: number;
+  dbSizeMb?: number | null;
+  waConversationsMonth?: number | null;
+  n8nRuns24h?: number | null;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -165,21 +169,37 @@ export function CostsCard({
         اقتصاد المنصة — تكاليفي واستهلاكي
       </h3>
 
+      {/* AUTO — live consumption from real sources */}
+      <p className="eyebrow mb-2" style={{ fontSize: 9, color: "var(--accent-2)" }}>استهلاك تلقائي حي — بدون إدخال يدوي</p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
+        {[
+          { l: "توكنز Gemini/شهر", v: geminiTokensMonth.toLocaleString("en-US"), sub: `≈ ${fmt(geminiEstOmr)} ر.ع (مجاني بخطتك الحالية)` },
+          { l: "محادثات واتساب/شهر", v: (waConversationsMonth ?? 0).toLocaleString("en-US"), sub: `${waMessagesMonth.toLocaleString("en-US")} رسالة — ردود الخدمة مجانية في Meta` },
+          { l: "حجم قاعدة البيانات", v: dbSizeMb !== null ? `${dbSizeMb} MB` : "—", sub: "من أصل 500MB (خطة Supabase المجانية)" },
+          { l: "تشغيلات الأتمتة/24س", v: n8nRuns24h !== null ? n8nRuns24h.toLocaleString("en-US") : "—", sub: "n8n على خادمك الخاص" },
+        ].map((k) => (
+          <div key={k.l} className="rounded-xl px-3 py-2.5" style={{ background: "rgba(45,212,191,0.04)", border: "1px solid rgba(45,212,191,0.12)" }}>
+            <p className="text-[9px] mb-1" style={{ color: "var(--text-4)" }}>{k.l}</p>
+            <p className="text-sm font-bold ltr-nums text-white">{k.v}</p>
+            <p className="text-[9px]" style={{ color: "var(--text-4)" }}>{k.sub}</p>
+          </div>
+        ))}
+      </div>
       <div className="grid grid-cols-3 gap-2 mb-4">
         {[
-          { l: "توكنز Gemini/شهر*", v: geminiTokensMonth.toLocaleString("en-US"), sub: `≈ ${fmt(geminiEstOmr)} ر.ع` },
-          { l: "رسائل واتساب/شهر", v: waMessagesMonth.toLocaleString("en-US"), sub: "محادثات سُرى" },
-          { l: "صافي شهري تقديري", v: `${fmt(net)}`, sub: "MRR − التكاليف الثابتة" },
+          { l: "اشتراكات مجانية مكتشفة تلقائياً", v: "0.000 ر.ع", sub: "Vercel Hobby · Supabase Free · Gemini Free · رقم واتساب تجريبي" },
+          { l: "تكاليف يدوية (بلا API)", v: `${fmt(totalCosts)} ر.ع`, sub: "مثل VPS استضافة n8n" },
+          { l: "صافي شهري تقديري", v: `${fmt(net)} ر.ع`, sub: "MRR − التكاليف" },
         ].map((k) => (
           <div key={k.l} className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
             <p className="text-[9px] mb-1" style={{ color: "var(--text-4)" }}>{k.l}</p>
             <p className="text-sm font-bold ltr-nums text-white">{k.v}</p>
-            <p className="text-[9px] ltr-nums" style={{ color: "var(--text-4)" }}>{k.sub}</p>
+            <p className="text-[9px]" style={{ color: "var(--text-4)" }}>{k.sub}</p>
           </div>
         ))}
       </div>
 
-      <p className="eyebrow mb-2" style={{ fontSize: 9 }}>تكاليفي الثابتة الشهرية — {fmt(totalCosts)} ر.ع</p>
+      <p className="eyebrow mb-2" style={{ fontSize: 9 }}>تكاليف بلا API (تُدخل مرة واحدة فقط — مثل VPS)</p>
       <div className="space-y-1.5 mb-3">
         {costs.map((c) => (
           <div key={c.id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
