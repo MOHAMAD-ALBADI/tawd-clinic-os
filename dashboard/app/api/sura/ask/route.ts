@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { hasRole } from "@/lib/auth/role-redirect";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -184,7 +185,7 @@ async function runPlan(sb: Awaited<ReturnType<typeof createServiceRoleClient>>, 
     (plan.embed && EMBEDS[plan.table] ? `, ${EMBEDS[plan.table]}` : "");
 
   let q = sb.from(plan.table).select(selectStr);
-  if (t.clinicCol) q = q.eq("clinic_id", cid);
+  if (t.clinicCol && cid) q = q.eq("clinic_id", cid); // platform owner (cid='') = cross-clinic
   if (role === "doctor" && plan.table === "appointments") q = q.eq("doctor_id", sub);
   if ("deleted_at" in Object.fromEntries(t.cols.map((c) => [c, 1])) ) { /* noop */ }
   if (["patients", "appointments", "invoices"].includes(plan.table)) q = q.is("deleted_at", null);
@@ -327,11 +328,12 @@ export async function POST(req: Request) {
   if (!question) return NextResponse.json({ error: "empty question" }, { status: 400 });
 
   const sb = await createServiceRoleClient();
-  const cid = claims.clinic_id;
+  const isPlatform = hasRole(claims, "platform_admin");
+  const cid = isPlatform ? "" : claims.clinic_id; // '' = unscoped platform mode
 
   const [cfgRes, clinicRes, meRes] = await Promise.all([
-    sb.from("channel_configs").select("config").eq("clinic_id", cid).eq("channel", "whatsapp").eq("is_active", true).limit(1).maybeSingle(),
-    sb.from("tawd_clinics").select("name, name_ar, clinic_type").eq("id", cid).single(),
+    sb.from("channel_configs").select("config").eq("channel", "whatsapp").eq("is_active", true).limit(1).maybeSingle(),
+    sb.from("tawd_clinics").select("name, name_ar, clinic_type").eq("id", claims.clinic_id).maybeSingle(),
     sb.from("tawd_staff_users").select("name, name_ar").eq("id", claims.sub).maybeSingle(),
   ]);
   const geminiKey = (cfgRes.data?.config as Record<string, string> | null)?.gemini_key;
@@ -345,12 +347,14 @@ export async function POST(req: Request) {
   const muscat = new Date(now.getTime() + 4 * 3600_000);
   const muscatDate = muscat.toISOString().split("T")[0];
   const muscatDay = new Intl.DateTimeFormat("ar", { weekday: "long" }).format(now);
-  const roleLabel =
+  const roleLabel = isPlatform ? `مالك منصة طود ${userName}` :
     role === "doctor" ? `الطبيب ${userName}` :
     role === "receptionist" ? "موظف الاستقبال" :
     role === "accountant" ? "المحاسب" : `مدير العيادة ${userName}`;
   const header =
-    `أنتِ "سُرى"، العقل الذكي لعيادة ${clinicName}. تتحدثين مع ${roleLabel}.\n` +
+    (isPlatform
+      ? `أنتِ "سُرى"، العقل الذكي لمنصة طود كاملة. تتحدثين مع ${roleLabel} — صلاحياته شاملة: استعلاماتك تغطي كل العيادات (أضيفي clinic_id في select للتمييز بينها عند الحاجة).\n`
+      : `أنتِ "سُرى"، العقل الذكي لعيادة ${clinicName}. تتحدثين مع ${roleLabel}.\n`) +
     `هوية المتحدث معروفة ومؤكدة تلقائياً من تسجيل دخوله — لا تسأليه أبداً عن اسمه أو معرفه أو هويته.\n` +
     (role === "doctor"
       ? `كل استعلامات جدول appointments تُفلتر تلقائياً على مواعيد هذا الطبيب فقط — "مواعيدي/مرضاي" تعني نتائج الاستعلام مباشرة.\n`
