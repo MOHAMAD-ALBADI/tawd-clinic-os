@@ -5,6 +5,7 @@ import { ClinicInfoForm } from "@/components/settings/clinic-info-form";
 import { WorkingHoursForm } from "@/components/settings/working-hours-form";
 import { ReviewLinkForm } from "@/components/settings/review-link-form";
 import { VatNumberForm } from "@/components/settings/vat-number-form";
+import { BookingLink } from "@/components/platform/booking-link";
 import { Shield, CreditCard, Users, Activity } from "lucide-react";
 
 export const metadata = { title: "الإعدادات — طود" };
@@ -29,7 +30,7 @@ export default async function SettingsPage() {
     await Promise.all([
       supabase
         .from("tawd_clinics")
-        .select("id, name, name_ar, timezone, country_code, currency, vat_enabled, vat_number, plan, status")
+        .select("id, name, name_ar, timezone, country_code, currency, vat_enabled, vat_number, plan, status, slug")
         .eq("id", claims.clinic_id)
         .single(),
       supabase
@@ -137,6 +138,9 @@ export default async function SettingsPage() {
 
       {/* VAT registration number — printed on tax invoices */}
       <VatNumberForm current={(clinic?.vat_number as string | null) ?? null} />
+
+      {/* Public booking link — the clinic shares this with patients */}
+      {clinic?.slug && <BookingLink slug={clinic.slug as string} />}
 
       {/* Security info */}
       <div

@@ -7,6 +7,7 @@ import { AddStaffForm } from "@/components/platform/add-staff-form";
 import { ClinicStatusToggle } from "@/components/platform/clinic-status-toggle";
 import { SubscriptionCard, ClinicWhatsApp, ImpersonateButton } from "@/components/platform/manage-widgets";
 import { ImportTrigger } from "@/components/patients/import-trigger";
+import { BookingLink } from "@/components/platform/booking-link";
 import { TawdBarsGlyph } from "@/components/shell/tawd-logo";
 import { ArrowRight, Users, MessageCircle, Scissors } from "lucide-react";
 
@@ -31,7 +32,7 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
 
   const sb = await createServiceRoleClient();
   const [{ data: clinic }, { data: staff }, { data: services }, { data: wa }, { data: sub }] = await Promise.all([
-    sb.from("tawd_clinics").select("id, name, name_ar, clinic_type, status, plan, phone, created_at, vat_number").eq("id", id).maybeSingle(),
+    sb.from("tawd_clinics").select("id, name, name_ar, clinic_type, status, plan, phone, created_at, vat_number, slug").eq("id", id).maybeSingle(),
     sb.from("tawd_staff_users").select("id, name, name_ar, email, role, is_active").eq("clinic_id", id).is("deleted_at", null).order("created_at"),
     sb.from("services").select("id").eq("clinic_id", id).eq("is_active", true),
     sb.from("channel_configs").select("is_active").eq("clinic_id", id).eq("channel", "whatsapp").limit(1).maybeSingle(),
@@ -128,6 +129,7 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
             priceOmr={Number(sub?.price_omr ?? 0)}
             periodEnd={(sub?.current_period_end as string | null) ?? (sub?.trial_ends_at as string | null)}
           />
+          {clinic.slug && <BookingLink slug={clinic.slug as string} />}
           <ClinicWhatsApp clinicId={clinic.id} hasPhone={!!clinic.phone} />
           <ImpersonateButton clinicId={clinic.id} />
           <AddStaffForm clinicId={clinic.id} />

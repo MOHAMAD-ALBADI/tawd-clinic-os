@@ -91,12 +91,19 @@ export async function createClinic(input: NewClinicInput) {
   if (input.adminPassword.length < 8) return { ok: false as const, reason: "كلمة المرور 8 أحرف على الأقل" };
   if (!input.adminName.trim()) return { ok: false as const, reason: "اسم المدير مطلوب" };
 
+  /* unique url slug from the english name (fallback → arabic → random) */
+  const base = (name || nameAr).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-+|-+$)/g, "");
+  let slug = base || `clinic-${Math.random().toString(36).slice(2, 8)}`;
+  const { data: clash } = await sb.from("tawd_clinics").select("id").eq("slug", slug).limit(1);
+  if (clash?.length) slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
+
   /* 1 — the clinic */
   const { data: clinic, error: cerr } = await sb
     .from("tawd_clinics")
     .insert({
       name,
       name_ar: nameAr,
+      slug,
       clinic_type: SERVICE_TEMPLATES[input.clinicType] ? input.clinicType : "general",
       phone: input.phone?.trim() || null,
       vat_enabled: true,
