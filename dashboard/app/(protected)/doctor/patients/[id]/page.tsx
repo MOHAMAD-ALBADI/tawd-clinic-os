@@ -5,6 +5,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { AddNoteForm } from "@/components/doctor/add-note-form";
 import { RecordVitalsForm } from "@/components/doctor/record-vitals-form";
 import { MedicalHistoryForm, type MedicalHistory } from "@/components/doctor/medical-history-form";
+import { PatientAttachments, type Attachment } from "@/components/patients/patient-attachments";
 import { ArrowRight, Phone, Cake, NotebookPen, Activity, Lock, CalendarDays, AlertTriangle } from "lucide-react";
 
 const STATUS: Record<string, { label: string; color: string }> = {
@@ -41,6 +42,11 @@ export default async function PatientFilePage({ params }: { params: Promise<{ id
     supabase.from("appointments").select("id, slot_time, status, services(name_ar)").eq("patient_id", id).is("deleted_at", null).order("slot_time", { ascending: false }).limit(15),
     supabase.from("medical_histories").select("blood_type, allergies, chronic_diseases, current_medications, notes").eq("patient_id", id).maybeSingle(),
   ]);
+
+  const { data: attachments } = await supabase
+    .from("patient_attachments")
+    .select("id, file_name, mime_type, size_bytes, category, created_at")
+    .eq("patient_id", id).order("created_at", { ascending: false });
 
   const allergies = ((history?.allergies as string[] | null) ?? []);
 
@@ -96,6 +102,9 @@ export default async function PatientFilePage({ params }: { params: Promise<{ id
 
       {/* Unified medical history */}
       <MedicalHistoryForm patientId={id} history={history as MedicalHistory} />
+
+      {/* Files & attachments */}
+      <PatientAttachments patientId={id} clinicId={claims.clinic_id} attachments={(attachments ?? []) as Attachment[]} />
 
       {/* Latest vitals */}
       {latest && (

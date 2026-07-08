@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { PatientAttachments, type Attachment } from "@/components/patients/patient-attachments";
 import {
   ArrowRight, Phone, Mail, Star, Calendar, Clock,
   User, FileText, CheckCircle2, XCircle, AlertCircle,
@@ -101,6 +102,11 @@ export default async function PatientProfilePage({
     ]);
 
   if (!patient) notFound();
+
+  const { data: attachments } = await supabase
+    .from("patient_attachments")
+    .select("id, file_name, mime_type, size_bytes, category, created_at")
+    .eq("patient_id", id).order("created_at", { ascending: false });
 
   const appts    = (apptData ?? []) as unknown as Appt[];
   const invoices = (invoiceData ?? []) as Invoice[];
@@ -324,6 +330,9 @@ export default async function PatientProfilePage({
           </div>
         )}
       </div>
+
+      {/* Files & attachments */}
+      <PatientAttachments patientId={id} clinicId={claims.clinic_id} attachments={(attachments ?? []) as Attachment[]} />
     </div>
   );
 }

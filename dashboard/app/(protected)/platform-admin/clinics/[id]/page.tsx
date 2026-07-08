@@ -6,6 +6,7 @@ import { hasRole } from "@/lib/auth/role-redirect";
 import { AddStaffForm } from "@/components/platform/add-staff-form";
 import { ClinicStatusToggle } from "@/components/platform/clinic-status-toggle";
 import { SubscriptionCard, ClinicWhatsApp, ImpersonateButton } from "@/components/platform/manage-widgets";
+import { ImportTrigger } from "@/components/patients/import-trigger";
 import { TawdBarsGlyph } from "@/components/shell/tawd-logo";
 import { ArrowRight, Users, MessageCircle, Scissors } from "lucide-react";
 
@@ -66,7 +67,10 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
               {clinic.phone && <span className="ltr-nums"> · {clinic.phone}</span>}
             </p>
           </div>
-          <ClinicStatusToggle clinicId={clinic.id} status={clinic.status} />
+          <div className="flex items-center gap-2 flex-wrap">
+            <ImportTrigger clinicId={clinic.id} label="استيراد مرضى العيادة" />
+            <ClinicStatusToggle clinicId={clinic.id} status={clinic.status} />
+          </div>
         </div>
 
         <div className="flex items-center gap-5 mt-4 flex-wrap text-[12px]">
