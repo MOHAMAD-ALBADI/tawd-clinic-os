@@ -27,6 +27,14 @@ export async function proxy(request: NextRequest) {
   const role = (claims?.app_metadata?.role ?? "clinic_admin") as Role;
   const path = request.nextUrl.pathname;
 
+  // Public routes: patient booking page, auth callbacks, and api routes
+  // (which authenticate themselves and return JSON) — never gate these.
+  const PUBLIC_PREFIXES = ["/book", "/auth"];
+  const isPublic =
+    path.startsWith("/api/") ||
+    PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
+  if (isPublic) return response;
+
   // If on login page and already authenticated → redirect to role home
   if (path.startsWith("/login")) {
     if (claims) {
