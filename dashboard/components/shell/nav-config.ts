@@ -36,6 +36,7 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "لوحة التحكم",  href: "/clinic-admin",              icon: LayoutDashboard, exact: true },
     { label: "المواعيد",     href: "/clinic-admin/appointments",  icon: Calendar },
     { label: "المرضى",       href: "/clinic-admin/patients",      icon: UserCircle },
+    { label: "خطط العلاج",   href: "/clinic-admin/treatment-plans", icon: ClipboardList },
     { label: "الفواتير",     href: "/clinic-admin/invoices",      icon: CreditCard },
     { label: "الخدمات",      href: "/clinic-admin/services",      icon: Scissors },
     { label: "المخزون",      href: "/clinic-admin/inventory",     icon: Boxes },
