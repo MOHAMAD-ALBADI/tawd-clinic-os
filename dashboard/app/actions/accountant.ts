@@ -4,6 +4,7 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { consumeServiceMaterials } from "@/app/actions/inventory";
+import { logClaimForInvoice } from "@/app/actions/insurance";
 import { revalidatePath } from "next/cache";
 
 async function requireAccountant() {
@@ -206,6 +207,8 @@ export async function createInvoiceForAppointment(appointmentId: string) {
   if (appt.service_id) {
     await consumeServiceMaterials(appt.service_id, "invoice", inv.id);
   }
+  // Auto-open an insurance claim if this patient has active coverage (best-effort).
+  await logClaimForInvoice({ clinicId: claims.clinic_id, patientId: appt.patient_id, apptId: appointmentId, invoiceTotal: total });
 
   revalidatePath("/accountant");
   return { ok: true as const, invoiceId: inv.id, total, invoiceNumber, existed: false };
