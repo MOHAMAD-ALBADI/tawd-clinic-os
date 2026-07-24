@@ -2,6 +2,7 @@
 
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { logExpense } from "@/app/actions/expenses";
 import { revalidatePath } from "next/cache";
 
 async function requireAdmin() {
@@ -110,23 +111,31 @@ export async function updatePayslip(
   return { ok: true as const };
 }
 
-/** Lock a run: no further changes; salaries are final. */
+/** Lock a run: no further changes; salaries are final + logged as an expense. */
 export async function finalizePayroll(runId: string) {
   const claims = await requireAdmin();
   const sb = await createServerSupabaseClient();
-  await recomputeRunTotal(sb, claims.clinic_id, runId);
-  const { error } = await sb.from("payroll_runs")
+  const total = await recomputeRunTotal(sb, claims.clinic_id, runId);
+  const { data: run, error } = await sb.from("payroll_runs")
     .update({ status: "finalized", finalized_at: new Date().toISOString() })
-    .eq("id", runId).eq("clinic_id", claims.clinic_id).eq("status", "draft");
-  if (error) return { ok: false as const, reason: "تعذّر اعتماد المسيّر" };
+    .eq("id", runId).eq("clinic_id", claims.clinic_id).eq("status", "draft")
+    .select("period").maybeSingle();
+  if (error || !run) return { ok: false as const, reason: "تعذّر اعتماد المسيّر" };
+
+  // book the total net as a salaries expense (idempotent via unique ref index)
+  await logExpense({
+    clinicId: claims.clinic_id, createdBy: claims.sub, category: "رواتب",
+    amount: total, refType: "payroll", refId: runId, description: `رواتب شهر ${run.period}`,
+  });
   rev();
   return { ok: true as const };
 }
 
 async function recomputeRunTotal(
   sb: Awaited<ReturnType<typeof createServerSupabaseClient>>, clinicId: string, runId: string
-) {
+): Promise<number> {
   const { data } = await sb.from("payslips").select("net").eq("run_id", runId).eq("clinic_id", clinicId);
   const total = (data ?? []).reduce((s, p) => s + (Number(p.net) || 0), 0);
   await sb.from("payroll_runs").update({ total_net: total }).eq("id", runId).eq("clinic_id", clinicId);
+  return total;
 }

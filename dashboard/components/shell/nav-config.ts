@@ -18,6 +18,7 @@ import {
   Wallet,
   Workflow,
   Boxes,
+  Receipt,
   type LucideIcon,
 } from "lucide-react";
 
@@ -39,6 +40,7 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "المخزون",      href: "/clinic-admin/inventory",     icon: Boxes },
     { label: "الكادر الطبي", href: "/clinic-admin/staff",         icon: Users },
     { label: "الرواتب",      href: "/clinic-admin/payroll",        icon: Wallet },
+    { label: "المالية",      href: "/clinic-admin/finance",        icon: Receipt },
     { label: "التسويق",      href: "/clinic-admin/marketing",     icon: Megaphone },
     { label: "تحليلات سُرى",  href: "/clinic-admin/sura-analytics", icon: Bot },
     { label: "التقارير",     href: "/clinic-admin/reports",       icon: BarChart3 },

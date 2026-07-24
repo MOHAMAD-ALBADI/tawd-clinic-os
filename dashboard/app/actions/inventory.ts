@@ -2,6 +2,7 @@
 
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { logExpense } from "@/app/actions/expenses";
 import { revalidatePath } from "next/cache";
 
 /* Inventory management is a clinic-admin surface (like services + staff).
@@ -108,6 +109,15 @@ export async function receiveStock(input: {
     p_created_by: claims.sub,
   });
   if (error) return { ok: false as const, reason: "تعذّر تسجيل الاستلام" };
+
+  // book the purchase as a supplies expense (each receipt is a distinct purchase)
+  const cost = Number(input.cost_price ?? 0) || 0;
+  if (cost > 0) {
+    await logExpense({
+      clinicId: claims.clinic_id, createdBy: claims.sub, category: "مستلزمات",
+      amount: qty * cost, refType: "inventory_receipt", description: "شراء مخزون",
+    });
+  }
   revalidateInventory();
   return { ok: true as const, newStock: Number(data) };
 }
