@@ -3,6 +3,7 @@
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
+import { consumeServiceMaterials } from "@/app/actions/inventory";
 import { revalidatePath } from "next/cache";
 
 async function requireAccountant() {
@@ -199,6 +200,12 @@ export async function createInvoiceForAppointment(appointmentId: string) {
     sort_order: 1,
   });
   if (iterr) return { ok: false as const, reason: "أُنشئت الفاتورة لكن تعذّر تسجيل بنودها" };
+
+  // Auto-deduct this service's materials from stock (single point per invoice;
+  // best-effort — a stock hiccup must never block billing a delivered service).
+  if (appt.service_id) {
+    await consumeServiceMaterials(appt.service_id, "invoice", inv.id);
+  }
 
   revalidatePath("/accountant");
   return { ok: true as const, invoiceId: inv.id, total, invoiceNumber, existed: false };

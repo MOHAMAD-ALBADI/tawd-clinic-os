@@ -1,0 +1,3658 @@
+{
+  "updatedAt": "2026-07-04T17:06:03.055Z",
+  "createdAt": "2026-06-15T16:09:44.487Z",
+  "id": "arZRfHPPTytcMSR5",
+  "name": "TAWD - WF-05 Sura Core Engine (WhatsApp)",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sura-whatsapp",
+        "options": {},
+        "responseMode": "responseNode"
+      },
+      "id": "wf05-n01",
+      "name": "WhatsApp Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        160,
+        320
+      ],
+      "webhookId": "9c6d1606-c6fc-499b-b743-ec2c4e65e485"
+    },
+    {
+      "parameters": {
+        "respondWith": "noData",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "wf05-n02",
+      "name": "Respond 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        560,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw  = $input.first().json;\nconst body = raw.body || raw;\nconst entry  = (body.entry || [])[0];\nconst change = (entry && entry.changes || [])[0];\nconst value  = change && change.value;\nconst msgs   = (value && value.messages) || [];\nif (!msgs.length) return [{ json: { type: 'status_update' } }];\nconst msg = msgs[0];\nconst common = {\n  type: 'message', phone: '+' + msg.from, raw_from: msg.from, message_id: msg.id,\n  sender_name: ((value && value.contacts) || [])[0] && ((value.contacts)[0].profile||{}).name || '',\n  timestamp: msg.timestamp, phone_number_id: (value && value.metadata && value.metadata.phone_number_id) || '',\n  channel: 'whatsapp', waba_id: (entry && entry.id) || ''\n};\nif (msg.type === 'text')  return [{ json: { ...common, message_text: msg.text.body, needs_media: false } }];\nif (msg.type === 'audio') return [{ json: { ...common, message_text: '', needs_media: true, media_kind: 'audio', media_id: (msg.audio||{}).id, media_mime: (msg.audio||{}).mime_type || 'audio/ogg' } }];\nif (msg.type === 'image') return [{ json: { ...common, message_text: (msg.image||{}).caption || '', needs_media: true, media_kind: 'image', media_id: (msg.image||{}).id, media_mime: (msg.image||{}).mime_type || 'image/jpeg' } }];\nreturn [{ json: { type: 'unsupported_media', from: '+' + msg.from, media_type: msg.type } }];"
+      },
+      "id": "wf05-n03",
+      "name": "Parse Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        688,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "check-message-type",
+              "leftValue": "={{ $json.type }}",
+              "rightValue": "message",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf05-n04",
+      "name": "Valid Message?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        928,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT clinic_id::text FROM public.channel_configs WHERE channel = 'whatsapp' AND is_active = true AND config->>'phone_number_id' = '{{ $json.phone_number_id }}' LIMIT 1;",
+        "options": {}
+      },
+      "id": "wf05-n38",
+      "name": "Lookup Clinic Channel",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1184,
+        304
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "NDrVeK2iQy3c33J3",
+          "name": "TAWD Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all();\nconst ctx  = $('Parse Request').first().json;\nif (rows.length === 0 || !rows[0].json || !rows[0].json.clinic_id) {\n  return [];\n}\nreturn [{ json: { ...ctx, clinic_id: rows[0].json.clinic_id } }];"
+      },
+      "id": "wf05-n39",
+      "name": "Resolve Clinic ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1392,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "MSsHC3t4qbzqWzlk",
+        "options": {}
+      },
+      "id": "wf05-n05",
+      "name": "S4 Clinic Context",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT public.clinic_has_feature('{{ $json.clinic_id }}'::uuid, 'sura_ai_enabled') AS enabled;",
+        "options": {}
+      },
+      "id": "wf05-n40",
+      "name": "Check sura_ai_enabled",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        304
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "NDrVeK2iQy3c33J3",
+          "name": "TAWD Supabase Postgres"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all();\nconst ctx  = $('S4 Clinic Context').first().json;\n// Fail-open: DB error ? allow (don't block prod on transient DB hiccup)\nconst firstRow = rows.length > 0 ? rows[0].json : {};\nconst enabled  = firstRow.error ? true : (firstRow.enabled === true);\nreturn [{ json: { ...ctx, sura_ai_enabled: enabled } }];"
+      },
+      "id": "wf05-n41",
+      "name": "Resolve Feature Flag",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2064,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "check-sura-enabled",
+              "leftValue": "={{ $json.sura_ai_enabled }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf05-n42",
+      "name": "Feature Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2288,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $json;\nconst clinicName = ctx.clinic_name_ar || ctx.clinic_name || 'عذراً، الخدمة غير متاحة حالياً. يرجى التواصل مع العيادة مباشرة.';\nreturn [{ json: {\n  ...ctx,\n  to:     ctx.phone,\n  body:   'عذراً، الخدمة غير متاحة حالياً. يرجى التواصل مع العيادة مباشرة.' + clinicName + ' ??????.',\n  sender: 'sura'\n} }];"
+      },
+      "id": "wf05-n43",
+      "name": "Sura Unavailable",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2512,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "0Aq11NOwPChsSzZ8",
+        "options": {}
+      },
+      "id": "wf05-n44",
+      "name": "S1 Send Unavailable",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        2768,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "check-maintenance",
+              "leftValue": "={{ $json.is_in_maintenance }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf05-n06",
+      "name": "Maintenance Mode?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2512,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "0Aq11NOwPChsSzZ8",
+        "options": {}
+      },
+      "id": "wf05-n07",
+      "name": "S1 Maintenance Msg",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        2768,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "44lmYECx1xkG0Cir",
+        "options": {}
+      },
+      "id": "wf05-n08",
+      "name": "S3 Get Patient",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        2768,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "LhLhOblkCwLWWQlt",
+        "options": {}
+      },
+      "id": "wf05-n09",
+      "name": "S5 Get Session",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        3008,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "sender",
+              "stringValue": "patient"
+            },
+            {
+              "name": "message_text",
+              "stringValue": "={{ $json.message_text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf05-n25",
+      "name": "Set Sender User",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        3248,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "F3YMSuQuGiknwoEH",
+        "options": {}
+      },
+      "id": "wf05-n10",
+      "name": "S6 Save User Msg",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        3488,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('S6 Save User Msg').first().json;\nlet _hist = {}; try { _hist = $('Load Patient History').first().json || {}; } catch(e) {}\nconst esc = s => String(s == null ? '' : s).replace(/{/g, '{{').replace(/}/g, '}}'); // protect LangChain templating from clinic free-text\nconst wh = ctx.working_hours || {};\nconst open = String(wh.open || '09:00'), close = String(wh.close || '18:00');\nconst closedWd = Array.isArray(wh.closed_weekdays) ? wh.closed_weekdays : [];\nconst tz = ctx.clinic_timezone || 'Asia/Muscat';\nconst _lc = String(ctx.message_text||'').replace(/\\[ملاحظة نظام[\\s\\S]*?\\]/g,''); const _uL = (_lc.match(/[A-Za-z]/g)||[]).length; const _uA = (_lc.match(/[؀-ۿ]/g)||[]).length; const userLang = _uL > _uA ? 'الإنجليزية' : 'العربية';\n\nconst now = new Date();\nconst nice = new Intl.DateTimeFormat('ar', { timeZone:tz, weekday:'long', day:'numeric', month:'long', hour:'numeric', minute:'2-digit', hour12:true }).format(now);\nconst todayISO = new Intl.DateTimeFormat('en-CA', { timeZone:tz, year:'numeric', month:'2-digit', day:'2-digit' }).format(now);\nconst pp = new Intl.DateTimeFormat('en-US', { timeZone:tz, weekday:'short', hour:'2-digit', hour12:false }).formatToParts(now);\nconst dayShort = (pp.find(x=>x.type==='weekday')||{}).value;\nconst hour24 = parseInt((pp.find(x=>x.type==='hour')||{}).value || '0', 10);\nconst openH = parseInt(open.split(':')[0] || '9', 10), closeH = parseInt(close.split(':')[0] || '18', 10);\nconst isOpen = !closedWd.includes(dayShort) && hour24 >= openH && hour24 < closeH;\nconst status = 'الوقت الآن بالضبط: ' + nice + ' (توقيت ' + tz + '). تاريخ اليوم ISO: ' + todayISO + '. حالة العيادة الآن: ' + (isOpen ? 'مفتوحة' : 'مغلقة');\n\nconst _v = Number(_hist.visits||0), _ns = Number(_hist.no_shows||0);\nlet histSection = '';\nif (_v > 0) {\n  const lv = _hist.last_visit ? new Intl.DateTimeFormat('ar',{timeZone:tz,day:'numeric',month:'long',year:'numeric'}).format(new Date(_hist.last_visit)) : '';\n  histSection = '[سجل المريض — استعمليه بذكاء للترحيب والتخصيص، ولا تُفصحي عن الأرقام إلا إن سأل]\\n' +\n    'مريض حالي معروف: ' + _v + ' زيارة سابقة' + (lv ? ('، آخر زيارة ' + lv) : '') + '.' +\n    (_hist.services ? (' خدماته السابقة: ' + esc(_hist.services) + '.') : '') +\n    (_ns > 0 ? (' سجّل ' + _ns + ' غياباً سابقاً — ذكّريه بلطف بأهمية تأكيد الموعد والحضور.') : '');\n} else {\n  histSection = '[سجل المريض]\\nمريض جديد (لا زيارات سابقة) — رحّبي به ترحيباً خاصاً بأول زيارة.';\n}\nconst _next = _hist.next_upcoming ? new Intl.DateTimeFormat('ar',{timeZone:tz,weekday:'long',day:'numeric',month:'long',hour:'numeric',minute:'2-digit',hour12:true}).format(new Date(_hist.next_upcoming)) : '';\nif (_next) histSection += '\\n لديه موعد قادم مؤكد: ' + _next + '. إن سأل «متى موعدي» أخبريه به، ولا تحجزي موعداً جديداً إلا إن طلب صراحةً.';\n\nlet doctorsSection = '';\ntry {\n  let docs = _hist.doctors_json;\n  if (typeof docs === 'string') docs = JSON.parse(docs);\n  if (Array.isArray(docs) && docs.length) {\n    doctorsSection = '[أطباء العيادة والخدمات التي يقدّمها كل طبيب]\\n' + docs.map(dd => '• ' + esc(dd.name_ar) + ': ' + (((dd.services)||[]).filter(Boolean).map(x=>esc(x)).join('، ') || 'خدمات عامة')).join('\\n') +\n      '\\nإذا طلب المريض طبيباً بعينه اضبطي booking.doctor باسمه؛ وإلا اتركيه فارغاً وسيُسنَد تلقائياً أنسب طبيب متاح. لا تعِدي المريض بطبيب لا يقدّم الخدمة المطلوبة.';\n  }\n} catch(e) {}\n\nconst cur = ctx.currency === 'OMR' ? 'ر.ع' : (ctx.currency || '');\nconst fmtPrice = v => { const n = Number(v); return (ctx.currency === 'OMR' && !isNaN(n)) ? n.toFixed(3) : esc(v); };\nconst svcLines = (ctx.services||[]).map(s => '• ' + esc(s.name_ar) + ' — ' + fmtPrice(s.price) + ' ' + cur).join('\\n') || '(لا توجد خدمات مسجّلة)';\n\n// ── THE single editable place: each clinic's full System Message ──\nlet body = esc((ctx.sura_system_message || '').trim());\nif (!body) {\n  const CLINIC = esc(ctx.clinic_name_ar || ctx.clinic_name || 'العيادة');\n  body = 'أنتِ «سُرى»، موظفة الاستقبال الذكية في ' + CLINIC + ' عبر واتساب. كوني دافئة، مهذبة، مقتضبة، واحترافية، وساعدي المريض في الاستفسارات وحجز المواعيد. لا تكشفي أنكِ ذكاء اصطناعي.';\n}\n\nconst sp =\n'أنتِ محرّك يولّد ردود «سُرى». مخرجك دائماً كائن JSON واحد فقط بلا أي نص خارجه إطلاقاً — حتى عند الترحيب أو تأكيد الحجز. كلام سُرى للمريض يوضع داخل الحقل response_ar فقط، والبنية الكاملة موضّحة في نهاية التعليمات.\\n\\n' +\n'🌐 [اللغة — إلزامي وأولوية عليا]: لغة رسالة المريض الحالية هي ' + userLang + '. اكتب محتوى حقل response_ar بهذه اللغة حصراً — حتى لو كانت الرسالة تحية قصيرة مثل «hi» أو «hello» أو «نعم». لا تخلط اللغتين في رسالة واحدة.\\n\\n' +\n'===== شخصية سُرى وتعليماتها وبياناتها (مرجع لصياغة response_ar) =====\\n' +\nbody + '\\n\\n' +\n'[الخدمات والأسعار — تُحدّث تلقائياً من النظام]\\n' + svcLines + '\\n\\n' +\n'[الوقت — تلقائي، ممنوع الحجز في الماضي]\\n' + status + '\\n\\n' + histSection + '\\n\\n' +\n(doctorsSection ? doctorsSection + '\\n\\n' : '') +\n'[حقل booking — إلزامي في كل رد]\\nاملئي حقل booking دائماً بما جمعتِه: service_ar (اسم الخدمة بالعربي كما في قائمة الأسعار أعلاه)، date بصيغة YYYY-MM-DD، time بصيغة HH:MM (٢٤ ساعة)، patient_name، و doctor (اسم الطبيب فقط إن طلبه المريض صراحةً وإلا فارغ)، و action بإحدى القيم فقط: \"book\" لحجز جديد، أو \"cancel\" لإلغاء موعد قائم، أو \"reschedule\" لتغيير/تأجيل موعد قائم إلى وقت جديد، أو \"waitlist\" لتسجيل المريض في قائمة الانتظار عند رغبته حين يكون الوقت المطلوب محجوزاً، أو \"confirm\" لتأكيد حضور المريض لموعده القائم رداً على تذكير (الافتراضي \"book\" — لا تستخدمي \"reschedule\" إلا إذا كان للمريض موعد قائم يريد نقله). اتركي ما لم يُذكر بعد فارغاً \"\". احسبي التاريخ من تاريخ اليوم ISO أعلاه («بكرة»=+١، واسم اليوم=أقرب تاريخ قادم يحمله). اضبطي confirmed=true فقط في الرد الذي يوافق فيه المريض نهائياً وتكون الحقول الأربعة مكتملة والوقت ليس ماضياً؛ غير ذلك confirmed=false.\\nمهم جداً: إذا سبق أن تأكّد حجز في هذه المحادثة، اتركي confirmed=false في كل الرسائل التالية (شكر، تحية، يعطيك العافية، استفسار) — لا تعيدي الحجز إطلاقاً ما لم يطلب المريض موعداً جديداً مختلفاً صراحةً.\\n' +\n'[⚠️ تنسيق الإخراج — إلزامي بلا أي استثناء]\\n' +\n'أخرجي كائن JSON واحد صالحاً فقط لا غير. ممنوع منعاً باتاً أي نص أو شرح أو إيموجي خارج الـ JSON، حتى عند الترحيب أو تأكيد الحجز. ضعي كلامك للمريض داخل الحقل response_ar فقط. أي رد ليس JSON يُعدّ خطأ.\\n' +\n'البنية المطلوبة بالضبط:\\n' +\n'{{\"intent\":\"greeting|book_appointment|cancel_appointment|reschedule_appointment|check_status|inquiry_services|inquiry_pricing|inquiry_location|inquiry_hours|payment_inquiry|complaint|follow_up|emergency|off_topic|unclear\",\"response_ar\":\"ردّك المقتضب بالعربية\",\"confidence\":0.0,\"is_sensitive\":false,\"requires_hitl\":false,\"booking\":{{\"confirmed\":false,\"service_ar\":\"\",\"date\":\"\",\"time\":\"\",\"patient_name\":\"\",\"doctor\":\"\"}}}}';\n\nreturn [{ json: {\n  ...ctx, system_prompt: sp, user_message: ctx.message_text, session_id: ctx.session_id,\n  clinic_id: ctx.clinic_id, phone: ctx.phone, patient_id: ctx.patient_id,\n  clarification_count: ctx.clarification_count || 0, booking_in_progress: ctx.booking_in_progress || false,\n  clinic_name: ctx.clinic_name_ar || ctx.clinic_name\n}}];"
+      },
+      "id": "wf05-n11",
+      "name": "Build AI Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3728,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.user_message }}",
+        "options": {
+          "systemMessage": "={{ $json.system_prompt }}",
+          "contextWindowLength": 8
+        }
+      },
+      "id": "wf05-n12",
+      "name": "???? Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1,
+      "position": [
+        3968,
+        480
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 6000
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {
+          "temperature": 0.3,
+          "maxOutputTokens": 1500
+        }
+      },
+      "id": "wf05-n13",
+      "name": "Gemini Flash",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        3968,
+        688
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 6000,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "4BZtqq4TDy2wCZbp",
+          "name": "TAWD Gemini Paid"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Build AI Context').first().json.session_id }}"
+      },
+      "id": "wf05-n14",
+      "name": "Chat Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1,
+      "position": [
+        4112,
+        688
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "NDrVeK2iQy3c33J3",
+          "name": "TAWD Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const out = $json.output;\nconst ctx = $('Build AI Context').first().json;\nfunction escInStr(s){ let o='',q=false,e=false; for(let i=0;i<s.length;i++){const ch=s[i]; if(e){o+=ch;e=false;continue;} if(ch==='\\\\'){o+=ch;e=true;continue;} if(ch==='\"'){q=!q;o+=ch;continue;} if(q&&ch==='\\n'){o+='\\\\n';continue;} if(q&&ch==='\\r'){o+='\\\\r';continue;} if(q&&ch==='\\t'){o+='\\\\t';continue;} o+=ch; } return o; }\nfunction toObj(x){ if(x&&typeof x==='object')return x; let s=String(x==null?'':x).trim(); const a=s.indexOf('{'),b=s.lastIndexOf('}'); if(a>=0&&b>a)s=s.slice(a,b+1); try{return JSON.parse(s);}catch(e){} try{return JSON.parse(escInStr(s));}catch(e){} const m=s.match(/\"response_ar\"\\s*:\\s*\"([\\s\\S]*?)\"\\s*[,}]/); return {intent:'inquiry',response_ar:m?m[1].replace(/\\\\n/g,'\\n'):s,confidence:0.7,booking:{}}; }\nconst parsed = toObj(out) || {};\nconst bk = (parsed.booking && typeof parsed.booking==='object') ? parsed.booking : {};\nconst it = String(parsed.intent||'').toLowerCase();\nlet act = String(bk.action||'').toLowerCase();\nif (!['book','cancel','reschedule','waitlist','confirm'].includes(act)) act = '';\nif (!act) act = it.includes('reschedul') ? 'reschedule' : (it.includes('cancel') ? 'cancel' : ((it.includes('wait')) ? 'waitlist' : 'book'));\nif (act === 'book' && it.includes('reschedul')) act = 'reschedule';\nif (act === 'book' && it.includes('cancel')) act = 'cancel';\nif (act === 'book' && it.includes('wait')) act = 'waitlist';\nif (act === 'book' && (it.includes('attend') || it.includes('confirm_attend'))) act = 'confirm';\nconst _um = String(ctx.message_text||'');\nconst _attNeg = /(ما|مو|مب|لن|ماني|ما\\s*راح)\\s*(راح\\s*)?(ب?أ?حضر|سأحضر|أجي|بجي)/.test(_um);\nconst _attPos = /(بحضر|سأحضر|سوف أحضر|راح أجي|بجي|حاضر أجي|أكّد حضور|اكد حضور|أؤكد حضور|تأكيد الحضور|ثبّت موعد|ثبت موعد)/.test(_um);\nif (act === 'book' && _attPos && !_attNeg) act = 'confirm';\nconst is_emergency = (parsed.is_emergency===true) || it.includes('emerg') || it.includes('urgent');\nconst is_complaint = (parsed.is_complaint===true) || it.includes('complaint') || it.includes('شكو');\nfunction _sl(s){ s=String(s||''); const ar=(s.match(/[\\u0600-\\u06FF]/g)||[]).length, la=(s.match(/[A-Za-z]/g)||[]).length; return la>ar?'en':'ar'; }\nconst lang = (_sl(String(ctx.message_text||'').replace(/\\[ملاحظة نظام[\\s\\S]*?\\]/g,''))==='en' || _sl(parsed.response_ar)==='en') ? 'en' : 'ar';\nreturn [{ json: { ...ctx, lang,\n  intent: parsed.intent||'unclear', response_ar: parsed.response_ar||'', confidence: parsed.confidence??0.0,\n  is_sensitive: parsed.is_sensitive??false, requires_hitl: parsed.requires_hitl??false, is_emergency, is_complaint,\n  booking_confirmed: bk.confirmed===true, b_action: act,\n  b_service_ar: bk.service_ar||'', b_date: bk.date||'', b_time: bk.time||'', b_patient_name: bk.patient_name||'', b_doctor: bk.doctor||'',\n  raw_ai_output: (typeof out==='string'?out:JSON.stringify(out)) } }];"
+      },
+      "id": "wf05-n15",
+      "name": "Parse AI Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4288,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "hitl-confidence",
+              "leftValue": "={{ $json.confidence }}",
+              "rightValue": 0.6,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf05-n16",
+      "name": "HITL Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        4448,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "is-booking",
+              "leftValue": "={{ $json.booking_confirmed }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf05-n28",
+      "name": "Is Booking?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        4688,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const c = $json;\nconst action = c.b_action || 'book';\nconst esc = s => String(s||'').replace(/'/g, \"''\");\nconst CID = c.clinic_id, PID = c.patient_id;\nconst reqDoctor = esc(String(c.b_doctor||'').trim());\nconst services = Array.isArray(c.services)?c.services:[];\nconst want = String(c.b_service_ar||'').trim();\nlet svc = services.find(s=>s.name_ar===want) || services.find(s=>want&&s.name_ar&&(want.includes(s.name_ar)||s.name_ar.includes(want))) || null;\nconst _en = c.lang==='en'; const dexpr = _en ? 'COALESCE(u.name,u.name_ar)' : 'COALESCE(u.name_ar,u.name)'; const svcName = (_en ? (svc && (svc.name||svc.name_ar)) : (svc && svc.name_ar)) || (c.b_service_ar||'');\nlet t = String(c.b_time||'').trim(); let m = t.match(/^(\\d{1,2})(?::(\\d{2}))?$/);\nlet hh = m?String(m[1]).padStart(2,'0'):''; let mm=(m&&m[2])?m[2]:'00';\nconst dateOk = /^\\d{4}-\\d{2}-\\d{2}$/.test(String(c.b_date||''));\nconst slot_time = (dateOk&&hh)?(c.b_date+'T'+hh+':'+mm+':00+04:00'):'';\nconst future = slot_time?(new Date(slot_time).getTime()>Date.now()-3600000):false;\nconst name = esc(c.b_patient_name);\nconst dur = svc?parseInt(svc.dur||30,10):30;\nconst wh = c.working_hours||{};\nconst openH = parseInt(String(wh.open||'09:00').split(':')[0],10)||9;\nconst closeH = parseInt(String(wh.close||'18:00').split(':')[0],10)||18;\nconst pad = x=>String(x).padStart(2,'0');\nconst openTs=dateOk?(c.b_date+'T'+pad(openH)+':00:00+04:00'):''; const closeTs=dateOk?(c.b_date+'T'+pad(closeH)+':00:00+04:00'):'';\nconst dayStart=dateOk?(c.b_date+'T00:00:00+04:00'):''; const dayEnd=dateOk?(c.b_date+'T23:59:59+04:00'):'';\nconst IV = dur + \" || ' minutes'\";\nconst NIL='00000000-0000-0000-0000-000000000000';\nconst MCT = \"'\"+slot_time+\"'::timestamptz AT TIME ZONE 'Asia/Muscat'\";\nconst schedOkU = \" AND (NOT EXISTS (SELECT 1 FROM public.doctor_schedules ss WHERE ss.doctor_id=u.id AND ss.is_active) OR EXISTS (SELECT 1 FROM public.doctor_schedules ss WHERE ss.doctor_id=u.id AND ss.is_active AND ss.day_of_week::text=to_char(\"+MCT+\",'fmday') AND (\"+MCT+\")::time >= ss.start_time AND ((\"+MCT+\")::time + (\"+IV+\")::interval) <= ss.end_time))\";\nconst leaveOkU = \" AND NOT EXISTS (SELECT 1 FROM public.clinic_holidays hh WHERE hh.clinic_id='\"+CID+\"'::uuid AND hh.holiday_date=(\"+MCT+\")::date AND (hh.applies_to_all_doctors OR hh.doctor_id=u.id))\";\nconst gsAvail = \" AND (NOT EXISTS (SELECT 1 FROM public.doctor_schedules ss WHERE ss.doctor_id=c3.doctor_id AND ss.is_active) OR EXISTS (SELECT 1 FROM public.doctor_schedules ss WHERE ss.doctor_id=c3.doctor_id AND ss.is_active AND ss.day_of_week::text=to_char(gs AT TIME ZONE 'Asia/Muscat','fmday') AND (gs AT TIME ZONE 'Asia/Muscat')::time >= ss.start_time AND ((gs AT TIME ZONE 'Asia/Muscat')::time + (\"+IV+\")::interval) <= ss.end_time)) AND NOT EXISTS (SELECT 1 FROM public.clinic_holidays hh WHERE hh.clinic_id='\"+CID+\"'::uuid AND hh.holiday_date=(gs AT TIME ZONE 'Asia/Muscat')::date AND (hh.applies_to_all_doctors OR hh.doctor_id=c3.doctor_id))\";\nlet sql;\nif (action==='cancel' && CID && PID) {\n  sql = \"WITH tgt AS (SELECT id, slot_time FROM public.appointments WHERE clinic_id='\"+CID+\"'::uuid AND patient_id='\"+PID+\"'::uuid AND deleted_at IS NULL AND status IN ('scheduled','confirmed','checked_in') AND slot_time > now() ORDER BY slot_time LIMIT 1), \" +\n        \"upd AS (UPDATE public.appointments SET status='cancelled', cancelled_at=now(), cancellation_reason='إلغاء عبر سُرى (واتساب)' WHERE id=(SELECT id FROM tgt) RETURNING id, slot_time) \" +\n        \"SELECT CASE WHEN EXISTS(SELECT 1 FROM upd) THEN 'cancelled' ELSE 'nothing_to_cancel' END AS booking_status, (SELECT id::text FROM upd) AS appointment_id, (SELECT slot_time::text FROM upd) AS slot_time_out, NULL::text AS alternatives, NULL::text AS doctor_name;\";\n} else if (action==='confirm' && CID && PID) {\n  sql = \"WITH tgt AS (SELECT id, slot_time, doctor_id, status FROM public.appointments WHERE clinic_id='\"+CID+\"'::uuid AND patient_id='\"+PID+\"'::uuid AND deleted_at IS NULL AND status IN ('scheduled','confirmed') AND slot_time > now() ORDER BY slot_time LIMIT 1), \" +\n        \"upd AS (UPDATE public.appointments SET status='confirmed', updated_at=now() WHERE id=(SELECT id FROM tgt) AND (SELECT status FROM tgt)='scheduled' RETURNING id) \" +\n        \"SELECT CASE WHEN EXISTS(SELECT 1 FROM tgt) THEN 'attendance_confirmed' ELSE 'nothing_to_confirm' END AS booking_status, (SELECT id::text FROM tgt) AS appointment_id, (SELECT slot_time::text FROM tgt) AS slot_time_out, NULL::text AS alternatives, (SELECT \"+dexpr+\" FROM public.tawd_staff_users u WHERE u.id=(SELECT doctor_id FROM tgt)) AS doctor_name;\";\n} else if (action==='waitlist' && svc && svc.id && CID && PID) {\n  const df = dateOk ? (\"'\"+c.b_date+\"'::date\") : \"NULL::date\";\n  const pw = hh ? (\"'[\\\"\"+hh+\":\"+mm+\"\\\"]'::jsonb\") : \"'[]'::jsonb\";\n  const stout = dateOk ? (\"'\"+c.b_date+\"T00:00:00+04:00'\") : \"NULL::text\";\n  sql = \"WITH dup AS (SELECT id FROM public.appointment_waitlist WHERE clinic_id='\"+CID+\"'::uuid AND patient_id='\"+PID+\"'::uuid AND service_id='\"+svc.id+\"'::uuid AND status IN ('waiting','offered') LIMIT 1), \" +\n        \"ins AS (INSERT INTO public.appointment_waitlist (clinic_id,patient_id,service_id,doctor_id,desired_from,desired_to,pref_windows,status) SELECT '\"+CID+\"'::uuid,'\"+PID+\"'::uuid,'\"+svc.id+\"'::uuid,NULL,\"+df+\",\"+df+\",\"+pw+\",'waiting' WHERE NOT EXISTS(SELECT 1 FROM dup) RETURNING id) \" +\n        \"SELECT CASE WHEN EXISTS(SELECT 1 FROM ins) THEN 'waitlisted' WHEN EXISTS(SELECT 1 FROM dup) THEN 'already_waitlisted' ELSE 'error' END AS booking_status, (SELECT id::text FROM ins) AS appointment_id, \"+stout+\" AS slot_time_out, NULL::text AS alternatives, NULL::text AS doctor_name;\";\n} else if (action==='reschedule' && slot_time && future && dateOk && CID && PID) {\n  const rSvcId = (svc && svc.id) ? svc.id : '';\n  const rDur = svc ? dur : 0;\n  const IVr = \"((SELECT dur FROM newsvc)||' minutes')::interval\";\n  sql = \"WITH tgt AS (SELECT id, slot_time, service_id, duration_minutes, doctor_id FROM public.appointments WHERE clinic_id='\"+CID+\"'::uuid AND patient_id='\"+PID+\"'::uuid AND deleted_at IS NULL AND status IN ('scheduled','confirmed','checked_in') AND slot_time > now() ORDER BY slot_time LIMIT 1), \" +\n        \"newsvc AS (SELECT COALESCE(NULLIF('\"+rSvcId+\"','')::uuid,(SELECT service_id FROM tgt)) AS sid, COALESCE(NULLIF(\"+rDur+\",0),(SELECT duration_minutes FROM tgt),30) AS dur), \" +\n        \"ex AS (SELECT slot_time, duration_minutes FROM public.appointments WHERE doctor_id=(SELECT doctor_id FROM tgt) AND clinic_id='\"+CID+\"'::uuid AND deleted_at IS NULL AND status NOT IN ('cancelled','no_show') AND slot_time >= '\"+dayStart+\"'::timestamptz AND slot_time < '\"+dayEnd+\"'::timestamptz AND id <> COALESCE((SELECT id FROM tgt),'\"+NIL+\"'::uuid)), \" +\n        \"reqchk AS (SELECT (EXISTS(SELECT 1 FROM tgt)) AND (NOT EXISTS (SELECT 1 FROM ex WHERE ex.slot_time < '\"+slot_time+\"'::timestamptz + \"+IVr+\" AND ex.slot_time + (ex.duration_minutes||' minutes')::interval > '\"+slot_time+\"'::timestamptz)) AND (NOT EXISTS (SELECT 1 FROM public.doctor_schedules ss WHERE ss.doctor_id=(SELECT doctor_id FROM tgt) AND ss.is_active) OR EXISTS (SELECT 1 FROM public.doctor_schedules ss, newsvc WHERE ss.doctor_id=(SELECT doctor_id FROM tgt) AND ss.is_active AND ss.day_of_week::text=to_char(\"+MCT+\",'fmday') AND (\"+MCT+\")::time >= ss.start_time AND ((\"+MCT+\")::time + (newsvc.dur||' minutes')::interval) <= ss.end_time)) AND NOT EXISTS (SELECT 1 FROM public.clinic_holidays hh WHERE hh.clinic_id='\"+CID+\"'::uuid AND hh.holiday_date=(\"+MCT+\")::date AND (hh.applies_to_all_doctors OR hh.doctor_id=(SELECT doctor_id FROM tgt))) AS ok), \" +\n        \"canc AS (UPDATE public.appointments SET status='cancelled', cancelled_at=now(), cancellation_reason='إعادة جدولة عبر سُرى (واتساب)' WHERE id=(SELECT id FROM tgt) AND (SELECT ok FROM reqchk) RETURNING id), \" +\n        \"ins AS (INSERT INTO public.appointments (clinic_id,patient_id,doctor_id,service_id,slot_time,duration_minutes,status,type,notes) SELECT '\"+CID+\"'::uuid,'\"+PID+\"'::uuid,(SELECT doctor_id FROM tgt),(SELECT sid FROM newsvc),'\"+slot_time+\"'::timestamptz,(SELECT dur FROM newsvc),'scheduled','consultation','إعادة جدولة عبر سُرى (واتساب)' WHERE (SELECT ok FROM reqchk) AND EXISTS(SELECT 1 FROM canc) RETURNING id), \" +\n        \"cand AS (SELECT gs FROM generate_series('\"+openTs+\"'::timestamptz, '\"+closeTs+\"'::timestamptz - \"+IVr+\", \"+IVr+\") gs WHERE gs > now() AND NOT EXISTS (SELECT 1 FROM ex WHERE ex.slot_time < gs + \"+IVr+\" AND ex.slot_time + (ex.duration_minutes||' minutes')::interval > gs) ORDER BY gs LIMIT 4) \" +\n        \"SELECT CASE WHEN EXISTS(SELECT 1 FROM ins) THEN 'rescheduled' WHEN NOT EXISTS(SELECT 1 FROM tgt) THEN 'nothing_to_reschedule' ELSE 'unavailable' END AS booking_status, (SELECT id::text FROM ins) AS appointment_id, '\"+slot_time+\"' AS slot_time_out, (SELECT string_agg(to_char(gs AT TIME ZONE 'Asia/Muscat','HH24:MI'), ', ' ORDER BY gs) FROM cand) AS alternatives, (SELECT \"+dexpr+\" FROM public.tawd_staff_users u WHERE u.id=(SELECT doctor_id FROM tgt)) AS doctor_name;\";\n} else if (svc && svc.id && slot_time && future && CID && PID && dateOk) {\n  const drFilter = reqDoctor ? (\" AND (u.name_ar ILIKE '%\"+reqDoctor+\"%' OR u.name ILIKE '%\"+reqDoctor+\"%')\") : \"\";\n  sql = \"WITH mine AS (SELECT 1 FROM public.appointments WHERE patient_id='\"+PID+\"'::uuid AND clinic_id='\"+CID+\"'::uuid AND deleted_at IS NULL AND status NOT IN ('cancelled','no_show') AND slot_time='\"+slot_time+\"'::timestamptz LIMIT 1), \" +\n        \"cand AS (SELECT u.id AS doctor_id, \"+dexpr+\" AS dname FROM public.tawd_staff_users u JOIN public.doctor_services ds ON ds.doctor_id=u.id AND ds.service_id='\"+svc.id+\"'::uuid AND ds.is_active WHERE u.clinic_id='\"+CID+\"'::uuid AND u.role='doctor' AND u.is_active AND u.deleted_at IS NULL\"+drFilter+schedOkU+leaveOkU+\"), \" +\n        \"free AS (SELECT c2.doctor_id, c2.dname FROM cand c2 WHERE NOT EXISTS (SELECT 1 FROM public.appointments a WHERE a.doctor_id=c2.doctor_id AND a.clinic_id='\"+CID+\"'::uuid AND a.deleted_at IS NULL AND a.status NOT IN ('cancelled','no_show') AND a.slot_time < '\"+slot_time+\"'::timestamptz + (\"+IV+\")::interval AND a.slot_time + (a.duration_minutes||' minutes')::interval > '\"+slot_time+\"'::timestamptz) ORDER BY c2.dname LIMIT 1), \" +\n        \"upd AS (UPDATE public.patients SET name='\"+name+\"', updated_at=now() WHERE id='\"+PID+\"'::uuid AND '\"+name+\"'<>'' AND (name IS NULL OR btrim(name)='' OR name ILIKE '%واتساب%' OR name ILIKE '%whatsapp%' OR name ILIKE '%مريض%') AND EXISTS(SELECT 1 FROM free) RETURNING 1), \" +\n        \"ins AS (INSERT INTO public.appointments (clinic_id,patient_id,doctor_id,service_id,slot_time,duration_minutes,status,type,notes) SELECT '\"+CID+\"'::uuid,'\"+PID+\"'::uuid,(SELECT doctor_id FROM free),'\"+svc.id+\"'::uuid,'\"+slot_time+\"'::timestamptz,\"+dur+\",'scheduled','consultation','حجز عبر سُرى (واتساب)' WHERE EXISTS(SELECT 1 FROM free) AND NOT EXISTS(SELECT 1 FROM mine) RETURNING id), \" +\n        \"wl AS (UPDATE public.appointment_waitlist SET status='booked' WHERE patient_id='\"+PID+\"'::uuid AND clinic_id='\"+CID+\"'::uuid AND status='offered' AND EXISTS(SELECT 1 FROM ins) RETURNING id), \" +\n        \"rec AS (INSERT INTO public.automation_recovery_ledger (clinic_id,event_type,appt_id,patient_id,service_id,amount,source) SELECT '\"+CID+\"'::uuid,'waitlist_fill',(SELECT id FROM ins),'\"+PID+\"'::uuid,'\"+svc.id+\"'::uuid,\"+(Number(svc.price)||0)+\",'sura' WHERE EXISTS(SELECT 1 FROM wl) AND EXISTS(SELECT 1 FROM ins) RETURNING id), \" +\n        \"altc AS (SELECT gs FROM generate_series('\"+openTs+\"'::timestamptz, '\"+closeTs+\"'::timestamptz - (\"+IV+\")::interval, (\"+IV+\")::interval) gs WHERE gs > now() AND EXISTS (SELECT 1 FROM cand c3 WHERE NOT EXISTS (SELECT 1 FROM public.appointments a WHERE a.doctor_id=c3.doctor_id AND a.clinic_id='\"+CID+\"'::uuid AND a.deleted_at IS NULL AND a.status NOT IN ('cancelled','no_show') AND a.slot_time < gs + (\"+IV+\")::interval AND a.slot_time + (a.duration_minutes||' minutes')::interval > gs)\"+gsAvail+\") ORDER BY gs LIMIT 4) \" +\n        \"SELECT CASE WHEN EXISTS(SELECT 1 FROM mine) THEN 'already_booked' WHEN EXISTS(SELECT 1 FROM ins) THEN 'confirmed' WHEN NOT EXISTS(SELECT 1 FROM cand) THEN 'no_doctor' ELSE 'unavailable' END AS booking_status, (SELECT id::text FROM ins) AS appointment_id, '\"+slot_time+\"' AS slot_time_out, (SELECT string_agg(to_char(gs AT TIME ZONE 'Asia/Muscat','HH24:MI'), ', ' ORDER BY gs) FROM altc) AS alternatives, COALESCE((SELECT dname FROM free),(SELECT \"+dexpr+\" FROM public.appointments a JOIN public.tawd_staff_users u ON u.id=a.doctor_id WHERE a.patient_id='\"+PID+\"'::uuid AND a.clinic_id='\"+CID+\"'::uuid AND a.deleted_at IS NULL AND a.status NOT IN ('cancelled','no_show') AND a.slot_time='\"+slot_time+\"'::timestamptz LIMIT 1)) AS doctor_name;\";\n} else {\n  sql = \"SELECT 'error' AS booking_status, NULL::text AS appointment_id, NULL::text AS slot_time_out, NULL::text AS alternatives, NULL::text AS doctor_name;\";\n}\nreturn [{ json: { sql, action, service_name_ar: svc?svc.name_ar:(c.b_service_ar||''), service_name: svcName, price: svc?svc.price:'', slot_time, patient_name: c.b_patient_name||'', clinic_id: CID, patient_id: PID, _parent_ctx: c } }];"
+      },
+      "id": "wf05-n29",
+      "name": "Prep Booking Params",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4928,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.sql }}",
+        "options": {}
+      },
+      "id": "wf05-n30",
+      "name": "Call WF-06 Booking",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        5152,
+        176
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "NDrVeK2iQy3c33J3",
+          "name": "TAWD Supabase Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $json;\nconst prep = $('Prep Booking Params').first().json;\nconst ctx = prep._parent_ctx || {};\nconst lang = ctx.lang === 'en' ? 'en' : 'ar';\nconst L = (a,e) => lang === 'en' ? e : a;\nconst cur = ctx.currency === 'OMR' ? L('ر.ع','OMR') : (ctx.currency || '');\nconst loc = lang === 'en' ? 'en-GB' : 'ar';\nconst iso = r.slot_time_out || prep.slot_time;\nconst d = iso ? new Date(iso) : null;\nconst timeS = d ? new Intl.DateTimeFormat(loc,{ timeZone:'Asia/Muscat', hour:'numeric', minute:'2-digit', hour12:true }).format(d) : '';\nconst dateS = d ? new Intl.DateTimeFormat(loc,{ timeZone:'Asia/Muscat', weekday:'long', day:'numeric', month:'long' }).format(d) : '';\nconst dr = r.doctor_name || L('طبيب العيادة','our doctor');\nconst svc = prep.service_name || prep.service_name_ar || '';\nconst st = r.booking_status;\nlet msg;\nif (st === 'confirmed') { const price = Number(prep.price); const ps = isNaN(price) ? prep.price : price.toFixed(3);\n  msg = L('تم تأكيد موعدك بنجاح ✅🌿\\n\\n• الخدمة: '+svc+'\\n• اليوم: '+dateS+'\\n• الوقت: '+timeS+'\\n• الطبيب: '+dr+'\\n• الرسوم: '+ps+' '+cur+'\\n• الدفع: عند الحضور في العيادة\\n\\nنشوفك على خير! 🦷',\n          'Your appointment is confirmed ✅🌿\\n\\n• Service: '+svc+'\\n• Day: '+dateS+'\\n• Time: '+timeS+'\\n• Doctor: '+dr+'\\n• Fee: '+ps+' '+cur+'\\n• Payment: at the clinic\\n\\nSee you soon! 🦷');\n} else if (st === 'rescheduled') {\n  msg = L('تم تعديل موعدك بنجاح ✅🌿\\n\\n• الموعد الجديد: '+dateS+' الساعة '+timeS+(svc?'\\n• الخدمة: '+svc:'')+'\\n• الطبيب: '+dr+'\\n• الدفع: عند الحضور\\n\\nنشوفك على خير! 🦷',\n          'Your appointment has been rescheduled ✅🌿\\n\\n• New time: '+dateS+' at '+timeS+(svc?'\\n• Service: '+svc:'')+'\\n• Doctor: '+dr+'\\n• Payment: at the clinic\\n\\nSee you soon! 🦷');\n} else if (st === 'cancelled') {\n  msg = L('تم إلغاء موعدك بنجاح ✅🌿\\n('+dateS+' الساعة '+timeS+')\\n\\nتحب أحجز لك موعداً آخر؟',\n          'Your appointment has been cancelled ✅🌿\\n('+dateS+' at '+timeS+')\\n\\nWould you like to book another one?');\n} else if (st === 'already_booked') {\n  msg = L('أنت محجوز بالفعل في هذا الوقت ✅🌿'+(r.doctor_name?(' مع '+r.doctor_name):'')+'. نشوفك على خير! 🦷',\n          'You already have an appointment at this time ✅🌿'+(r.doctor_name?(' with '+r.doctor_name):'')+'. See you soon! 🦷');\n} else if (st === 'attendance_confirmed') {\n  msg = L('تمام، سجّلنا تأكيد حضورك ✅🌿'+(dateS?('\\nموعدك: '+dateS+' الساعة '+timeS):'')+(r.doctor_name?('\\nمع '+r.doctor_name):'')+'\\nنشوفك على خير! 🦷',\n          'Great — your attendance is confirmed ✅🌿'+(dateS?('\\nYour appointment: '+dateS+' at '+timeS):'')+(r.doctor_name?('\\nwith '+r.doctor_name):'')+'\\nSee you soon! 🦷');\n} else if (st === 'nothing_to_confirm') {\n  msg = L('ما لقيت لك موعد قادم لتأكيده 🌿. تحب أحجز لك موعداً جديداً؟','I couldn’t find an upcoming appointment to confirm 🌿. Would you like to book one?');\n} else if (st === 'waitlisted') {\n  msg = L('تمام ✅🌿 سجّلتك في قائمة الانتظار لخدمة '+svc+(dateS?(' ('+dateS+')'):'')+'.\\nأول ما يتوفّر موعد بأرسل لك فوراً — ولك الأولوية. 🌿',\n          'Done ✅🌿 I’ve added you to the waitlist for '+svc+(dateS?(' ('+dateS+')'):'')+'.\\nI’ll message you the moment a slot opens — you’ll have priority. 🌿');\n} else if (st === 'already_waitlisted') {\n  msg = L('أنت مسجّل بالفعل في قائمة الانتظار 🌿 بنعلمك فوراً أول ما يفضى موعد.','You’re already on the waitlist 🌿 We’ll notify you as soon as a slot opens.');\n} else if (st === 'nothing_to_cancel') {\n  msg = L('ما لقيت لك موعد قادم لإلغائه 🌿. تحب أحجز لك موعداً جديداً؟','I couldn’t find an upcoming appointment to cancel 🌿. Would you like to book one?');\n} else if (st === 'nothing_to_reschedule') {\n  msg = L('ما لقيت لك موعد قادم لتعديله 🌿. تحب أحجز لك موعداً جديداً؟','I couldn’t find an upcoming appointment to reschedule 🌿. Would you like to book one?');\n} else if (st === 'no_doctor') {\n  msg = ctx.b_doctor ? L('للأسف الطبيب المطلوب غير متاح لهذي الخدمة 🌿 تحب أرشّح لك طبيباً آخر؟','Unfortunately the requested doctor isn’t available for this service 🌿 May I suggest another doctor?')\n                     : L('للأسف ما فيه طبيب يقدّم هذي الخدمة حالياً 🌿 تحب تختار خدمة ثانية؟','Unfortunately no doctor currently offers this service 🌿 Would you like to choose another service?');\n} else if (st === 'unavailable') {\n  msg = L('للأسف '+timeS+' محجوز ذاك اليوم 🌿'+(r.alternatives?('\\nأقرب الأوقات المتاحة: '+r.alternatives+'\\nأي وقت يناسبك؟ أو أسجّلك في قائمة الانتظار؟'):'\\nتحب أسجّلك في قائمة الانتظار وأعلمك أول ما يفضى موعد؟'),\n          'Unfortunately '+timeS+' is taken that day 🌿'+(r.alternatives?('\\nNearest available times: '+r.alternatives+'\\nWhich works for you? Or shall I add you to the waitlist?'):'\\nShall I add you to the waitlist and notify you when a slot opens?'));\n} else {\n  msg = L('تمام 🌿 ممكن تعطيني التفاصيل المطلوبة عشان أكمّل؟','Sure 🌿 could you share the details so I can proceed?');\n}\nreturn [{ json: { ...ctx, sender:'sura', message_text: msg, booking_status: r.booking_status, appointment_id: r.appointment_id || null } }];"
+      },
+      "id": "wf05-n31",
+      "name": "Format Booking Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5360,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "F3YMSuQuGiknwoEH",
+        "options": {}
+      },
+      "id": "wf05-n32",
+      "name": "S6 Save Booking Msg",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        5584,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "0Aq11NOwPChsSzZ8",
+        "options": {}
+      },
+      "id": "wf05-n33",
+      "name": "S1 Send Booking",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        5808,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "sender",
+              "stringValue": "sura"
+            },
+            {
+              "name": "message_text",
+              "stringValue": "={{ $json.response_ar }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf05-n26",
+      "name": "Set Sender Sura",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        4928,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "F3YMSuQuGiknwoEH",
+        "options": {}
+      },
+      "id": "wf05-n17",
+      "name": "S6 Save Assistant Msg",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        5152,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "0Aq11NOwPChsSzZ8",
+        "options": {}
+      },
+      "id": "wf05-n18",
+      "name": "S1 Send Response",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        5360,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "check-clarification",
+              "leftValue": "={{ $json.clarification_count }}",
+              "rightValue": 2,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf05-n19",
+      "name": "Clarification OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        4688,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "chat_sessions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.session_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "clarification_count",
+              "fieldValue": "={{ ($json.clarification_count || 0) + 1 }}"
+            }
+          ]
+        }
+      },
+      "id": "wf05-n20",
+      "name": "Increment Clarification",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        4928,
+        624
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "vvSpPqfrBDkrqjjc",
+          "name": "TAWD Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "sender",
+              "stringValue": "sura"
+            },
+            {
+              "name": "message_text",
+              "stringValue": "={{ $('Parse AI Output').first().json.response_ar }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf05-n27",
+      "name": "Set Sender Sura Clarif",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        5152,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "F3YMSuQuGiknwoEH",
+        "options": {}
+      },
+      "id": "wf05-n21",
+      "name": "S6 Save Clarification",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        5360,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "0Aq11NOwPChsSzZ8",
+        "options": {}
+      },
+      "id": "wf05-n22",
+      "name": "S1 Send Clarification",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        5584,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "tawd_staff_users",
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "clinic_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.clinic_id }}"
+            },
+            {
+              "keyName": "role",
+              "condition": "eq",
+              "keyValue": "admin"
+            },
+            {
+              "keyName": "is_active",
+              "condition": "eq",
+              "keyValue": "={{ true }}"
+            }
+          ]
+        }
+      },
+      "id": "wf05-n37",
+      "name": "Get Clinic Admin Phone",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        4928,
+        816
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "vvSpPqfrBDkrqjjc",
+          "name": "TAWD Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const ai    = $('Parse AI Output').first().json;\nconst admin = $json;\nconst reason = ai.intent === 'unclear' ? 'confidence_low'\n  : ai.is_sensitive ? 'sensitive_topic'\n  : ai.intent === 'emergency' ? 'emergency'\n  : 'requires_human';\n\nreturn [{ json: {\n  ...ai,\n  original_message: ai.message_text,\n  ai_draft:         ai.response_ar,\n  reason:           reason,\n  priority:         ai.intent === 'emergency' ? 'critical' : 'medium',\n  staff_phone:      (admin && admin.id && admin.phone) ? admin.phone : null\n}}];"
+      },
+      "id": "wf05-n23",
+      "name": "Prepare HITL Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5152,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.ai_draft }}",
+        "options": {
+          "systemMessage": "??? ???? ?? ??????? ?????. ???? ??????? ??????? ????? ???? ????? ???? ?????? ??????. ???? ??????? ???????? ??? ???? ?? ?????? ???? ????.",
+          "maxIterations": 1
+        }
+      },
+      "id": "wf05-n35",
+      "name": "HITL Refine Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1,
+      "position": [
+        5376,
+        816
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-pro",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "wf05-n34",
+      "name": "Gemini Pro",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        5376,
+        992
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "4BZtqq4TDy2wCZbp",
+          "name": "TAWD Gemini Paid"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const refined = $json.output || $json.text || '';\nconst ctx = $('Prepare HITL Input').first().json;\nreturn [{ json: { ...ctx, ai_draft: refined.trim() || ctx.ai_draft } }];"
+      },
+      "id": "wf05-n36",
+      "name": "Merge Refined",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5696,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "dK1T85wRcr8XPZSO",
+        "options": {}
+      },
+      "id": "wf05-n24",
+      "name": "S7 Push HITL",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        5888,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query['hub.challenge'] }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "5c9bf278-c866-4aa1-9f2c-f94c8d77774a",
+      "name": "Respond Challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        432,
+        320
+      ]
+    },
+    {
+      "id": "deb-prep",
+      "name": "Prep Buffer SQL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1430,
+        470
+      ],
+      "parameters": {
+        "jsCode": "const c = $json;\nconst esc = s => String(s ?? '').replace(/'/g, \"''\");\nconst sql = \"INSERT INTO public.sura_inbound_buffer (clinic_id, phone, channel, message_text, wamid) VALUES ('\" +\n  c.clinic_id + \"'::uuid, '\" + esc(c.phone) + \"', '\" + esc(c.channel || 'whatsapp') + \"', '\" + esc(c.message_text) + \"', '\" + esc(c.message_id) + \"') \" +\n  \"ON CONFLICT (wamid) DO NOTHING RETURNING id::text AS buffer_id;\";\nreturn [{ json: { ...c, sql } }];"
+      }
+    },
+    {
+      "id": "deb-ins",
+      "name": "Buffer Insert",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1590,
+        470
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.sql }}",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "NDrVeK2iQy3c33J3",
+          "name": "TAWD Supabase Postgres"
+        }
+      }
+    },
+    {
+      "id": "deb-wait",
+      "name": "Debounce 4s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1750,
+        470
+      ],
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 3,
+        "unit": "seconds"
+      },
+      "webhookId": "sura-debounce-resume"
+    },
+    {
+      "id": "deb-claim",
+      "name": "Claim Or Abort",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1910,
+        470
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=WITH latest AS (SELECT id FROM public.sura_inbound_buffer WHERE clinic_id = '{{ $('Prep Buffer SQL').first().json.clinic_id }}'::uuid AND phone = '{{ $('Prep Buffer SQL').first().json.phone }}' AND processed = false ORDER BY created_at DESC LIMIT 1) UPDATE public.sura_inbound_buffer b SET processed = true WHERE b.clinic_id = '{{ $('Prep Buffer SQL').first().json.clinic_id }}'::uuid AND b.phone = '{{ $('Prep Buffer SQL').first().json.phone }}' AND b.processed = false AND (SELECT id FROM latest) = '{{ $('Buffer Insert').first().json.buffer_id }}'::uuid RETURNING b.message_text, b.created_at;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "NDrVeK2iQy3c33J3",
+          "name": "TAWD Supabase Postgres"
+        }
+      }
+    },
+    {
+      "id": "deb-merge",
+      "name": "Merge & Continue",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2070,
+        470
+      ],
+      "parameters": {
+        "jsCode": "const rows = $input.all();\nif (rows.length === 0) return [];\nconst ctx = $('Prep Buffer SQL').first().json;\nconst merged = rows.map(r => r.json)\n  .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))\n  .map(r => (r.message_text || '').trim())\n  .filter(Boolean)\n  .join('\\n');\nif (!merged) return [];                                  // nothing real to process -> stop\nconst { sql, ...clean } = ctx;\nreturn [{ json: { ...clean, message_text: merged, original_message_text: ctx.message_text } }];"
+      }
+    },
+    {
+      "id": "is-voice",
+      "name": "Is Voice?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1522,
+        304
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "v",
+              "leftValue": "={{ $json.needs_media }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "get-wa-token",
+      "name": "Get WA Token",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1692,
+        164
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT config->>'access_token' AS access_token, config->>'gemini_key' AS gemini_key, config->>'gcp_tts_key' AS gcp_tts_key FROM public.channel_configs WHERE channel='whatsapp' AND config->>'phone_number_id' = '{{ $json.phone_number_id }}' LIMIT 1;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "NDrVeK2iQy3c33J3",
+          "name": "TAWD Supabase Postgres"
+        }
+      }
+    },
+    {
+      "id": "transcribe-voice",
+      "name": "Transcribe Voice",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1862,
+        164
+      ],
+      "parameters": {
+        "jsCode": "const c = $('Resolve Clinic ID').first().json;\nconst wa = $('Get WA Token').first().json;\nconst token = wa.access_token; const GKEY = wa.gemini_key;\ntry {\n  const meta = await this.helpers.httpRequest({ method:'GET', url:'https://graph.facebook.com/v21.0/' + c.media_id, headers:{ Authorization:'Bearer ' + token }, json:true });\n  const bin = await this.helpers.httpRequest({ method:'GET', url: meta.url, headers:{ Authorization:'Bearer ' + token }, encoding:'arraybuffer' });\n  const buf = Buffer.isBuffer(bin) ? bin : Buffer.from(bin);\n  const b64 = buf.toString('base64');\n  const mime = String(meta.mime_type || c.media_mime || '').split(';')[0];\n  const isImg = (c.media_kind === 'image') || mime.indexOf('image') === 0;\n  const prompt = isImg\n    ? 'المريض أرسل صورة إلى عيادة أسنان. صِف بإيجاز ووضوح بالعربية ما يظهر فيها فقط (إن كانت أشعة/سنّاً/تقريراً فاذكر نوعها وأي ملاحظة ظاهرة بشكل موضوعي). ممنوع التشخيص أو اقتراح علاج — وصف موضوعي قصير فقط.'\n    : 'أنت تحلّل رسالة صوتية من مريض لعيادة أسنان. أعد فقط كائن JSON صالحاً بهذا الشكل بالضبط: {\"gender\":\"male|female|unknown\",\"text\":\"...\"} حيث text هو التفريغ الحرفي للكلام بنفس لغة المتحدث وبحروف تلك اللغة (إن تحدّث بالإنجليزية فاكتبه بالإنجليزية، وإن تحدّث بالعربية فاكتبه بالعربية؛ ممنوع الترجمة أو كتابة الإنجليزية بأحرف عربية)، و gender تخمين جنس المتحدث من نبرة صوته (male للرجل، female للمرأة، unknown إذا لم يتّضح). لا تكتب أي شيء خارج JSON.';\n  const payload = JSON.stringify({ contents:[{ parts:[ { text: prompt }, { inline_data:{ mime_type: (mime || (isImg ? 'image/jpeg' : 'audio/ogg')), data: b64 } } ] }] });\n  const rawResp = await this.helpers.httpRequest({ method:'POST', url:'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + GKEY, headers:{ 'Content-Type':'application/json' }, body: payload });\n  const resp = (typeof rawResp === 'string') ? JSON.parse(rawResp) : rawResp;\n  const out = (((((resp.candidates||[])[0]||{}).content||{}).parts||[])[0] || {}).text || '';\n  if (isImg) {\n    const msg = '(أرسل المريض صورة) ' + (c.message_text ? c.message_text + ' — ' : '') + 'وصف الصورة: ' + (out.trim() || 'صورة غير واضحة');\n    return [{ json: { ...c, message_text: msg, media_processed: true } }];\n  }\n  // audio -> parse {gender, text}\n  let g = 'unknown', text = '';\n  try { let s = out.trim(); const a = s.indexOf('{'), b = s.lastIndexOf('}'); if (a>=0 && b>a) s = s.slice(a, b+1); const j = JSON.parse(s); g = String(j.gender||'unknown').toLowerCase(); text = String(j.text||'').trim(); }\n  catch(e) { text = out.trim(); }\n  if (!text) return [{ json: { ...c, message_text: 'ما وصلتني الرسالة الصوتية بوضوح 🌿 ممكن ترسلها مرة ثانية؟', media_processed: false } }];\n  let hint = '';\n  if (g === 'male') hint = '\\n\\n[ملاحظة نظام داخلية — لا تُذكر للمريض: صوت المريض يوحي بأنه رجل، خاطبيه بصيغة المذكّر]';\n  else if (g === 'female') hint = '\\n\\n[ملاحظة نظام داخلية — لا تُذكر للمريض: صوت المريضة يوحي بأنها امرأة، خاطبيها بصيغة المؤنث]';\n  return [{ json: { ...c, message_text: text + hint, voice_gender: g, media_processed: true } }];\n} catch (e) {\n  const isImg = c.media_kind === 'image';\n  return [{ json: { ...c, message_text: isImg ? '(أرسل المريض صورة) — تعذّر تحليلها، اشكري المريض واعرضي عرضها على الطبيب أو حجز موعد.' : 'واجهتني مشكلة تقنية بسيطة في تشغيل الرسالة الصوتية 🌿 ممكن ترسلها مرة ثانية؟', media_processed: false, media_error: String((e && e.message) || e).slice(0,300) } }];\n}"
+      }
+    },
+    {
+      "id": "2343fdc9-703a-41ee-b8ce-8950516459ff",
+      "name": "Prep Emergency",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4288,
+        740
+      ],
+      "parameters": {
+        "jsCode": "const c = $json;\nlet rc = {}; try { rc = $('Resolve Clinic ID').first().json || {}; } catch(e){}\nconst esc = s => String(s||'').replace(/'/g, \"''\");\nconst CID = c.clinic_id || rc.clinic_id;\nconst PID = c.patient_id || rc.patient_id;\nconst kind = c.is_emergency ? 'emergency' : (c.is_complaint ? 'complaint' : '');\nconst sev = c.is_emergency ? 'high' : 'medium';\nif (kind && CID && PID) {\n  const um = c.message_text || rc.message_text || '';\n  const combo = ('المريض: ' + um + ' | ردّ سُرى: ' + (c.response_ar||'')).slice(0,600);\n  const phone = rc.phone || c.phone || '';\n  const pname = c.b_patient_name || c.patient_name || rc.sender_name || '';\n  const sql = \"INSERT INTO public.sura_alerts (clinic_id,patient_id,phone,patient_name,kind,severity,message,status) \" +\n              \"VALUES ('\"+CID+\"'::uuid,'\"+PID+\"'::uuid,'\"+esc(phone)+\"','\"+esc(pname)+\"','\"+kind+\"','\"+sev+\"','\"+esc(combo)+\"','open');\";\n  return [{ json: { sql, kind } }];\n}\nreturn [{ json: { sql: \"SELECT 1 WHERE false;\", kind: '' } }];"
+      }
+    },
+    {
+      "id": "863bae02-ac1c-410b-bdbd-d18c7d278054",
+      "name": "Log Emergency",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        4508,
+        740
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "NDrVeK2iQy3c33J3",
+          "name": "TAWD Supabase Postgres"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.sql }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "94628531-b1a3-4c45-bc49-854cc4b866bc",
+      "name": "Load Patient History",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        3528,
+        520
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "NDrVeK2iQy3c33J3",
+          "name": "TAWD Supabase Postgres"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT count(*) FILTER (WHERE a.status='completed') AS visits, count(*) FILTER (WHERE a.status='no_show') AS no_shows, max(a.slot_time) FILTER (WHERE a.status='completed')::text AS last_visit, (SELECT string_agg(DISTINCT s.name_ar, ', ') FROM public.appointments a2 JOIN public.services s ON s.id=a2.service_id WHERE a2.patient_id='{{ $json.patient_id }}'::uuid AND a2.clinic_id='{{ $json.clinic_id }}'::uuid AND a2.status='completed') AS services, (SELECT min(a3.slot_time) FROM public.appointments a3 WHERE a3.patient_id='{{ $json.patient_id }}'::uuid AND a3.clinic_id='{{ $json.clinic_id }}'::uuid AND a3.status IN ('scheduled','confirmed') AND a3.slot_time > now())::text AS next_upcoming, (SELECT json_agg(json_build_object('name_ar', COALESCE(u.name_ar,u.name), 'services', (SELECT json_agg(sv.name_ar) FROM public.doctor_services ds JOIN public.services sv ON sv.id=ds.service_id WHERE ds.doctor_id=u.id AND ds.is_active AND sv.deleted_at IS NULL))) FROM public.tawd_staff_users u WHERE u.clinic_id='{{ $json.clinic_id }}'::uuid AND u.role='doctor' AND u.is_active AND u.deleted_at IS NULL) AS doctors_json FROM public.appointments a WHERE a.patient_id='{{ $json.patient_id }}'::uuid AND a.clinic_id='{{ $json.clinic_id }}'::uuid AND a.deleted_at IS NULL;",
+        "options": {}
+      }
+    },
+    {
+      "id": "b84ede59-9c62-40c2-8e19-8c7adf4c27fd",
+      "name": "Voice Reply (TTS)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6100,
+        300
+      ],
+      "parameters": {
+        "jsCode": "let mk = '';\ntry { const tv = $('Transcribe Voice').first(); mk = (tv && tv.json && tv.json.media_kind) || ''; } catch(e) {}\nif (mk !== 'audio') return [];\n\nlet text = '';\ntry { const fb = $('Format Booking Reply').first(); if (fb && fb.json && fb.json.message_text) text = fb.json.message_text; } catch(e) {}\nif (!text) { try { const ss = $('Set Sender Sura').first(); if (ss && ss.json && ss.json.message_text) text = ss.json.message_text; } catch(e) {} }\nif (!text) return [];\n\nconst rc = $('Resolve Clinic ID').first().json;\nconst wa = $('Get WA Token').first().json;\nconst token = wa.access_token, ttsKey = wa.gcp_tts_key;\nconst pnid = rc.phone_number_id;\nconst to = String(rc.phone || '').replace('+','') || rc.raw_from;\nif (!ttsKey || !token || !pnid || !to) return [];\n\nconst west = String(text).replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]);\nconst speak = west\n  .replace(/[\\u{1F000}-\\u{1FAFF}\\u{2600}-\\u{27BF}\\u{2190}-\\u{21FF}\\u{2B00}-\\u{2BFF}\\u{FE0F}\\u{200D}]/gu, '')\n  .replace(/[•*_#>]/g, ' ')\n  .replace(/\\r?\\n+/g, '. ')\n  .replace(/(\\d+)\\.000\\b/g, '$1')\n  .replace(/:00\\b/g, '')\n  .replace(/:(\\d{2})\\b/g, ' و $1 دقيقة')\n  .replace(/(\\d)\\s*ص(?![؀-ۿ])/g, '$1 صباحاً')\n  .replace(/(\\d)\\s*م(?![؀-ۿ])/g, '$1 مساءً')\n  .replace(/ر\\.?\\s*ع(?![؀-ۿ])/g, ' ريال')\n  .replace(/[ \\t]{2,}/g, ' ')\n  .replace(/\\s*\\.\\s*\\.+/g, '. ')\n  .trim().slice(0, 900);\nif (!speak || speak.length < 12) return []; // skip TTS for trivial one-liners (save tokens)\n\ntry {\n  const ttsResp = await this.helpers.httpRequest({ method: 'POST', url: 'https://texttospeech.googleapis.com/v1/text:synthesize?key=' + ttsKey, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ input: { text: speak }, voice: { languageCode: (( (speak.match(/[A-Za-z]/g)||[]).length ) > ( (speak.match(/[\\u0600-\\u06FF]/g)||[]).length )) ? 'en-US' : 'ar-XA', name: (( (speak.match(/[A-Za-z]/g)||[]).length ) > ( (speak.match(/[\\u0600-\\u06FF]/g)||[]).length )) ? 'en-US-Chirp3-HD-Aoede' : 'ar-XA-Chirp3-HD-Aoede' }, audioConfig: { audioEncoding: 'OGG_OPUS' } }) });\n  const tj = (typeof ttsResp === 'string') ? JSON.parse(ttsResp) : ttsResp;\n  if (!tj.audioContent) return [];\n  const buf = Buffer.from(tj.audioContent, 'base64');\n  const binary = await this.helpers.prepareBinaryData(buf, 'reply.ogg', 'audio/ogg');\n  return [{ json: { pnid, token, to }, binary: { data: binary } }];\n} catch (e) {\n  return [];\n}"
+      }
+    },
+    {
+      "id": "ba71ff41-dc8c-4c9f-b9eb-2c6887c78092",
+      "name": "Upload Voice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6320,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.pnid }}/media",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.token }}"
+            }
+          ]
+        },
+        "contentType": "multipart-form-data",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "name": "type",
+              "value": "audio/ogg"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "7b790b70-0af8-46ab-8a2b-5ed7ea507c6a",
+      "name": "Send Voice",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6540,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const vr = $('Voice Reply (TTS)').first().json;\nconst up = $json; // Meta media response { id }\nconst mediaId = up && up.id;\nif (!mediaId) return [{ json: { voice_reply: false, detail: JSON.stringify(up).slice(0,250) } }];\ntry {\n  await this.helpers.httpRequest({ method: 'POST', url: 'https://graph.facebook.com/v21.0/' + vr.pnid + '/messages', headers: { Authorization: 'Bearer ' + vr.token, 'Content-Type': 'application/json' }, body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: vr.to, type: 'audio', audio: { id: mediaId } }) });\n  return [{ json: { voice_reply: true, media_id: mediaId } }];\n} catch (e) {\n  return [{ json: { voice_reply: false, error: String((e && e.message) || e).slice(0,250) } }];\n}"
+      }
+    }
+  ],
+  "connections": {
+    "WhatsApp Webhook": {
+      "main": [
+        [
+          {
+            "node": "Respond Challenge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond 200": {
+      "main": [
+        []
+      ]
+    },
+    "Parse Request": {
+      "main": [
+        [
+          {
+            "node": "Valid Message?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Message?": {
+      "main": [
+        [
+          {
+            "node": "Lookup Clinic Channel",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Lookup Clinic Channel": {
+      "main": [
+        [
+          {
+            "node": "Resolve Clinic ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Clinic ID": {
+      "main": [
+        [
+          {
+            "node": "Is Voice?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S4 Clinic Context": {
+      "main": [
+        [
+          {
+            "node": "Check sura_ai_enabled",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check sura_ai_enabled": {
+      "main": [
+        [
+          {
+            "node": "Resolve Feature Flag",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Feature Flag": {
+      "main": [
+        [
+          {
+            "node": "Feature Enabled?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Feature Enabled?": {
+      "main": [
+        [
+          {
+            "node": "Maintenance Mode?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sura Unavailable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sura Unavailable": {
+      "main": [
+        [
+          {
+            "node": "S1 Send Unavailable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Maintenance Mode?": {
+      "main": [
+        [
+          {
+            "node": "S1 Maintenance Msg",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "S3 Get Patient",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S3 Get Patient": {
+      "main": [
+        [
+          {
+            "node": "S5 Get Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S5 Get Session": {
+      "main": [
+        [
+          {
+            "node": "Set Sender User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Sender User": {
+      "main": [
+        [
+          {
+            "node": "S6 Save User Msg",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S6 Save User Msg": {
+      "main": [
+        [
+          {
+            "node": "Load Patient History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build AI Context": {
+      "main": [
+        [
+          {
+            "node": "???? Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "???? Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Output": {
+      "main": [
+        [
+          {
+            "node": "HITL Gate",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prep Emergency",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HITL Gate": {
+      "main": [
+        [
+          {
+            "node": "Is Booking?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Clarification OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Booking?": {
+      "main": [
+        [
+          {
+            "node": "Prep Booking Params",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Sender Sura",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Booking Params": {
+      "main": [
+        [
+          {
+            "node": "Call WF-06 Booking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call WF-06 Booking": {
+      "main": [
+        [
+          {
+            "node": "Format Booking Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Booking Reply": {
+      "main": [
+        [
+          {
+            "node": "S6 Save Booking Msg",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S6 Save Booking Msg": {
+      "main": [
+        [
+          {
+            "node": "S1 Send Booking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Sender Sura": {
+      "main": [
+        [
+          {
+            "node": "S6 Save Assistant Msg",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S6 Save Assistant Msg": {
+      "main": [
+        [
+          {
+            "node": "S1 Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clarification OK?": {
+      "main": [
+        [
+          {
+            "node": "Increment Clarification",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Clinic Admin Phone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Clinic Admin Phone": {
+      "main": [
+        [
+          {
+            "node": "Prepare HITL Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Increment Clarification": {
+      "main": [
+        [
+          {
+            "node": "Set Sender Sura Clarif",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Sender Sura Clarif": {
+      "main": [
+        [
+          {
+            "node": "S6 Save Clarification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S6 Save Clarification": {
+      "main": [
+        [
+          {
+            "node": "S1 Send Clarification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare HITL Input": {
+      "main": [
+        [
+          {
+            "node": "HITL Refine Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HITL Refine Agent": {
+      "main": [
+        [
+          {
+            "node": "Merge Refined",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Refined": {
+      "main": [
+        [
+          {
+            "node": "S7 Push HITL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Flash": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "???? Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Pro": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "HITL Refine Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "???? Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond Challenge": {
+      "main": [
+        [
+          {
+            "node": "Parse Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Buffer SQL": {
+      "main": [
+        [
+          {
+            "node": "Buffer Insert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buffer Insert": {
+      "main": [
+        [
+          {
+            "node": "Debounce 4s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Debounce 4s": {
+      "main": [
+        [
+          {
+            "node": "Claim Or Abort",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim Or Abort": {
+      "main": [
+        [
+          {
+            "node": "Merge & Continue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge & Continue": {
+      "main": [
+        [
+          {
+            "node": "S4 Clinic Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Voice?": {
+      "main": [
+        [
+          {
+            "node": "Get WA Token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prep Buffer SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get WA Token": {
+      "main": [
+        [
+          {
+            "node": "Transcribe Voice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe Voice": {
+      "main": [
+        [
+          {
+            "node": "Prep Buffer SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Emergency": {
+      "main": [
+        [
+          {
+            "node": "Log Emergency",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Patient History": {
+      "main": [
+        [
+          {
+            "node": "Build AI Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S1 Send Response": {
+      "main": [
+        [
+          {
+            "node": "Voice Reply (TTS)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S1 Send Booking": {
+      "main": [
+        [
+          {
+            "node": "Voice Reply (TTS)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Voice Reply (TTS)": {
+      "main": [
+        [
+          {
+            "node": "Upload Voice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Voice": {
+      "main": [
+        [
+          {
+            "node": "Send Voice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "timezone": "Asia/Muscat",
+    "binaryMode": "separate",
+    "errorWorkflow": "W8N7vDeYzuZLnlWW"
+  },
+  "staticData": null,
+  "meta": null,
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "4e73097c-edb3-40b6-a963-ae206413528e",
+  "activeVersionId": "4e73097c-edb3-40b6-a963-ae206413528e",
+  "versionCounter": 244,
+  "triggerCount": 1,
+  "sourceWorkflowId": null,
+  "shared": [
+    {
+      "updatedAt": "2026-06-15T16:09:44.502Z",
+      "createdAt": "2026-06-15T16:09:44.502Z",
+      "role": "workflow:owner",
+      "workflowId": "arZRfHPPTytcMSR5",
+      "projectId": "Vss4E6cuOv9Jn7BR",
+      "project": {
+        "updatedAt": "2026-01-01T18:27:36.429Z",
+        "createdAt": "2026-01-01T18:24:26.903Z",
+        "id": "Vss4E6cuOv9Jn7BR",
+        "name": "Mohammed Albadi <playmoham19@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "1df90475-bb31-4a03-8006-a63c6dc1763d"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-07-04T17:06:03.063Z",
+    "createdAt": "2026-07-04T17:06:03.063Z",
+    "versionId": "4e73097c-edb3-40b6-a963-ae206413528e",
+    "workflowId": "arZRfHPPTytcMSR5",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "sura-whatsapp",
+          "options": {},
+          "responseMode": "responseNode"
+        },
+        "id": "wf05-n01",
+        "name": "WhatsApp Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          160,
+          320
+        ],
+        "webhookId": "9c6d1606-c6fc-499b-b743-ec2c4e65e485"
+      },
+      {
+        "parameters": {
+          "respondWith": "noData",
+          "options": {
+            "responseCode": 200
+          }
+        },
+        "id": "wf05-n02",
+        "name": "Respond 200",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          560,
+          80
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const raw  = $input.first().json;\nconst body = raw.body || raw;\nconst entry  = (body.entry || [])[0];\nconst change = (entry && entry.changes || [])[0];\nconst value  = change && change.value;\nconst msgs   = (value && value.messages) || [];\nif (!msgs.length) return [{ json: { type: 'status_update' } }];\nconst msg = msgs[0];\nconst common = {\n  type: 'message', phone: '+' + msg.from, raw_from: msg.from, message_id: msg.id,\n  sender_name: ((value && value.contacts) || [])[0] && ((value.contacts)[0].profile||{}).name || '',\n  timestamp: msg.timestamp, phone_number_id: (value && value.metadata && value.metadata.phone_number_id) || '',\n  channel: 'whatsapp', waba_id: (entry && entry.id) || ''\n};\nif (msg.type === 'text')  return [{ json: { ...common, message_text: msg.text.body, needs_media: false } }];\nif (msg.type === 'audio') return [{ json: { ...common, message_text: '', needs_media: true, media_kind: 'audio', media_id: (msg.audio||{}).id, media_mime: (msg.audio||{}).mime_type || 'audio/ogg' } }];\nif (msg.type === 'image') return [{ json: { ...common, message_text: (msg.image||{}).caption || '', needs_media: true, media_kind: 'image', media_id: (msg.image||{}).id, media_mime: (msg.image||{}).mime_type || 'image/jpeg' } }];\nreturn [{ json: { type: 'unsupported_media', from: '+' + msg.from, media_type: msg.type } }];"
+        },
+        "id": "wf05-n03",
+        "name": "Parse Request",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          688,
+          320
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "id": "check-message-type",
+                "leftValue": "={{ $json.type }}",
+                "rightValue": "message",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "wf05-n04",
+        "name": "Valid Message?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          928,
+          320
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "SELECT clinic_id::text FROM public.channel_configs WHERE channel = 'whatsapp' AND is_active = true AND config->>'phone_number_id' = '{{ $json.phone_number_id }}' LIMIT 1;",
+          "options": {}
+        },
+        "id": "wf05-n38",
+        "name": "Lookup Clinic Channel",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [
+          1184,
+          304
+        ],
+        "alwaysOutputData": true,
+        "credentials": {
+          "postgres": {
+            "id": "NDrVeK2iQy3c33J3",
+            "name": "TAWD Supabase Postgres"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const rows = $input.all();\nconst ctx  = $('Parse Request').first().json;\nif (rows.length === 0 || !rows[0].json || !rows[0].json.clinic_id) {\n  return [];\n}\nreturn [{ json: { ...ctx, clinic_id: rows[0].json.clinic_id } }];"
+        },
+        "id": "wf05-n39",
+        "name": "Resolve Clinic ID",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1392,
+          304
+        ]
+      },
+      {
+        "parameters": {
+          "workflowId": "MSsHC3t4qbzqWzlk",
+          "options": {}
+        },
+        "id": "wf05-n05",
+        "name": "S4 Clinic Context",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1,
+        "position": [
+          1600,
+          304
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "SELECT public.clinic_has_feature('{{ $json.clinic_id }}'::uuid, 'sura_ai_enabled') AS enabled;",
+          "options": {}
+        },
+        "id": "wf05-n40",
+        "name": "Check sura_ai_enabled",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [
+          1840,
+          304
+        ],
+        "alwaysOutputData": true,
+        "credentials": {
+          "postgres": {
+            "id": "NDrVeK2iQy3c33J3",
+            "name": "TAWD Supabase Postgres"
+          }
+        },
+        "continueOnFail": true
+      },
+      {
+        "parameters": {
+          "jsCode": "const rows = $input.all();\nconst ctx  = $('S4 Clinic Context').first().json;\n// Fail-open: DB error ? allow (don't block prod on transient DB hiccup)\nconst firstRow = rows.length > 0 ? rows[0].json : {};\nconst enabled  = firstRow.error ? true : (firstRow.enabled === true);\nreturn [{ json: { ...ctx, sura_ai_enabled: enabled } }];"
+        },
+        "id": "wf05-n41",
+        "name": "Resolve Feature Flag",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2064,
+          304
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "id": "check-sura-enabled",
+                "leftValue": "={{ $json.sura_ai_enabled }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "wf05-n42",
+        "name": "Feature Enabled?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          2288,
+          304
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const ctx = $json;\nconst clinicName = ctx.clinic_name_ar || ctx.clinic_name || 'عذراً، الخدمة غير متاحة حالياً. يرجى التواصل مع العيادة مباشرة.';\nreturn [{ json: {\n  ...ctx,\n  to:     ctx.phone,\n  body:   'عذراً، الخدمة غير متاحة حالياً. يرجى التواصل مع العيادة مباشرة.' + clinicName + ' ??????.',\n  sender: 'sura'\n} }];"
+        },
+        "id": "wf05-n43",
+        "name": "Sura Unavailable",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2512,
+          480
+        ]
+      },
+      {
+        "parameters": {
+          "workflowId": "0Aq11NOwPChsSzZ8",
+          "options": {}
+        },
+        "id": "wf05-n44",
+        "name": "S1 Send Unavailable",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1,
+        "position": [
+          2768,
+          672
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "id": "check-maintenance",
+                "leftValue": "={{ $json.is_in_maintenance }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "wf05-n06",
+        "name": "Maintenance Mode?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          2512,
+          288
+        ]
+      },
+      {
+        "parameters": {
+          "workflowId": "0Aq11NOwPChsSzZ8",
+          "options": {}
+        },
+        "id": "wf05-n07",
+        "name": "S1 Maintenance Msg",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1,
+        "position": [
+          2768,
+          128
+        ]
+      },
+      {
+        "parameters": {
+          "workflowId": "44lmYECx1xkG0Cir",
+          "options": {}
+        },
+        "id": "wf05-n08",
+        "name": "S3 Get Patient",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1,
+        "position": [
+          2768,
+          480
+        ]
+      },
+      {
+        "parameters": {
+          "workflowId": "LhLhOblkCwLWWQlt",
+          "options": {}
+        },
+        "id": "wf05-n09",
+        "name": "S5 Get Session",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1,
+        "position": [
+          3008,
+          480
+        ]
+      },
+      {
+        "parameters": {
+          "fields": {
+            "values": [
+              {
+                "name": "sender",
+                "stringValue": "patient"
+              },
+              {
+                "name": "message_text",
+                "stringValue": "={{ $json.message_text }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "wf05-n25",
+        "name": "Set Sender User",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3,
+        "position": [
+          3248,
+          480
+        ]
+      },
+      {
+        "parameters": {
+          "workflowId": "F3YMSuQuGiknwoEH",
+          "options": {}
+        },
+        "id": "wf05-n10",
+        "name": "S6 Save User Msg",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1,
+        "position": [
+          3488,
+          480
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const ctx = $('S6 Save User Msg').first().json;\nlet _hist = {}; try { _hist = $('Load Patient History').first().json || {}; } catch(e) {}\nconst esc = s => String(s == null ? '' : s).replace(/{/g, '{{').replace(/}/g, '}}'); // protect LangChain templating from clinic free-text\nconst wh = ctx.working_hours || {};\nconst open = String(wh.open || '09:00'), close = String(wh.close || '18:00');\nconst closedWd = Array.isArray(wh.closed_weekdays) ? wh.closed_weekdays : [];\nconst tz = ctx.clinic_timezone || 'Asia/Muscat';\nconst _lc = String(ctx.message_text||'').replace(/\\[ملاحظة نظام[\\s\\S]*?\\]/g,''); const _uL = (_lc.match(/[A-Za-z]/g)||[]).length; const _uA = (_lc.match(/[؀-ۿ]/g)||[]).length; const userLang = _uL > _uA ? 'الإنجليزية' : 'العربية';\n\nconst now = new Date();\nconst nice = new Intl.DateTimeFormat('ar', { timeZone:tz, weekday:'long', day:'numeric', month:'long', hour:'numeric', minute:'2-digit', hour12:true }).format(now);\nconst todayISO = new Intl.DateTimeFormat('en-CA', { timeZone:tz, year:'numeric', month:'2-digit', day:'2-digit' }).format(now);\nconst pp = new Intl.DateTimeFormat('en-US', { timeZone:tz, weekday:'short', hour:'2-digit', hour12:false }).formatToParts(now);\nconst dayShort = (pp.find(x=>x.type==='weekday')||{}).value;\nconst hour24 = parseInt((pp.find(x=>x.type==='hour')||{}).value || '0', 10);\nconst openH = parseInt(open.split(':')[0] || '9', 10), closeH = parseInt(close.split(':')[0] || '18', 10);\nconst isOpen = !closedWd.includes(dayShort) && hour24 >= openH && hour24 < closeH;\nconst status = 'الوقت الآن بالضبط: ' + nice + ' (توقيت ' + tz + '). تاريخ اليوم ISO: ' + todayISO + '. حالة العيادة الآن: ' + (isOpen ? 'مفتوحة' : 'مغلقة');\n\nconst _v = Number(_hist.visits||0), _ns = Number(_hist.no_shows||0);\nlet histSection = '';\nif (_v > 0) {\n  const lv = _hist.last_visit ? new Intl.DateTimeFormat('ar',{timeZone:tz,day:'numeric',month:'long',year:'numeric'}).format(new Date(_hist.last_visit)) : '';\n  histSection = '[سجل المريض — استعمليه بذكاء للترحيب والتخصيص، ولا تُفصحي عن الأرقام إلا إن سأل]\\n' +\n    'مريض حالي معروف: ' + _v + ' زيارة سابقة' + (lv ? ('، آخر زيارة ' + lv) : '') + '.' +\n    (_hist.services ? (' خدماته السابقة: ' + esc(_hist.services) + '.') : '') +\n    (_ns > 0 ? (' سجّل ' + _ns + ' غياباً سابقاً — ذكّريه بلطف بأهمية تأكيد الموعد والحضور.') : '');\n} else {\n  histSection = '[سجل المريض]\\nمريض جديد (لا زيارات سابقة) — رحّبي به ترحيباً خاصاً بأول زيارة.';\n}\nconst _next = _hist.next_upcoming ? new Intl.DateTimeFormat('ar',{timeZone:tz,weekday:'long',day:'numeric',month:'long',hour:'numeric',minute:'2-digit',hour12:true}).format(new Date(_hist.next_upcoming)) : '';\nif (_next) histSection += '\\n لديه موعد قادم مؤكد: ' + _next + '. إن سأل «متى موعدي» أخبريه به، ولا تحجزي موعداً جديداً إلا إن طلب صراحةً.';\n\nlet doctorsSection = '';\ntry {\n  let docs = _hist.doctors_json;\n  if (typeof docs === 'string') docs = JSON.parse(docs);\n  if (Array.isArray(docs) && docs.length) {\n    doctorsSection = '[أطباء العيادة والخدمات التي يقدّمها كل طبيب]\\n' + docs.map(dd => '• ' + esc(dd.name_ar) + ': ' + (((dd.services)||[]).filter(Boolean).map(x=>esc(x)).join('، ') || 'خدمات عامة')).join('\\n') +\n      '\\nإذا طلب المريض طبيباً بعينه اضبطي booking.doctor باسمه؛ وإلا اتركيه فارغاً وسيُسنَد تلقائياً أنسب طبيب متاح. لا تعِدي المريض بطبيب لا يقدّم الخدمة المطلوبة.';\n  }\n} catch(e) {}\n\nconst cur = ctx.currency === 'OMR' ? 'ر.ع' : (ctx.currency || '');\nconst fmtPrice = v => { const n = Number(v); return (ctx.currency === 'OMR' && !isNaN(n)) ? n.toFixed(3) : esc(v); };\nconst svcLines = (ctx.services||[]).map(s => '• ' + esc(s.name_ar) + ' — ' + fmtPrice(s.price) + ' ' + cur).join('\\n') || '(لا توجد خدمات مسجّلة)';\n\n// ── THE single editable place: each clinic's full System Message ──\nlet body = esc((ctx.sura_system_message || '').trim());\nif (!body) {\n  const CLINIC = esc(ctx.clinic_name_ar || ctx.clinic_name || 'العيادة');\n  body = 'أنتِ «سُرى»، موظفة الاستقبال الذكية في ' + CLINIC + ' عبر واتساب. كوني دافئة، مهذبة، مقتضبة، واحترافية، وساعدي المريض في الاستفسارات وحجز المواعيد. لا تكشفي أنكِ ذكاء اصطناعي.';\n}\n\nconst sp =\n'أنتِ محرّك يولّد ردود «سُرى». مخرجك دائماً كائن JSON واحد فقط بلا أي نص خارجه إطلاقاً — حتى عند الترحيب أو تأكيد الحجز. كلام سُرى للمريض يوضع داخل الحقل response_ar فقط، والبنية الكاملة موضّحة في نهاية التعليمات.\\n\\n' +\n'🌐 [اللغة — إلزامي وأولوية عليا]: لغة رسالة المريض الحالية هي ' + userLang + '. اكتب محتوى حقل response_ar بهذه اللغة حصراً — حتى لو كانت الرسالة تحية قصيرة مثل «hi» أو «hello» أو «نعم». لا تخلط اللغتين في رسالة واحدة.\\n\\n' +\n'===== شخصية سُرى وتعليماتها وبياناتها (مرجع لصياغة response_ar) =====\\n' +\nbody + '\\n\\n' +\n'[الخدمات والأسعار — تُحدّث تلقائياً من النظام]\\n' + svcLines + '\\n\\n' +\n'[الوقت — تلقائي، ممنوع الحجز في الماضي]\\n' + status + '\\n\\n' + histSection + '\\n\\n' +\n(doctorsSection ? doctorsSection + '\\n\\n' : '') +\n'[حقل booking — إلزامي في كل رد]\\nاملئي حقل booking دائماً بما جمعتِه: service_ar (اسم الخدمة بالعربي كما في قائمة الأسعار أعلاه)، date بصيغة YYYY-MM-DD، time بصيغة HH:MM (٢٤ ساعة)، patient_name، و doctor (اسم الطبيب فقط إن طلبه المريض صراحةً وإلا فارغ)، و action بإحدى القيم فقط: \"book\" لحجز جديد، أو \"cancel\" لإلغاء موعد قائم، أو \"reschedule\" لتغيير/تأجيل موعد قائم إلى وقت جديد، أو \"waitlist\" لتسجيل المريض في قائمة الانتظار عند رغبته حين يكون الوقت المطلوب محجوزاً، أو \"confirm\" لتأكيد حضور المريض لموعده القائم رداً على تذكير (الافتراضي \"book\" — لا تستخدمي \"reschedule\" إلا إذا كان للمريض موعد قائم يريد نقله). اتركي ما لم يُذكر بعد فارغاً \"\". احسبي التاريخ من تاريخ اليوم ISO أعلاه («بكرة»=+١، واسم اليوم=أقرب تاريخ قادم يحمله). اضبطي confirmed=true فقط في الرد الذي يوافق فيه المريض نهائياً وتكون الحقول الأربعة مكتملة والوقت ليس ماضياً؛ غير ذلك confirmed=false.\\nمهم جداً: إذا سبق أن تأكّد حجز في هذه المحادثة، اتركي confirmed=false في كل الرسائل التالية (شكر، تحية، يعطيك العافية، استفسار) — لا تعيدي الحجز إطلاقاً ما لم يطلب المريض موعداً جديداً مختلفاً صراحةً.\\n' +\n'[⚠️ تنسيق الإخراج — إلزامي بلا أي استثناء]\\n' +\n'أخرجي كائن JSON واحد صالحاً فقط لا غير. ممنوع منعاً باتاً أي نص أو شرح أو إيموجي خارج الـ JSON، حتى عند الترحيب أو تأكيد الحجز. ضعي كلامك للمريض داخل الحقل response_ar فقط. أي رد ليس JSON يُعدّ خطأ.\\n' +\n'البنية المطلوبة بالضبط:\\n' +\n'{{\"intent\":\"greeting|book_appointment|cancel_appointment|reschedule_appointment|check_status|inquiry_services|inquiry_pricing|inquiry_location|inquiry_hours|payment_inquiry|complaint|follow_up|emergency|off_topic|unclear\",\"response_ar\":\"ردّك المقتضب بالعربية\",\"confidence\":0.0,\"is_sensitive\":false,\"requires_hitl\":false,\"booking\":{{\"confirmed\":false,\"service_ar\":\"\",\"date\":\"\",\"time\":\"\",\"patient_name\":\"\",\"doctor\":\"\"}}}}';\n\nreturn [{ json: {\n  ...ctx, system_prompt: sp, user_message: ctx.message_text, session_id: ctx.session_id,\n  clinic_id: ctx.clinic_id, phone: ctx.phone, patient_id: ctx.patient_id,\n  clarification_count: ctx.clarification_count || 0, booking_in_progress: ctx.booking_in_progress || false,\n  clinic_name: ctx.clinic_name_ar || ctx.clinic_name\n}}];"
+        },
+        "id": "wf05-n11",
+        "name": "Build AI Context",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3728,
+          480
+        ]
+      },
+      {
+        "parameters": {
+          "text": "={{ $json.user_message }}",
+          "options": {
+            "systemMessage": "={{ $json.system_prompt }}",
+            "contextWindowLength": 8
+          }
+        },
+        "id": "wf05-n12",
+        "name": "???? Agent",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 1,
+        "position": [
+          3968,
+          480
+        ],
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 6000
+      },
+      {
+        "parameters": {
+          "modelName": "models/gemini-2.5-flash",
+          "options": {
+            "temperature": 0.3,
+            "maxOutputTokens": 1500
+          }
+        },
+        "id": "wf05-n13",
+        "name": "Gemini Flash",
+        "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "typeVersion": 1,
+        "position": [
+          3968,
+          688
+        ],
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 6000,
+        "credentials": {
+          "googlePalmApi": {
+            "id": "4BZtqq4TDy2wCZbp",
+            "name": "TAWD Gemini Paid"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "sessionIdType": "customKey",
+          "sessionKey": "={{ $('Build AI Context').first().json.session_id }}"
+        },
+        "id": "wf05-n14",
+        "name": "Chat Memory",
+        "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+        "typeVersion": 1,
+        "position": [
+          4112,
+          688
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "NDrVeK2iQy3c33J3",
+            "name": "TAWD Supabase Postgres"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const out = $json.output;\nconst ctx = $('Build AI Context').first().json;\nfunction escInStr(s){ let o='',q=false,e=false; for(let i=0;i<s.length;i++){const ch=s[i]; if(e){o+=ch;e=false;continue;} if(ch==='\\\\'){o+=ch;e=true;continue;} if(ch==='\"'){q=!q;o+=ch;continue;} if(q&&ch==='\\n'){o+='\\\\n';continue;} if(q&&ch==='\\r'){o+='\\\\r';continue;} if(q&&ch==='\\t'){o+='\\\\t';continue;} o+=ch; } return o; }\nfunction toObj(x){ if(x&&typeof x==='object')return x; let s=String(x==null?'':x).trim(); const a=s.indexOf('{'),b=s.lastIndexOf('}'); if(a>=0&&b>a)s=s.slice(a,b+1); try{return JSON.parse(s);}catch(e){} try{return JSON.parse(escInStr(s));}catch(e){} const m=s.match(/\"response_ar\"\\s*:\\s*\"([\\s\\S]*?)\"\\s*[,}]/); return {intent:'inquiry',response_ar:m?m[1].replace(/\\\\n/g,'\\n'):s,confidence:0.7,booking:{}}; }\nconst parsed = toObj(out) || {};\nconst bk = (parsed.booking && typeof parsed.booking==='object') ? parsed.booking : {};\nconst it = String(parsed.intent||'').toLowerCase();\nlet act = String(bk.action||'').toLowerCase();\nif (!['book','cancel','reschedule','waitlist','confirm'].includes(act)) act = '';\nif (!act) act = it.includes('reschedul') ? 'reschedule' : (it.includes('cancel') ? 'cancel' : ((it.includes('wait')) ? 'waitlist' : 'book'));\nif (act === 'book' && it.includes('reschedul')) act = 'reschedule';\nif (act === 'book' && it.includes('cancel')) act = 'cancel';\nif (act === 'book' && it.includes('wait')) act = 'waitlist';\nif (act === 'book' && (it.includes('attend') || it.includes('confirm_attend'))) act = 'confirm';\nconst _um = String(ctx.message_text||'');\nconst _attNeg = /(ما|مو|مب|لن|ماني|ما\\s*راح)\\s*(راح\\s*)?(ب?أ?حضر|سأحضر|أجي|بجي)/.test(_um);\nconst _attPos = /(بحضر|سأحضر|سوف أحضر|راح أجي|بجي|حاضر أجي|أكّد حضور|اكد حضور|أؤكد حضور|تأكيد الحضور|ثبّت موعد|ثبت موعد)/.test(_um);\nif (act === 'book' && _attPos && !_attNeg) act = 'confirm';\nconst is_emergency = (parsed.is_emergency===true) || it.includes('emerg') || it.includes('urgent');\nconst is_complaint = (parsed.is_complaint===true) || it.includes('complaint') || it.includes('شكو');\nfunction _sl(s){ s=String(s||''); const ar=(s.match(/[\\u0600-\\u06FF]/g)||[]).length, la=(s.match(/[A-Za-z]/g)||[]).length; return la>ar?'en':'ar'; }\nconst lang = (_sl(String(ctx.message_text||'').replace(/\\[ملاحظة نظام[\\s\\S]*?\\]/g,''))==='en' || _sl(parsed.response_ar)==='en') ? 'en' : 'ar';\nreturn [{ json: { ...ctx, lang,\n  intent: parsed.intent||'unclear', response_ar: parsed.response_ar||'', confidence: parsed.confidence??0.0,\n  is_sensitive: parsed.is_sensitive??false, requires_hitl: parsed.requires_hitl??false, is_emergency, is_complaint,\n  booking_confirmed: bk.confirmed===true, b_action: act,\n  b_service_ar: bk.service_ar||'', b_date: bk.date||'', b_time: bk.time||'', b_patient_name: bk.patient_name||'', b_doctor: bk.doctor||'',\n  raw_ai_output: (typeof out==='string'?out:JSON.stringify(out)) } }];"
+        },
+        "id": "wf05-n15",
+        "name": "Parse AI Output",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4288,
+          480
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "id": "hitl-confidence",
+                "leftValue": "={{ $json.confidence }}",
+                "rightValue": 0.6,
+                "operator": {
+                  "type": "number",
+                  "operation": "gte"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "wf05-n16",
+        "name": "HITL Gate",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          4448,
+          480
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "typeValidation": "loose",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "id": "is-booking",
+                "leftValue": "={{ $json.booking_confirmed }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "wf05-n28",
+        "name": "Is Booking?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          4688,
+          304
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const c = $json;\nconst action = c.b_action || 'book';\nconst esc = s => String(s||'').replace(/'/g, \"''\");\nconst CID = c.clinic_id, PID = c.patient_id;\nconst reqDoctor = esc(String(c.b_doctor||'').trim());\nconst services = Array.isArray(c.services)?c.services:[];\nconst want = String(c.b_service_ar||'').trim();\nlet svc = services.find(s=>s.name_ar===want) || services.find(s=>want&&s.name_ar&&(want.includes(s.name_ar)||s.name_ar.includes(want))) || null;\nconst _en = c.lang==='en'; const dexpr = _en ? 'COALESCE(u.name,u.name_ar)' : 'COALESCE(u.name_ar,u.name)'; const svcName = (_en ? (svc && (svc.name||svc.name_ar)) : (svc && svc.name_ar)) || (c.b_service_ar||'');\nlet t = String(c.b_time||'').trim(); let m = t.match(/^(\\d{1,2})(?::(\\d{2}))?$/);\nlet hh = m?String(m[1]).padStart(2,'0'):''; let mm=(m&&m[2])?m[2]:'00';\nconst dateOk = /^\\d{4}-\\d{2}-\\d{2}$/.test(String(c.b_date||''));\nconst slot_time = (dateOk&&hh)?(c.b_date+'T'+hh+':'+mm+':00+04:00'):'';\nconst future = slot_time?(new Date(slot_time).getTime()>Date.now()-3600000):false;\nconst name = esc(c.b_patient_name);\nconst dur = svc?parseInt(svc.dur||30,10):30;\nconst wh = c.working_hours||{};\nconst openH = parseInt(String(wh.open||'09:00').split(':')[0],10)||9;\nconst closeH = parseInt(String(wh.close||'18:00').split(':')[0],10)||18;\nconst pad = x=>String(x).padStart(2,'0');\nconst openTs=dateOk?(c.b_date+'T'+pad(openH)+':00:00+04:00'):''; const closeTs=dateOk?(c.b_date+'T'+pad(closeH)+':00:00+04:00'):'';\nconst dayStart=dateOk?(c.b_date+'T00:00:00+04:00'):''; const dayEnd=dateOk?(c.b_date+'T23:59:59+04:00'):'';\nconst IV = dur + \" || ' minutes'\";\nconst NIL='00000000-0000-0000-0000-000000000000';\nconst MCT = \"'\"+slot_time+\"'::timestamptz AT TIME ZONE 'Asia/Muscat'\";\nconst schedOkU = \" AND (NOT EXISTS (SELECT 1 FROM public.doctor_schedules ss WHERE ss.doctor_id=u.id AND ss.is_active) OR EXISTS (SELECT 1 FROM public.doctor_schedules ss WHERE ss.doctor_id=u.id AND ss.is_active AND ss.day_of_week::text=to_char(\"+MCT+\",'fmday') AND (\"+MCT+\")::time >= ss.start_time AND ((\"+MCT+\")::time + (\"+IV+\")::interval) <= ss.end_time))\";\nconst leaveOkU = \" AND NOT EXISTS (SELECT 1 FROM public.clinic_holidays hh WHERE hh.clinic_id='\"+CID+\"'::uuid AND hh.holiday_date=(\"+MCT+\")::date AND (hh.applies_to_all_doctors OR hh.doctor_id=u.id))\";\nconst gsAvail = \" AND (NOT EXISTS (SELECT 1 FROM public.doctor_schedules ss WHERE ss.doctor_id=c3.doctor_id AND ss.is_active) OR EXISTS (SELECT 1 FROM public.doctor_schedules ss WHERE ss.doctor_id=c3.doctor_id AND ss.is_active AND ss.day_of_week::text=to_char(gs AT TIME ZONE 'Asia/Muscat','fmday') AND (gs AT TIME ZONE 'Asia/Muscat')::time >= ss.start_time AND ((gs AT TIME ZONE 'Asia/Muscat')::time + (\"+IV+\")::interval) <= ss.end_time)) AND NOT EXISTS (SELECT 1 FROM public.clinic_holidays hh WHERE hh.clinic_id='\"+CID+\"'::uuid AND hh.holiday_date=(gs AT TIME ZONE 'Asia/Muscat')::date AND (hh.applies_to_all_doctors OR hh.doctor_id=c3.doctor_id))\";\nlet sql;\nif (action==='cancel' && CID && PID) {\n  sql = \"WITH tgt AS (SELECT id, slot_time FROM public.appointments WHERE clinic_id='\"+CID+\"'::uuid AND patient_id='\"+PID+\"'::uuid AND deleted_at IS NULL AND status IN ('scheduled','confirmed','checked_in') AND slot_time > now() ORDER BY slot_time LIMIT 1), \" +\n        \"upd AS (UPDATE public.appointments SET status='cancelled', cancelled_at=now(), cancellation_reason='إلغاء عبر سُرى (واتساب)' WHERE id=(SELECT id FROM tgt) RETURNING id, slot_time) \" +\n        \"SELECT CASE WHEN EXISTS(SELECT 1 FROM upd) THEN 'cancelled' ELSE 'nothing_to_cancel' END AS booking_status, (SELECT id::text FROM upd) AS appointment_id, (SELECT slot_time::text FROM upd) AS slot_time_out, NULL::text AS alternatives, NULL::text AS doctor_name;\";\n} else if (action==='confirm' && CID && PID) {\n  sql = \"WITH tgt AS (SELECT id, slot_time, doctor_id, status FROM public.appointments WHERE clinic_id='\"+CID+\"'::uuid AND patient_id='\"+PID+\"'::uuid AND deleted_at IS NULL AND status IN ('scheduled','confirmed') AND slot_time > now() ORDER BY slot_time LIMIT 1), \" +\n        \"upd AS (UPDATE public.appointments SET status='confirmed', updated_at=now() WHERE id=(SELECT id FROM tgt) AND (SELECT status FROM tgt)='scheduled' RETURNING id) \" +\n        \"SELECT CASE WHEN EXISTS(SELECT 1 FROM tgt) THEN 'attendance_confirmed' ELSE 'nothing_to_confirm' END AS booking_status, (SELECT id::text FROM tgt) AS appointment_id, (SELECT slot_time::text FROM tgt) AS slot_time_out, NULL::text AS alternatives, (SELECT \"+dexpr+\" FROM public.tawd_staff_users u WHERE u.id=(SELECT doctor_id FROM tgt)) AS doctor_name;\";\n} else if (action==='waitlist' && svc && svc.id && CID && PID) {\n  const df = dateOk ? (\"'\"+c.b_date+\"'::date\") : \"NULL::date\";\n  const pw = hh ? (\"'[\\\"\"+hh+\":\"+mm+\"\\\"]'::jsonb\") : \"'[]'::jsonb\";\n  const stout = dateOk ? (\"'\"+c.b_date+\"T00:00:00+04:00'\") : \"NULL::text\";\n  sql = \"WITH dup AS (SELECT id FROM public.appointment_waitlist WHERE clinic_id='\"+CID+\"'::uuid AND patient_id='\"+PID+\"'::uuid AND service_id='\"+svc.id+\"'::uuid AND status IN ('waiting','offered') LIMIT 1), \" +\n        \"ins AS (INSERT INTO public.appointment_waitlist (clinic_id,patient_id,service_id,doctor_id,desired_from,desired_to,pref_windows,status) SELECT '\"+CID+\"'::uuid,'\"+PID+\"'::uuid,'\"+svc.id+\"'::uuid,NULL,\"+df+\",\"+df+\",\"+pw+\",'waiting' WHERE NOT EXISTS(SELECT 1 FROM dup) RETURNING id) \" +\n        \"SELECT CASE WHEN EXISTS(SELECT 1 FROM ins) THEN 'waitlisted' WHEN EXISTS(SELECT 1 FROM dup) THEN 'already_waitlisted' ELSE 'error' END AS booking_status, (SELECT id::text FROM ins) AS appointment_id, \"+stout+\" AS slot_time_out, NULL::text AS alternatives, NULL::text AS doctor_name;\";\n} else if (action==='reschedule' && slot_time && future && dateOk && CID && PID) {\n  const rSvcId = (svc && svc.id) ? svc.id : '';\n  const rDur = svc ? dur : 0;\n  const IVr = \"((SELECT dur FROM newsvc)||' minutes')::interval\";\n  sql = \"WITH tgt AS (SELECT id, slot_time, service_id, duration_minutes, doctor_id FROM public.appointments WHERE clinic_id='\"+CID+\"'::uuid AND patient_id='\"+PID+\"'::uuid AND deleted_at IS NULL AND status IN ('scheduled','confirmed','checked_in') AND slot_time > now() ORDER BY slot_time LIMIT 1), \" +\n        \"newsvc AS (SELECT COALESCE(NULLIF('\"+rSvcId+\"','')::uuid,(SELECT service_id FROM tgt)) AS sid, COALESCE(NULLIF(\"+rDur+\",0),(SELECT duration_minutes FROM tgt),30) AS dur), \" +\n        \"ex AS (SELECT slot_time, duration_minutes FROM public.appointments WHERE doctor_id=(SELECT doctor_id FROM tgt) AND clinic_id='\"+CID+\"'::uuid AND deleted_at IS NULL AND status NOT IN ('cancelled','no_show') AND slot_time >= '\"+dayStart+\"'::timestamptz AND slot_time < '\"+dayEnd+\"'::timestamptz AND id <> COALESCE((SELECT id FROM tgt),'\"+NIL+\"'::uuid)), \" +\n        \"reqchk AS (SELECT (EXISTS(SELECT 1 FROM tgt)) AND (NOT EXISTS (SELECT 1 FROM ex WHERE ex.slot_time < '\"+slot_time+\"'::timestamptz + \"+IVr+\" AND ex.slot_time + (ex.duration_minutes||' minutes')::interval > '\"+slot_time+\"'::timestamptz)) AND (NOT EXISTS (SELECT 1 FROM public.doctor_schedules ss WHERE ss.doctor_id=(SELECT doctor_id FROM tgt) AND ss.is_active) OR EXISTS (SELECT 1 FROM public.doctor_schedules ss, newsvc WHERE ss.doctor_id=(SELECT doctor_id FROM tgt) AND ss.is_active AND ss.day_of_week::text=to_char(\"+MCT+\",'fmday') AND (\"+MCT+\")::time >= ss.start_time AND ((\"+MCT+\")::time + (newsvc.dur||' minutes')::interval) <= ss.end_time)) AND NOT EXISTS (SELECT 1 FROM public.clinic_holidays hh WHERE hh.clinic_id='\"+CID+\"'::uuid AND hh.holiday_date=(\"+MCT+\")::date AND (hh.applies_to_all_doctors OR hh.doctor_id=(SELECT doctor_id FROM tgt))) AS ok), \" +\n        \"canc AS (UPDATE public.appointments SET status='cancelled', cancelled_at=now(), cancellation_reason='إعادة جدولة عبر سُرى (واتساب)' WHERE id=(SELECT id FROM tgt) AND (SELECT ok FROM reqchk) RETURNING id), \" +\n        \"ins AS (INSERT INTO public.appointments (clinic_id,patient_id,doctor_id,service_id,slot_time,duration_minutes,status,type,notes) SELECT '\"+CID+\"'::uuid,'\"+PID+\"'::uuid,(SELECT doctor_id FROM tgt),(SELECT sid FROM newsvc),'\"+slot_time+\"'::timestamptz,(SELECT dur FROM newsvc),'scheduled','consultation','إعادة جدولة عبر سُرى (واتساب)' WHERE (SELECT ok FROM reqchk) AND EXISTS(SELECT 1 FROM canc) RETURNING id), \" +\n        \"cand AS (SELECT gs FROM generate_series('\"+openTs+\"'::timestamptz, '\"+closeTs+\"'::timestamptz - \"+IVr+\", \"+IVr+\") gs WHERE gs > now() AND NOT EXISTS (SELECT 1 FROM ex WHERE ex.slot_time < gs + \"+IVr+\" AND ex.slot_time + (ex.duration_minutes||' minutes')::interval > gs) ORDER BY gs LIMIT 4) \" +\n        \"SELECT CASE WHEN EXISTS(SELECT 1 FROM ins) THEN 'rescheduled' WHEN NOT EXISTS(SELECT 1 FROM tgt) THEN 'nothing_to_reschedule' ELSE 'unavailable' END AS booking_status, (SELECT id::text FROM ins) AS appointment_id, '\"+slot_time+\"' AS slot_time_out, (SELECT string_agg(to_char(gs AT TIME ZONE 'Asia/Muscat','HH24:MI'), ', ' ORDER BY gs) FROM cand) AS alternatives, (SELECT \"+dexpr+\" FROM public.tawd_staff_users u WHERE u.id=(SELECT doctor_id FROM tgt)) AS doctor_name;\";\n} else if (svc && svc.id && slot_time && future && CID && PID && dateOk) {\n  const drFilter = reqDoctor ? (\" AND (u.name_ar ILIKE '%\"+reqDoctor+\"%' OR u.name ILIKE '%\"+reqDoctor+\"%')\") : \"\";\n  sql = \"WITH mine AS (SELECT 1 FROM public.appointments WHERE patient_id='\"+PID+\"'::uuid AND clinic_id='\"+CID+\"'::uuid AND deleted_at IS NULL AND status NOT IN ('cancelled','no_show') AND slot_time='\"+slot_time+\"'::timestamptz LIMIT 1), \" +\n        \"cand AS (SELECT u.id AS doctor_id, \"+dexpr+\" AS dname FROM public.tawd_staff_users u JOIN public.doctor_services ds ON ds.doctor_id=u.id AND ds.service_id='\"+svc.id+\"'::uuid AND ds.is_active WHERE u.clinic_id='\"+CID+\"'::uuid AND u.role='doctor' AND u.is_active AND u.deleted_at IS NULL\"+drFilter+schedOkU+leaveOkU+\"), \" +\n        \"free AS (SELECT c2.doctor_id, c2.dname FROM cand c2 WHERE NOT EXISTS (SELECT 1 FROM public.appointments a WHERE a.doctor_id=c2.doctor_id AND a.clinic_id='\"+CID+\"'::uuid AND a.deleted_at IS NULL AND a.status NOT IN ('cancelled','no_show') AND a.slot_time < '\"+slot_time+\"'::timestamptz + (\"+IV+\")::interval AND a.slot_time + (a.duration_minutes||' minutes')::interval > '\"+slot_time+\"'::timestamptz) ORDER BY c2.dname LIMIT 1), \" +\n        \"upd AS (UPDATE public.patients SET name='\"+name+\"', updated_at=now() WHERE id='\"+PID+\"'::uuid AND '\"+name+\"'<>'' AND (name IS NULL OR btrim(name)='' OR name ILIKE '%واتساب%' OR name ILIKE '%whatsapp%' OR name ILIKE '%مريض%') AND EXISTS(SELECT 1 FROM free) RETURNING 1), \" +\n        \"ins AS (INSERT INTO public.appointments (clinic_id,patient_id,doctor_id,service_id,slot_time,duration_minutes,status,type,notes) SELECT '\"+CID+\"'::uuid,'\"+PID+\"'::uuid,(SELECT doctor_id FROM free),'\"+svc.id+\"'::uuid,'\"+slot_time+\"'::timestamptz,\"+dur+\",'scheduled','consultation','حجز عبر سُرى (واتساب)' WHERE EXISTS(SELECT 1 FROM free) AND NOT EXISTS(SELECT 1 FROM mine) RETURNING id), \" +\n        \"wl AS (UPDATE public.appointment_waitlist SET status='booked' WHERE patient_id='\"+PID+\"'::uuid AND clinic_id='\"+CID+\"'::uuid AND status='offered' AND EXISTS(SELECT 1 FROM ins) RETURNING id), \" +\n        \"rec AS (INSERT INTO public.automation_recovery_ledger (clinic_id,event_type,appt_id,patient_id,service_id,amount,source) SELECT '\"+CID+\"'::uuid,'waitlist_fill',(SELECT id FROM ins),'\"+PID+\"'::uuid,'\"+svc.id+\"'::uuid,\"+(Number(svc.price)||0)+\",'sura' WHERE EXISTS(SELECT 1 FROM wl) AND EXISTS(SELECT 1 FROM ins) RETURNING id), \" +\n        \"altc AS (SELECT gs FROM generate_series('\"+openTs+\"'::timestamptz, '\"+closeTs+\"'::timestamptz - (\"+IV+\")::interval, (\"+IV+\")::interval) gs WHERE gs > now() AND EXISTS (SELECT 1 FROM cand c3 WHERE NOT EXISTS (SELECT 1 FROM public.appointments a WHERE a.doctor_id=c3.doctor_id AND a.clinic_id='\"+CID+\"'::uuid AND a.deleted_at IS NULL AND a.status NOT IN ('cancelled','no_show') AND a.slot_time < gs + (\"+IV+\")::interval AND a.slot_time + (a.duration_minutes||' minutes')::interval > gs)\"+gsAvail+\") ORDER BY gs LIMIT 4) \" +\n        \"SELECT CASE WHEN EXISTS(SELECT 1 FROM mine) THEN 'already_booked' WHEN EXISTS(SELECT 1 FROM ins) THEN 'confirmed' WHEN NOT EXISTS(SELECT 1 FROM cand) THEN 'no_doctor' ELSE 'unavailable' END AS booking_status, (SELECT id::text FROM ins) AS appointment_id, '\"+slot_time+\"' AS slot_time_out, (SELECT string_agg(to_char(gs AT TIME ZONE 'Asia/Muscat','HH24:MI'), ', ' ORDER BY gs) FROM altc) AS alternatives, COALESCE((SELECT dname FROM free),(SELECT \"+dexpr+\" FROM public.appointments a JOIN public.tawd_staff_users u ON u.id=a.doctor_id WHERE a.patient_id='\"+PID+\"'::uuid AND a.clinic_id='\"+CID+\"'::uuid AND a.deleted_at IS NULL AND a.status NOT IN ('cancelled','no_show') AND a.slot_time='\"+slot_time+\"'::timestamptz LIMIT 1)) AS doctor_name;\";\n} else {\n  sql = \"SELECT 'error' AS booking_status, NULL::text AS appointment_id, NULL::text AS slot_time_out, NULL::text AS alternatives, NULL::text AS doctor_name;\";\n}\nreturn [{ json: { sql, action, service_name_ar: svc?svc.name_ar:(c.b_service_ar||''), service_name: svcName, price: svc?svc.price:'', slot_time, patient_name: c.b_patient_name||'', clinic_id: CID, patient_id: PID, _parent_ctx: c } }];"
+        },
+        "id": "wf05-n29",
+        "name": "Prep Booking Params",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4928,
+          176
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "={{ $json.sql }}",
+          "options": {}
+        },
+        "id": "wf05-n30",
+        "name": "Call WF-06 Booking",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [
+          5152,
+          176
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "NDrVeK2iQy3c33J3",
+            "name": "TAWD Supabase Postgres"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const r = $json;\nconst prep = $('Prep Booking Params').first().json;\nconst ctx = prep._parent_ctx || {};\nconst lang = ctx.lang === 'en' ? 'en' : 'ar';\nconst L = (a,e) => lang === 'en' ? e : a;\nconst cur = ctx.currency === 'OMR' ? L('ر.ع','OMR') : (ctx.currency || '');\nconst loc = lang === 'en' ? 'en-GB' : 'ar';\nconst iso = r.slot_time_out || prep.slot_time;\nconst d = iso ? new Date(iso) : null;\nconst timeS = d ? new Intl.DateTimeFormat(loc,{ timeZone:'Asia/Muscat', hour:'numeric', minute:'2-digit', hour12:true }).format(d) : '';\nconst dateS = d ? new Intl.DateTimeFormat(loc,{ timeZone:'Asia/Muscat', weekday:'long', day:'numeric', month:'long' }).format(d) : '';\nconst dr = r.doctor_name || L('طبيب العيادة','our doctor');\nconst svc = prep.service_name || prep.service_name_ar || '';\nconst st = r.booking_status;\nlet msg;\nif (st === 'confirmed') { const price = Number(prep.price); const ps = isNaN(price) ? prep.price : price.toFixed(3);\n  msg = L('تم تأكيد موعدك بنجاح ✅🌿\\n\\n• الخدمة: '+svc+'\\n• اليوم: '+dateS+'\\n• الوقت: '+timeS+'\\n• الطبيب: '+dr+'\\n• الرسوم: '+ps+' '+cur+'\\n• الدفع: عند الحضور في العيادة\\n\\nنشوفك على خير! 🦷',\n          'Your appointment is confirmed ✅🌿\\n\\n• Service: '+svc+'\\n• Day: '+dateS+'\\n• Time: '+timeS+'\\n• Doctor: '+dr+'\\n• Fee: '+ps+' '+cur+'\\n• Payment: at the clinic\\n\\nSee you soon! 🦷');\n} else if (st === 'rescheduled') {\n  msg = L('تم تعديل موعدك بنجاح ✅🌿\\n\\n• الموعد الجديد: '+dateS+' الساعة '+timeS+(svc?'\\n• الخدمة: '+svc:'')+'\\n• الطبيب: '+dr+'\\n• الدفع: عند الحضور\\n\\nنشوفك على خير! 🦷',\n          'Your appointment has been rescheduled ✅🌿\\n\\n• New time: '+dateS+' at '+timeS+(svc?'\\n• Service: '+svc:'')+'\\n• Doctor: '+dr+'\\n• Payment: at the clinic\\n\\nSee you soon! 🦷');\n} else if (st === 'cancelled') {\n  msg = L('تم إلغاء موعدك بنجاح ✅🌿\\n('+dateS+' الساعة '+timeS+')\\n\\nتحب أحجز لك موعداً آخر؟',\n          'Your appointment has been cancelled ✅🌿\\n('+dateS+' at '+timeS+')\\n\\nWould you like to book another one?');\n} else if (st === 'already_booked') {\n  msg = L('أنت محجوز بالفعل في هذا الوقت ✅🌿'+(r.doctor_name?(' مع '+r.doctor_name):'')+'. نشوفك على خير! 🦷',\n          'You already have an appointment at this time ✅🌿'+(r.doctor_name?(' with '+r.doctor_name):'')+'. See you soon! 🦷');\n} else if (st === 'attendance_confirmed') {\n  msg = L('تمام، سجّلنا تأكيد حضورك ✅🌿'+(dateS?('\\nموعدك: '+dateS+' الساعة '+timeS):'')+(r.doctor_name?('\\nمع '+r.doctor_name):'')+'\\nنشوفك على خير! 🦷',\n          'Great — your attendance is confirmed ✅🌿'+(dateS?('\\nYour appointment: '+dateS+' at '+timeS):'')+(r.doctor_name?('\\nwith '+r.doctor_name):'')+'\\nSee you soon! 🦷');\n} else if (st === 'nothing_to_confirm') {\n  msg = L('ما لقيت لك موعد قادم لتأكيده 🌿. تحب أحجز لك موعداً جديداً؟','I couldn’t find an upcoming appointment to confirm 🌿. Would you like to book one?');\n} else if (st === 'waitlisted') {\n  msg = L('تمام ✅🌿 سجّلتك في قائمة الانتظار لخدمة '+svc+(dateS?(' ('+dateS+')'):'')+'.\\nأول ما يتوفّر موعد بأرسل لك فوراً — ولك الأولوية. 🌿',\n          'Done ✅🌿 I’ve added you to the waitlist for '+svc+(dateS?(' ('+dateS+')'):'')+'.\\nI’ll message you the moment a slot opens — you’ll have priority. 🌿');\n} else if (st === 'already_waitlisted') {\n  msg = L('أنت مسجّل بالفعل في قائمة الانتظار 🌿 بنعلمك فوراً أول ما يفضى موعد.','You’re already on the waitlist 🌿 We’ll notify you as soon as a slot opens.');\n} else if (st === 'nothing_to_cancel') {\n  msg = L('ما لقيت لك موعد قادم لإلغائه 🌿. تحب أحجز لك موعداً جديداً؟','I couldn’t find an upcoming appointment to cancel 🌿. Would you like to book one?');\n} else if (st === 'nothing_to_reschedule') {\n  msg = L('ما لقيت لك موعد قادم لتعديله 🌿. تحب أحجز لك موعداً جديداً؟','I couldn’t find an upcoming appointment to reschedule 🌿. Would you like to book one?');\n} else if (st === 'no_doctor') {\n  msg = ctx.b_doctor ? L('للأسف الطبيب المطلوب غير متاح لهذي الخدمة 🌿 تحب أرشّح لك طبيباً آخر؟','Unfortunately the requested doctor isn’t available for this service 🌿 May I suggest another doctor?')\n                     : L('للأسف ما فيه طبيب يقدّم هذي الخدمة حالياً 🌿 تحب تختار خدمة ثانية؟','Unfortunately no doctor currently offers this service 🌿 Would you like to choose another service?');\n} else if (st === 'unavailable') {\n  msg = L('للأسف '+timeS+' محجوز ذاك اليوم 🌿'+(r.alternatives?('\\nأقرب الأوقات المتاحة: '+r.alternatives+'\\nأي وقت يناسبك؟ أو أسجّلك في قائمة الانتظار؟'):'\\nتحب أسجّلك في قائمة الانتظار وأعلمك أول ما يفضى موعد؟'),\n          'Unfortunately '+timeS+' is taken that day 🌿'+(r.alternatives?('\\nNearest available times: '+r.alternatives+'\\nWhich works for you? Or shall I add you to the waitlist?'):'\\nShall I add you to the waitlist and notify you when a slot opens?'));\n} else {\n  msg = L('تمام 🌿 ممكن تعطيني التفاصيل المطلوبة عشان أكمّل؟','Sure 🌿 could you share the details so I can proceed?');\n}\nreturn [{ json: { ...ctx, sender:'sura', message_text: msg, booking_status: r.booking_status, appointment_id: r.appointment_id || null } }];"
+        },
+        "id": "wf05-n31",
+        "name": "Format Booking Reply",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          5360,
+          176
+        ]
+      },
+      {
+        "parameters": {
+          "workflowId": "F3YMSuQuGiknwoEH",
+          "options": {}
+        },
+        "id": "wf05-n32",
+        "name": "S6 Save Booking Msg",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1,
+        "position": [
+          5584,
+          176
+        ]
+      },
+      {
+        "parameters": {
+          "workflowId": "0Aq11NOwPChsSzZ8",
+          "options": {}
+        },
+        "id": "wf05-n33",
+        "name": "S1 Send Booking",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1,
+        "position": [
+          5808,
+          176
+        ]
+      },
+      {
+        "parameters": {
+          "fields": {
+            "values": [
+              {
+                "name": "sender",
+                "stringValue": "sura"
+              },
+              {
+                "name": "message_text",
+                "stringValue": "={{ $json.response_ar }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "wf05-n26",
+        "name": "Set Sender Sura",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3,
+        "position": [
+          4928,
+          384
+        ]
+      },
+      {
+        "parameters": {
+          "workflowId": "F3YMSuQuGiknwoEH",
+          "options": {}
+        },
+        "id": "wf05-n17",
+        "name": "S6 Save Assistant Msg",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1,
+        "position": [
+          5152,
+          384
+        ]
+      },
+      {
+        "parameters": {
+          "workflowId": "0Aq11NOwPChsSzZ8",
+          "options": {}
+        },
+        "id": "wf05-n18",
+        "name": "S1 Send Response",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1,
+        "position": [
+          5360,
+          384
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "id": "check-clarification",
+                "leftValue": "={{ $json.clarification_count }}",
+                "rightValue": 2,
+                "operator": {
+                  "type": "number",
+                  "operation": "lt"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "wf05-n19",
+        "name": "Clarification OK?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          4688,
+          640
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "tableId": "chat_sessions",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "id",
+                "condition": "eq",
+                "keyValue": "={{ $json.session_id }}"
+              }
+            ]
+          },
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "clarification_count",
+                "fieldValue": "={{ ($json.clarification_count || 0) + 1 }}"
+              }
+            ]
+          }
+        },
+        "id": "wf05-n20",
+        "name": "Increment Clarification",
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          4928,
+          624
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "vvSpPqfrBDkrqjjc",
+            "name": "TAWD Supabase"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "fields": {
+            "values": [
+              {
+                "name": "sender",
+                "stringValue": "sura"
+              },
+              {
+                "name": "message_text",
+                "stringValue": "={{ $('Parse AI Output').first().json.response_ar }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "wf05-n27",
+        "name": "Set Sender Sura Clarif",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3,
+        "position": [
+          5152,
+          624
+        ]
+      },
+      {
+        "parameters": {
+          "workflowId": "F3YMSuQuGiknwoEH",
+          "options": {}
+        },
+        "id": "wf05-n21",
+        "name": "S6 Save Clarification",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1,
+        "position": [
+          5360,
+          624
+        ]
+      },
+      {
+        "parameters": {
+          "workflowId": "0Aq11NOwPChsSzZ8",
+          "options": {}
+        },
+        "id": "wf05-n22",
+        "name": "S1 Send Clarification",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1,
+        "position": [
+          5584,
+          624
+        ]
+      },
+      {
+        "parameters": {
+          "operation": "getAll",
+          "tableId": "tawd_staff_users",
+          "limit": 1,
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "clinic_id",
+                "condition": "eq",
+                "keyValue": "={{ $json.clinic_id }}"
+              },
+              {
+                "keyName": "role",
+                "condition": "eq",
+                "keyValue": "admin"
+              },
+              {
+                "keyName": "is_active",
+                "condition": "eq",
+                "keyValue": "={{ true }}"
+              }
+            ]
+          }
+        },
+        "id": "wf05-n37",
+        "name": "Get Clinic Admin Phone",
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          4928,
+          816
+        ],
+        "alwaysOutputData": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "vvSpPqfrBDkrqjjc",
+            "name": "TAWD Supabase"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const ai    = $('Parse AI Output').first().json;\nconst admin = $json;\nconst reason = ai.intent === 'unclear' ? 'confidence_low'\n  : ai.is_sensitive ? 'sensitive_topic'\n  : ai.intent === 'emergency' ? 'emergency'\n  : 'requires_human';\n\nreturn [{ json: {\n  ...ai,\n  original_message: ai.message_text,\n  ai_draft:         ai.response_ar,\n  reason:           reason,\n  priority:         ai.intent === 'emergency' ? 'critical' : 'medium',\n  staff_phone:      (admin && admin.id && admin.phone) ? admin.phone : null\n}}];"
+        },
+        "id": "wf05-n23",
+        "name": "Prepare HITL Input",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          5152,
+          816
+        ]
+      },
+      {
+        "parameters": {
+          "text": "={{ $json.ai_draft }}",
+          "options": {
+            "systemMessage": "??? ???? ?? ??????? ?????. ???? ??????? ??????? ????? ???? ????? ???? ?????? ??????. ???? ??????? ???????? ??? ???? ?? ?????? ???? ????.",
+            "maxIterations": 1
+          }
+        },
+        "id": "wf05-n35",
+        "name": "HITL Refine Agent",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 1,
+        "position": [
+          5376,
+          816
+        ],
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 3000
+      },
+      {
+        "parameters": {
+          "modelName": "models/gemini-2.5-pro",
+          "options": {
+            "temperature": 0.2
+          }
+        },
+        "id": "wf05-n34",
+        "name": "Gemini Pro",
+        "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+        "typeVersion": 1,
+        "position": [
+          5376,
+          992
+        ],
+        "retryOnFail": true,
+        "maxTries": 3,
+        "waitBetweenTries": 3000,
+        "credentials": {
+          "googlePalmApi": {
+            "id": "4BZtqq4TDy2wCZbp",
+            "name": "TAWD Gemini Paid"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const refined = $json.output || $json.text || '';\nconst ctx = $('Prepare HITL Input').first().json;\nreturn [{ json: { ...ctx, ai_draft: refined.trim() || ctx.ai_draft } }];"
+        },
+        "id": "wf05-n36",
+        "name": "Merge Refined",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          5696,
+          816
+        ]
+      },
+      {
+        "parameters": {
+          "workflowId": "dK1T85wRcr8XPZSO",
+          "options": {}
+        },
+        "id": "wf05-n24",
+        "name": "S7 Push HITL",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1,
+        "position": [
+          5888,
+          816
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "text",
+          "responseBody": "={{ $json.query['hub.challenge'] }}",
+          "options": {
+            "responseCode": 200
+          }
+        },
+        "id": "5c9bf278-c866-4aa1-9f2c-f94c8d77774a",
+        "name": "Respond Challenge",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          432,
+          320
+        ]
+      },
+      {
+        "id": "deb-prep",
+        "name": "Prep Buffer SQL",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1430,
+          470
+        ],
+        "parameters": {
+          "jsCode": "const c = $json;\nconst esc = s => String(s ?? '').replace(/'/g, \"''\");\nconst sql = \"INSERT INTO public.sura_inbound_buffer (clinic_id, phone, channel, message_text, wamid) VALUES ('\" +\n  c.clinic_id + \"'::uuid, '\" + esc(c.phone) + \"', '\" + esc(c.channel || 'whatsapp') + \"', '\" + esc(c.message_text) + \"', '\" + esc(c.message_id) + \"') \" +\n  \"ON CONFLICT (wamid) DO NOTHING RETURNING id::text AS buffer_id;\";\nreturn [{ json: { ...c, sql } }];"
+        }
+      },
+      {
+        "id": "deb-ins",
+        "name": "Buffer Insert",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [
+          1590,
+          470
+        ],
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "={{ $json.sql }}",
+          "options": {}
+        },
+        "credentials": {
+          "postgres": {
+            "id": "NDrVeK2iQy3c33J3",
+            "name": "TAWD Supabase Postgres"
+          }
+        }
+      },
+      {
+        "id": "deb-wait",
+        "name": "Debounce 4s",
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          1750,
+          470
+        ],
+        "parameters": {
+          "resume": "timeInterval",
+          "amount": 3,
+          "unit": "seconds"
+        },
+        "webhookId": "sura-debounce-resume"
+      },
+      {
+        "id": "deb-claim",
+        "name": "Claim Or Abort",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [
+          1910,
+          470
+        ],
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "=WITH latest AS (SELECT id FROM public.sura_inbound_buffer WHERE clinic_id = '{{ $('Prep Buffer SQL').first().json.clinic_id }}'::uuid AND phone = '{{ $('Prep Buffer SQL').first().json.phone }}' AND processed = false ORDER BY created_at DESC LIMIT 1) UPDATE public.sura_inbound_buffer b SET processed = true WHERE b.clinic_id = '{{ $('Prep Buffer SQL').first().json.clinic_id }}'::uuid AND b.phone = '{{ $('Prep Buffer SQL').first().json.phone }}' AND b.processed = false AND (SELECT id FROM latest) = '{{ $('Buffer Insert').first().json.buffer_id }}'::uuid RETURNING b.message_text, b.created_at;",
+          "options": {}
+        },
+        "credentials": {
+          "postgres": {
+            "id": "NDrVeK2iQy3c33J3",
+            "name": "TAWD Supabase Postgres"
+          }
+        }
+      },
+      {
+        "id": "deb-merge",
+        "name": "Merge & Continue",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2070,
+          470
+        ],
+        "parameters": {
+          "jsCode": "const rows = $input.all();\nif (rows.length === 0) return [];\nconst ctx = $('Prep Buffer SQL').first().json;\nconst merged = rows.map(r => r.json)\n  .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))\n  .map(r => (r.message_text || '').trim())\n  .filter(Boolean)\n  .join('\\n');\nif (!merged) return [];                                  // nothing real to process -> stop\nconst { sql, ...clean } = ctx;\nreturn [{ json: { ...clean, message_text: merged, original_message_text: ctx.message_text } }];"
+        }
+      },
+      {
+        "id": "is-voice",
+        "name": "Is Voice?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          1522,
+          304
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "typeValidation": "loose",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "id": "v",
+                "leftValue": "={{ $json.needs_media }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        }
+      },
+      {
+        "id": "get-wa-token",
+        "name": "Get WA Token",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [
+          1692,
+          164
+        ],
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "=SELECT config->>'access_token' AS access_token, config->>'gemini_key' AS gemini_key, config->>'gcp_tts_key' AS gcp_tts_key FROM public.channel_configs WHERE channel='whatsapp' AND config->>'phone_number_id' = '{{ $json.phone_number_id }}' LIMIT 1;",
+          "options": {}
+        },
+        "credentials": {
+          "postgres": {
+            "id": "NDrVeK2iQy3c33J3",
+            "name": "TAWD Supabase Postgres"
+          }
+        }
+      },
+      {
+        "id": "transcribe-voice",
+        "name": "Transcribe Voice",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1862,
+          164
+        ],
+        "parameters": {
+          "jsCode": "const c = $('Resolve Clinic ID').first().json;\nconst wa = $('Get WA Token').first().json;\nconst token = wa.access_token; const GKEY = wa.gemini_key;\ntry {\n  const meta = await this.helpers.httpRequest({ method:'GET', url:'https://graph.facebook.com/v21.0/' + c.media_id, headers:{ Authorization:'Bearer ' + token }, json:true });\n  const bin = await this.helpers.httpRequest({ method:'GET', url: meta.url, headers:{ Authorization:'Bearer ' + token }, encoding:'arraybuffer' });\n  const buf = Buffer.isBuffer(bin) ? bin : Buffer.from(bin);\n  const b64 = buf.toString('base64');\n  const mime = String(meta.mime_type || c.media_mime || '').split(';')[0];\n  const isImg = (c.media_kind === 'image') || mime.indexOf('image') === 0;\n  const prompt = isImg\n    ? 'المريض أرسل صورة إلى عيادة أسنان. صِف بإيجاز ووضوح بالعربية ما يظهر فيها فقط (إن كانت أشعة/سنّاً/تقريراً فاذكر نوعها وأي ملاحظة ظاهرة بشكل موضوعي). ممنوع التشخيص أو اقتراح علاج — وصف موضوعي قصير فقط.'\n    : 'أنت تحلّل رسالة صوتية من مريض لعيادة أسنان. أعد فقط كائن JSON صالحاً بهذا الشكل بالضبط: {\"gender\":\"male|female|unknown\",\"text\":\"...\"} حيث text هو التفريغ الحرفي للكلام بنفس لغة المتحدث وبحروف تلك اللغة (إن تحدّث بالإنجليزية فاكتبه بالإنجليزية، وإن تحدّث بالعربية فاكتبه بالعربية؛ ممنوع الترجمة أو كتابة الإنجليزية بأحرف عربية)، و gender تخمين جنس المتحدث من نبرة صوته (male للرجل، female للمرأة، unknown إذا لم يتّضح). لا تكتب أي شيء خارج JSON.';\n  const payload = JSON.stringify({ contents:[{ parts:[ { text: prompt }, { inline_data:{ mime_type: (mime || (isImg ? 'image/jpeg' : 'audio/ogg')), data: b64 } } ] }] });\n  const rawResp = await this.helpers.httpRequest({ method:'POST', url:'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + GKEY, headers:{ 'Content-Type':'application/json' }, body: payload });\n  const resp = (typeof rawResp === 'string') ? JSON.parse(rawResp) : rawResp;\n  const out = (((((resp.candidates||[])[0]||{}).content||{}).parts||[])[0] || {}).text || '';\n  if (isImg) {\n    const msg = '(أرسل المريض صورة) ' + (c.message_text ? c.message_text + ' — ' : '') + 'وصف الصورة: ' + (out.trim() || 'صورة غير واضحة');\n    return [{ json: { ...c, message_text: msg, media_processed: true } }];\n  }\n  // audio -> parse {gender, text}\n  let g = 'unknown', text = '';\n  try { let s = out.trim(); const a = s.indexOf('{'), b = s.lastIndexOf('}'); if (a>=0 && b>a) s = s.slice(a, b+1); const j = JSON.parse(s); g = String(j.gender||'unknown').toLowerCase(); text = String(j.text||'').trim(); }\n  catch(e) { text = out.trim(); }\n  if (!text) return [{ json: { ...c, message_text: 'ما وصلتني الرسالة الصوتية بوضوح 🌿 ممكن ترسلها مرة ثانية؟', media_processed: false } }];\n  let hint = '';\n  if (g === 'male') hint = '\\n\\n[ملاحظة نظام داخلية — لا تُذكر للمريض: صوت المريض يوحي بأنه رجل، خاطبيه بصيغة المذكّر]';\n  else if (g === 'female') hint = '\\n\\n[ملاحظة نظام داخلية — لا تُذكر للمريض: صوت المريضة يوحي بأنها امرأة، خاطبيها بصيغة المؤنث]';\n  return [{ json: { ...c, message_text: text + hint, voice_gender: g, media_processed: true } }];\n} catch (e) {\n  const isImg = c.media_kind === 'image';\n  return [{ json: { ...c, message_text: isImg ? '(أرسل المريض صورة) — تعذّر تحليلها، اشكري المريض واعرضي عرضها على الطبيب أو حجز موعد.' : 'واجهتني مشكلة تقنية بسيطة في تشغيل الرسالة الصوتية 🌿 ممكن ترسلها مرة ثانية؟', media_processed: false, media_error: String((e && e.message) || e).slice(0,300) } }];\n}"
+        }
+      },
+      {
+        "id": "2343fdc9-703a-41ee-b8ce-8950516459ff",
+        "name": "Prep Emergency",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4288,
+          740
+        ],
+        "parameters": {
+          "jsCode": "const c = $json;\nlet rc = {}; try { rc = $('Resolve Clinic ID').first().json || {}; } catch(e){}\nconst esc = s => String(s||'').replace(/'/g, \"''\");\nconst CID = c.clinic_id || rc.clinic_id;\nconst PID = c.patient_id || rc.patient_id;\nconst kind = c.is_emergency ? 'emergency' : (c.is_complaint ? 'complaint' : '');\nconst sev = c.is_emergency ? 'high' : 'medium';\nif (kind && CID && PID) {\n  const um = c.message_text || rc.message_text || '';\n  const combo = ('المريض: ' + um + ' | ردّ سُرى: ' + (c.response_ar||'')).slice(0,600);\n  const phone = rc.phone || c.phone || '';\n  const pname = c.b_patient_name || c.patient_name || rc.sender_name || '';\n  const sql = \"INSERT INTO public.sura_alerts (clinic_id,patient_id,phone,patient_name,kind,severity,message,status) \" +\n              \"VALUES ('\"+CID+\"'::uuid,'\"+PID+\"'::uuid,'\"+esc(phone)+\"','\"+esc(pname)+\"','\"+kind+\"','\"+sev+\"','\"+esc(combo)+\"','open');\";\n  return [{ json: { sql, kind } }];\n}\nreturn [{ json: { sql: \"SELECT 1 WHERE false;\", kind: '' } }];"
+        }
+      },
+      {
+        "id": "863bae02-ac1c-410b-bdbd-d18c7d278054",
+        "name": "Log Emergency",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [
+          4508,
+          740
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "NDrVeK2iQy3c33J3",
+            "name": "TAWD Supabase Postgres"
+          }
+        },
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "={{ $json.sql }}",
+          "options": {}
+        }
+      },
+      {
+        "id": "94628531-b1a3-4c45-bc49-854cc4b866bc",
+        "name": "Load Patient History",
+        "type": "n8n-nodes-base.postgres",
+        "typeVersion": 2,
+        "position": [
+          3528,
+          520
+        ],
+        "credentials": {
+          "postgres": {
+            "id": "NDrVeK2iQy3c33J3",
+            "name": "TAWD Supabase Postgres"
+          }
+        },
+        "parameters": {
+          "operation": "executeQuery",
+          "query": "=SELECT count(*) FILTER (WHERE a.status='completed') AS visits, count(*) FILTER (WHERE a.status='no_show') AS no_shows, max(a.slot_time) FILTER (WHERE a.status='completed')::text AS last_visit, (SELECT string_agg(DISTINCT s.name_ar, ', ') FROM public.appointments a2 JOIN public.services s ON s.id=a2.service_id WHERE a2.patient_id='{{ $json.patient_id }}'::uuid AND a2.clinic_id='{{ $json.clinic_id }}'::uuid AND a2.status='completed') AS services, (SELECT min(a3.slot_time) FROM public.appointments a3 WHERE a3.patient_id='{{ $json.patient_id }}'::uuid AND a3.clinic_id='{{ $json.clinic_id }}'::uuid AND a3.status IN ('scheduled','confirmed') AND a3.slot_time > now())::text AS next_upcoming, (SELECT json_agg(json_build_object('name_ar', COALESCE(u.name_ar,u.name), 'services', (SELECT json_agg(sv.name_ar) FROM public.doctor_services ds JOIN public.services sv ON sv.id=ds.service_id WHERE ds.doctor_id=u.id AND ds.is_active AND sv.deleted_at IS NULL))) FROM public.tawd_staff_users u WHERE u.clinic_id='{{ $json.clinic_id }}'::uuid AND u.role='doctor' AND u.is_active AND u.deleted_at IS NULL) AS doctors_json FROM public.appointments a WHERE a.patient_id='{{ $json.patient_id }}'::uuid AND a.clinic_id='{{ $json.clinic_id }}'::uuid AND a.deleted_at IS NULL;",
+          "options": {}
+        }
+      },
+      {
+        "id": "b84ede59-9c62-40c2-8e19-8c7adf4c27fd",
+        "name": "Voice Reply (TTS)",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          6100,
+          300
+        ],
+        "parameters": {
+          "jsCode": "let mk = '';\ntry { const tv = $('Transcribe Voice').first(); mk = (tv && tv.json && tv.json.media_kind) || ''; } catch(e) {}\nif (mk !== 'audio') return [];\n\nlet text = '';\ntry { const fb = $('Format Booking Reply').first(); if (fb && fb.json && fb.json.message_text) text = fb.json.message_text; } catch(e) {}\nif (!text) { try { const ss = $('Set Sender Sura').first(); if (ss && ss.json && ss.json.message_text) text = ss.json.message_text; } catch(e) {} }\nif (!text) return [];\n\nconst rc = $('Resolve Clinic ID').first().json;\nconst wa = $('Get WA Token').first().json;\nconst token = wa.access_token, ttsKey = wa.gcp_tts_key;\nconst pnid = rc.phone_number_id;\nconst to = String(rc.phone || '').replace('+','') || rc.raw_from;\nif (!ttsKey || !token || !pnid || !to) return [];\n\nconst west = String(text).replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]);\nconst speak = west\n  .replace(/[\\u{1F000}-\\u{1FAFF}\\u{2600}-\\u{27BF}\\u{2190}-\\u{21FF}\\u{2B00}-\\u{2BFF}\\u{FE0F}\\u{200D}]/gu, '')\n  .replace(/[•*_#>]/g, ' ')\n  .replace(/\\r?\\n+/g, '. ')\n  .replace(/(\\d+)\\.000\\b/g, '$1')\n  .replace(/:00\\b/g, '')\n  .replace(/:(\\d{2})\\b/g, ' و $1 دقيقة')\n  .replace(/(\\d)\\s*ص(?![؀-ۿ])/g, '$1 صباحاً')\n  .replace(/(\\d)\\s*م(?![؀-ۿ])/g, '$1 مساءً')\n  .replace(/ر\\.?\\s*ع(?![؀-ۿ])/g, ' ريال')\n  .replace(/[ \\t]{2,}/g, ' ')\n  .replace(/\\s*\\.\\s*\\.+/g, '. ')\n  .trim().slice(0, 900);\nif (!speak || speak.length < 12) return []; // skip TTS for trivial one-liners (save tokens)\n\ntry {\n  const ttsResp = await this.helpers.httpRequest({ method: 'POST', url: 'https://texttospeech.googleapis.com/v1/text:synthesize?key=' + ttsKey, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ input: { text: speak }, voice: { languageCode: (( (speak.match(/[A-Za-z]/g)||[]).length ) > ( (speak.match(/[\\u0600-\\u06FF]/g)||[]).length )) ? 'en-US' : 'ar-XA', name: (( (speak.match(/[A-Za-z]/g)||[]).length ) > ( (speak.match(/[\\u0600-\\u06FF]/g)||[]).length )) ? 'en-US-Chirp3-HD-Aoede' : 'ar-XA-Chirp3-HD-Aoede' }, audioConfig: { audioEncoding: 'OGG_OPUS' } }) });\n  const tj = (typeof ttsResp === 'string') ? JSON.parse(ttsResp) : ttsResp;\n  if (!tj.audioContent) return [];\n  const buf = Buffer.from(tj.audioContent, 'base64');\n  const binary = await this.helpers.prepareBinaryData(buf, 'reply.ogg', 'audio/ogg');\n  return [{ json: { pnid, token, to }, binary: { data: binary } }];\n} catch (e) {\n  return [];\n}"
+        }
+      },
+      {
+        "id": "ba71ff41-dc8c-4c9f-b9eb-2c6887c78092",
+        "name": "Upload Voice",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          6320,
+          300
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "=https://graph.facebook.com/v21.0/{{ $json.pnid }}/media",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "=Bearer {{ $json.token }}"
+              }
+            ]
+          },
+          "contentType": "multipart-form-data",
+          "sendBody": true,
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "messaging_product",
+                "value": "whatsapp"
+              },
+              {
+                "name": "type",
+                "value": "audio/ogg"
+              },
+              {
+                "parameterType": "formBinaryData",
+                "name": "file",
+                "inputDataFieldName": "data"
+              }
+            ]
+          },
+          "options": {}
+        }
+      },
+      {
+        "id": "7b790b70-0af8-46ab-8a2b-5ed7ea507c6a",
+        "name": "Send Voice",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          6540,
+          300
+        ],
+        "parameters": {
+          "jsCode": "const vr = $('Voice Reply (TTS)').first().json;\nconst up = $json; // Meta media response { id }\nconst mediaId = up && up.id;\nif (!mediaId) return [{ json: { voice_reply: false, detail: JSON.stringify(up).slice(0,250) } }];\ntry {\n  await this.helpers.httpRequest({ method: 'POST', url: 'https://graph.facebook.com/v21.0/' + vr.pnid + '/messages', headers: { Authorization: 'Bearer ' + vr.token, 'Content-Type': 'application/json' }, body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: vr.to, type: 'audio', audio: { id: mediaId } }) });\n  return [{ json: { voice_reply: true, media_id: mediaId } }];\n} catch (e) {\n  return [{ json: { voice_reply: false, error: String((e && e.message) || e).slice(0,250) } }];\n}"
+        }
+      }
+    ],
+    "connections": {
+      "WhatsApp Webhook": {
+        "main": [
+          [
+            {
+              "node": "Respond Challenge",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Respond 200": {
+        "main": [
+          []
+        ]
+      },
+      "Parse Request": {
+        "main": [
+          [
+            {
+              "node": "Valid Message?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Valid Message?": {
+        "main": [
+          [
+            {
+              "node": "Lookup Clinic Channel",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          []
+        ]
+      },
+      "Lookup Clinic Channel": {
+        "main": [
+          [
+            {
+              "node": "Resolve Clinic ID",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Resolve Clinic ID": {
+        "main": [
+          [
+            {
+              "node": "Is Voice?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "S4 Clinic Context": {
+        "main": [
+          [
+            {
+              "node": "Check sura_ai_enabled",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Check sura_ai_enabled": {
+        "main": [
+          [
+            {
+              "node": "Resolve Feature Flag",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Resolve Feature Flag": {
+        "main": [
+          [
+            {
+              "node": "Feature Enabled?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Feature Enabled?": {
+        "main": [
+          [
+            {
+              "node": "Maintenance Mode?",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Sura Unavailable",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Sura Unavailable": {
+        "main": [
+          [
+            {
+              "node": "S1 Send Unavailable",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Maintenance Mode?": {
+        "main": [
+          [
+            {
+              "node": "S1 Maintenance Msg",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "S3 Get Patient",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "S3 Get Patient": {
+        "main": [
+          [
+            {
+              "node": "S5 Get Session",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "S5 Get Session": {
+        "main": [
+          [
+            {
+              "node": "Set Sender User",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set Sender User": {
+        "main": [
+          [
+            {
+              "node": "S6 Save User Msg",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "S6 Save User Msg": {
+        "main": [
+          [
+            {
+              "node": "Load Patient History",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build AI Context": {
+        "main": [
+          [
+            {
+              "node": "???? Agent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "???? Agent": {
+        "main": [
+          [
+            {
+              "node": "Parse AI Output",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse AI Output": {
+        "main": [
+          [
+            {
+              "node": "HITL Gate",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Prep Emergency",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HITL Gate": {
+        "main": [
+          [
+            {
+              "node": "Is Booking?",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Clarification OK?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Is Booking?": {
+        "main": [
+          [
+            {
+              "node": "Prep Booking Params",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Set Sender Sura",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prep Booking Params": {
+        "main": [
+          [
+            {
+              "node": "Call WF-06 Booking",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Call WF-06 Booking": {
+        "main": [
+          [
+            {
+              "node": "Format Booking Reply",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Booking Reply": {
+        "main": [
+          [
+            {
+              "node": "S6 Save Booking Msg",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "S6 Save Booking Msg": {
+        "main": [
+          [
+            {
+              "node": "S1 Send Booking",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set Sender Sura": {
+        "main": [
+          [
+            {
+              "node": "S6 Save Assistant Msg",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "S6 Save Assistant Msg": {
+        "main": [
+          [
+            {
+              "node": "S1 Send Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Clarification OK?": {
+        "main": [
+          [
+            {
+              "node": "Increment Clarification",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Get Clinic Admin Phone",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Clinic Admin Phone": {
+        "main": [
+          [
+            {
+              "node": "Prepare HITL Input",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Increment Clarification": {
+        "main": [
+          [
+            {
+              "node": "Set Sender Sura Clarif",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Set Sender Sura Clarif": {
+        "main": [
+          [
+            {
+              "node": "S6 Save Clarification",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "S6 Save Clarification": {
+        "main": [
+          [
+            {
+              "node": "S1 Send Clarification",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare HITL Input": {
+        "main": [
+          [
+            {
+              "node": "HITL Refine Agent",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HITL Refine Agent": {
+        "main": [
+          [
+            {
+              "node": "Merge Refined",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge Refined": {
+        "main": [
+          [
+            {
+              "node": "S7 Push HITL",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Gemini Flash": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "???? Agent",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Gemini Pro": {
+        "ai_languageModel": [
+          [
+            {
+              "node": "HITL Refine Agent",
+              "type": "ai_languageModel",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Chat Memory": {
+        "ai_memory": [
+          [
+            {
+              "node": "???? Agent",
+              "type": "ai_memory",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Respond Challenge": {
+        "main": [
+          [
+            {
+              "node": "Parse Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prep Buffer SQL": {
+        "main": [
+          [
+            {
+              "node": "Buffer Insert",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Buffer Insert": {
+        "main": [
+          [
+            {
+              "node": "Debounce 4s",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Debounce 4s": {
+        "main": [
+          [
+            {
+              "node": "Claim Or Abort",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Claim Or Abort": {
+        "main": [
+          [
+            {
+              "node": "Merge & Continue",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge & Continue": {
+        "main": [
+          [
+            {
+              "node": "S4 Clinic Context",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Is Voice?": {
+        "main": [
+          [
+            {
+              "node": "Get WA Token",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Prep Buffer SQL",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get WA Token": {
+        "main": [
+          [
+            {
+              "node": "Transcribe Voice",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Transcribe Voice": {
+        "main": [
+          [
+            {
+              "node": "Prep Buffer SQL",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prep Emergency": {
+        "main": [
+          [
+            {
+              "node": "Log Emergency",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Load Patient History": {
+        "main": [
+          [
+            {
+              "node": "Build AI Context",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "S1 Send Response": {
+        "main": [
+          [
+            {
+              "node": "Voice Reply (TTS)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "S1 Send Booking": {
+        "main": [
+          [
+            {
+              "node": "Voice Reply (TTS)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Voice Reply (TTS)": {
+        "main": [
+          [
+            {
+              "node": "Upload Voice",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Upload Voice": {
+        "main": [
+          [
+            {
+              "node": "Send Voice",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "Mohammed Albadi",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-07-04T17:06:03.366Z",
+        "id": 531,
+        "workflowId": "arZRfHPPTytcMSR5",
+        "versionId": "4e73097c-edb3-40b6-a963-ae206413528e",
+        "event": "activated",
+        "userId": "1df90475-bb31-4a03-8006-a63c6dc1763d"
+      }
+    ]
+  }
+}

@@ -17,6 +17,7 @@ import {
   Scale,
   Wallet,
   Workflow,
+  Boxes,
   type LucideIcon,
 } from "lucide-react";
 
@@ -35,6 +36,7 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "المرضى",       href: "/clinic-admin/patients",      icon: UserCircle },
     { label: "الفواتير",     href: "/clinic-admin/invoices",      icon: CreditCard },
     { label: "الخدمات",      href: "/clinic-admin/services",      icon: Scissors },
+    { label: "المخزون",      href: "/clinic-admin/inventory",     icon: Boxes },
     { label: "الكادر الطبي", href: "/clinic-admin/staff",         icon: Users },
     { label: "التسويق",      href: "/clinic-admin/marketing",     icon: Megaphone },
     { label: "تحليلات سُرى",  href: "/clinic-admin/sura-analytics", icon: Bot },
