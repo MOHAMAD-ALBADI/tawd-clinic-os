@@ -224,7 +224,7 @@ export function LoyaltyCenter({
                       type="number"
                       min="0"
                       step={f.step}
-                      value={(form as Record<string, number>)[f.key]}
+                      value={(form as unknown as Record<string, number>)[f.key]}
                       onChange={(e) =>
                         setForm((p) => ({
                           ...p,
