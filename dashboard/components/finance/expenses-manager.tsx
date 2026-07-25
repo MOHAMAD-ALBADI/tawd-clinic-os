@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X, Trash2, CheckCircle2, AlertTriangle, Receipt, Link2 } from "lucide-react";
 import { addExpense, deleteExpense, type ExpenseInput } from "@/app/actions/expenses";
+import { NumField } from "@/components/ui/num-field";
 
 export type ExpenseRow = {
   id: string; category: string; amount: number; expense_date: string;
@@ -116,7 +117,7 @@ function AddModal({ onSubmit, onClose, pending, err }: {
                 {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </F>
-            <F label="المبلغ (ر.ع) *"><input className="field ltr-nums" type="number" min={0} step="0.001" dir="ltr" value={f.amount} onChange={(e) => set("amount", e.target.value)} /></F>
+            <F label="المبلغ (ر.ع) *"><NumField value={f.amount} onChange={(v) => set("amount", v)} placeholder="0.000" /></F>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <F label="التاريخ"><input className="field ltr-nums" type="date" dir="ltr" value={f.expense_date} onChange={(e) => set("expense_date", e.target.value)} /></F>

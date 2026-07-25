@@ -55,7 +55,7 @@ export function PatientInsuranceManager({ coverage, providers, patients }: {
           </div>
           <div className="grid grid-cols-3 gap-3">
             <F label="رقم الوثيقة"><input className="field ltr-nums" dir="ltr" value={f.policy_number} onChange={(e) => set("policy_number", e.target.value)} /></F>
-            <F label="نسبة التغطية %"><input className="field ltr-nums" type="number" min={0} max={100} dir="ltr" value={f.coverage_percent} onChange={(e) => set("coverage_percent", e.target.value)} /></F>
+            <F label="نسبة التغطية %"><input className="field ltr-nums" type="text" inputMode="decimal" min={0} max={100} dir="ltr" value={f.coverage_percent} onChange={(e) => set("coverage_percent", e.target.value)} /></F>
             <F label="سارية حتى"><input className="field ltr-nums" type="date" dir="ltr" value={f.valid_until} onChange={(e) => set("valid_until", e.target.value)} /></F>
           </div>
           {err && <p className="text-[12px] flex items-center gap-1.5" style={{ color: "#fda4b4" }}><AlertTriangle className="w-3.5 h-3.5" /> {err}</p>}

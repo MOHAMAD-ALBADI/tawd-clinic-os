@@ -206,8 +206,8 @@ function PlanDetail({ plan, services, onStatus, onCancel, onDelete, onAddItem, o
         </div>
         <div className="grid grid-cols-3 gap-2 mb-2">
           <input className="field" value={it.tooth_number} onChange={(e) => setIt((p) => ({ ...p, tooth_number: e.target.value }))} placeholder="رقم السن (اختياري)" />
-          <input className="field ltr-nums" type="number" min={1} dir="ltr" value={it.quantity} onChange={(e) => setIt((p) => ({ ...p, quantity: e.target.value }))} placeholder="الكمية" />
-          <input className="field ltr-nums" type="number" min={0} step="0.001" dir="ltr" value={it.unit_price} onChange={(e) => setIt((p) => ({ ...p, unit_price: e.target.value }))} placeholder="السعر" />
+          <input className="field ltr-nums" type="text" inputMode="decimal" min={1} dir="ltr" value={it.quantity} onChange={(e) => setIt((p) => ({ ...p, quantity: e.target.value }))} placeholder="الكمية" />
+          <input className="field ltr-nums" type="text" inputMode="decimal" min={0} step="0.001" dir="ltr" value={it.unit_price} onChange={(e) => setIt((p) => ({ ...p, unit_price: e.target.value }))} placeholder="السعر" />
         </div>
         {err && <p className="text-[12px] mb-2 flex items-center gap-1.5" style={{ color: "#fda4b4" }}><AlertTriangle className="w-3.5 h-3.5" /> {err}</p>}
         <button className="btn-primary" disabled={pending} onClick={submitItem}><Plus className="w-3.5 h-3.5" /> إضافة</button>

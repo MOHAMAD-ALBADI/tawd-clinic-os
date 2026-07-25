@@ -77,7 +77,7 @@ export function ServiceMaterialsEditor({
               <option value="">— اختر مادة —</option>
               {items.map((it) => <option key={it.id} value={it.id}>{(it.name_ar ?? it.name) + " (" + it.unit + ")"}</option>)}
             </select>
-            <input className="field ltr-nums w-28" type="number" min={0} step="0.001" dir="ltr"
+            <input className="field ltr-nums w-28" type="text" inputMode="decimal" min={0} step="0.001" dir="ltr"
               value={r.qty_per_use} onChange={(e) => setRow(i, { qty_per_use: e.target.value })} placeholder="الكمية" />
             <button title="حذف" onClick={() => setRows((p) => p.filter((_, idx) => idx !== i))}
               className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"

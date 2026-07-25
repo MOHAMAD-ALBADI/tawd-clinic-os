@@ -71,7 +71,7 @@ export function SubscriptionCard({
         </div>
         <div>
           <label className="text-[10px] font-semibold block mb-1" style={{ color: "var(--text-3)" }}>السعر ر.ع/شهر</label>
-          <input type="number" step="0.001" value={form.price} onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))} className="field ltr-nums" dir="ltr" style={{ fontSize: 12 }} />
+          <input type="text" inputMode="decimal" step="0.001" value={form.price} onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))} className="field ltr-nums" dir="ltr" style={{ fontSize: 12 }} />
         </div>
         <div>
           <label className="text-[10px] font-semibold block mb-1" style={{ color: "var(--text-3)" }}>الحالة</label>
@@ -216,7 +216,7 @@ export function CostsCard({
       </div>
       <div className="flex gap-2">
         <input value={name} onChange={(e) => setName(e.target.value)} className="field flex-1" placeholder="مثال: استضافة n8n" style={{ fontSize: 12 }} />
-        <input type="number" step="0.001" value={amount} onChange={(e) => setAmount(e.target.value)} className="field ltr-nums" dir="ltr" placeholder="ر.ع" style={{ width: 90, fontSize: 12 }} />
+        <input type="text" inputMode="decimal" step="0.001" value={amount} onChange={(e) => setAmount(e.target.value)} className="field ltr-nums" dir="ltr" placeholder="ر.ع" style={{ width: 90, fontSize: 12 }} />
         <button onClick={add} disabled={pending || !name.trim()} className="btn-ghost shrink-0"><Plus className="w-4 h-4" /></button>
       </div>
       <p className="text-[9px] mt-2" style={{ color: "var(--text-4)" }}>* التوكنز المرصودة من مساعد اللوحة؛ رصد واتساب n8n يُضاف لاحقاً</p>

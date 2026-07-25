@@ -183,7 +183,7 @@ export function CheckoutFlow({
           <div>
             <label className="text-[11px] font-semibold block mb-1" style={{ color: "var(--text-3)" }}>المبلغ المقبوض (ر.ع)</label>
             <input
-              type="number" step="0.001" min="0"
+              type="text" inputMode="decimal" step="0.001" min="0"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               className="field ltr-nums" dir="ltr"

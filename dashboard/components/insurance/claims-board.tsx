@@ -142,7 +142,7 @@ function CreateClaimModal({ providers, patients, onSave, onClose, pending, err }
       <div className="space-y-3">
         <F label="المريض"><select className="field" value={f.patient_id} onChange={(e) => set("patient_id", e.target.value)}><option value="">— اختر —</option>{patients.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></F>
         <F label="المزوّد"><select className="field" value={f.provider_id} onChange={(e) => set("provider_id", e.target.value)}><option value="">— اختر —</option>{providers.map((p) => <option key={p.id} value={p.id}>{p.provider_name_ar || p.provider_name}</option>)}</select></F>
-        <F label="المبلغ المطالَب به (ر.ع)"><input className="field ltr-nums" type="number" min={0} step="0.001" dir="ltr" value={f.submitted_amount} onChange={(e) => set("submitted_amount", e.target.value)} /></F>
+        <F label="المبلغ المطالَب به (ر.ع)"><input className="field ltr-nums" type="text" inputMode="decimal" min={0} step="0.001" dir="ltr" value={f.submitted_amount} onChange={(e) => set("submitted_amount", e.target.value)} /></F>
         {err && <p className="text-[12px] flex items-center gap-1.5" style={{ color: "#fda4b4" }}><AlertTriangle className="w-3.5 h-3.5" /> {err}</p>}
         <button className="btn-primary w-full justify-center" disabled={pending} onClick={() => onSave({ patient_id: f.patient_id, provider_id: f.provider_id, submitted_amount: Number(f.submitted_amount) })}>{pending ? "…" : "إنشاء المطالبة"}</button>
       </div>
@@ -163,7 +163,7 @@ function ResolveModal({ claim, outcome, onSave, onClose, pending, err }: {
       <div className="space-y-3">
         {outcome === "approved" ? (
           <label className="block"><span className="text-[11px] font-semibold block mb-1" style={{ color: "var(--text-3)" }}>المبلغ المعتمد (ر.ع)</span>
-            <input className="field ltr-nums" type="number" min={0} step="0.001" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
+            <input className="field ltr-nums" type="text" inputMode="decimal" min={0} step="0.001" dir="ltr" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
         ) : (
           <label className="block"><span className="text-[11px] font-semibold block mb-1" style={{ color: "var(--text-3)" }}>سبب الرفض</span>
             <input className="field" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="اختياري" /></label>

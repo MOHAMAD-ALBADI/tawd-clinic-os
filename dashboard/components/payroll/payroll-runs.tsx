@@ -118,13 +118,13 @@ export function PayrollRuns({ period, runs, currentRun, payslips }: {
                     <td className="px-2.5 py-2.5 ltr-nums" style={{ color: p.absence_days > 0 ? "#fbbf24" : "var(--text-4)" }}>{p.absence_days}</td>
                     <td className="px-2.5 py-2.5">
                       {isDraft ? (
-                        <input className="field ltr-nums" style={{ width: 84, padding: "0.3rem 0.5rem" }} type="number" min={0} step="0.001" dir="ltr" value={add}
+                        <input className="field ltr-nums" style={{ width: 84, padding: "0.3rem 0.5rem" }} type="text" inputMode="decimal" min={0} step="0.001" dir="ltr" value={add}
                           onChange={(ev) => setEdits((prev) => ({ ...prev, [p.id]: { additions: ev.target.value, deductions: ded } }))} />
                       ) : <span className="ltr-nums" style={{ color: "var(--text-2)" }}>{fmt(p.additions)}</span>}
                     </td>
                     <td className="px-2.5 py-2.5">
                       {isDraft ? (
-                        <input className="field ltr-nums" style={{ width: 84, padding: "0.3rem 0.5rem" }} type="number" min={0} step="0.001" dir="ltr" value={ded}
+                        <input className="field ltr-nums" style={{ width: 84, padding: "0.3rem 0.5rem" }} type="text" inputMode="decimal" min={0} step="0.001" dir="ltr" value={ded}
                           onChange={(ev) => setEdits((prev) => ({ ...prev, [p.id]: { additions: add, deductions: ev.target.value } }))} />
                       ) : <span className="ltr-nums" style={{ color: "var(--text-2)" }}>{fmt(p.deductions)}</span>}
                     </td>

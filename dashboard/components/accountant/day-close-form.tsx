@@ -68,12 +68,12 @@ export function DayCloseForm({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-[11px] font-semibold block mb-1" style={{ color: "var(--text-3)" }}>الرصيد الافتتاحي (فكّة الصباح)</label>
-            <input type="number" step="0.001" min="0" value={openingFloat}
+            <input type="text" inputMode="decimal" step="0.001" min="0" value={openingFloat}
               onChange={(e) => setOpeningFloat(e.target.value)} className="field ltr-nums" dir="ltr" />
           </div>
           <div>
             <label className="text-[11px] font-semibold block mb-1" style={{ color: "var(--text-3)" }}>الكاش المعدود فعلياً *</label>
-            <input type="number" step="0.001" min="0" value={countedCash}
+            <input type="text" inputMode="decimal" step="0.001" min="0" value={countedCash}
               onChange={(e) => setCountedCash(e.target.value)} className="field ltr-nums" dir="ltr" placeholder="0.000" />
           </div>
         </div>

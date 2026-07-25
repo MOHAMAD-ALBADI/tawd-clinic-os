@@ -175,7 +175,7 @@ export function LoyaltyEditor({
                 </label>
                 <div className="relative">
                   <input
-                    type="number"
+                    type="text" inputMode="decimal"
                     min="0"
                     step={f.step ?? "1"}
                     value={(form as any)[f.key]}

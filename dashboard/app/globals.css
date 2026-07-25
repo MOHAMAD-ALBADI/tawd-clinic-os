@@ -96,7 +96,21 @@
 
 /* ── Base ── */
 * { border-color: var(--hairline); box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  /* Tell the browser this UI is dark so NATIVE widgets follow: <select> dropdown
+     panels, date pickers, scrollbars. Without it Chrome paints the dropdown list
+     white with near-invisible text on our charcoal theme. */
+  color-scheme: dark;
+}
+
+/* Belt-and-braces for the dropdown list itself (Windows/Chrome honours these
+   on <option> even though most other option styling is ignored). */
+select option,
+select optgroup {
+  background-color: #18181b;
+  color: #f4f4f5;
+}
 
 body {
   background: var(--surface-0);

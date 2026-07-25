@@ -97,7 +97,7 @@ function ServiceForm({ service, onClose }: ServiceFormProps) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <FieldLabel icon={Banknote} label="السعر (ر.ع) *" />
-          <input type="number" min="0" step="0.01" value={form.price} onChange={(e) => field("price", e.target.value)} placeholder="0.00" style={inputStyle}
+          <input type="text" inputMode="decimal" min="0" step="0.01" value={form.price} onChange={(e) => field("price", e.target.value)} placeholder="0.00" style={inputStyle}
             onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
             onBlur={(e)  => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")} />
         </div>
@@ -107,7 +107,7 @@ function ServiceForm({ service, onClose }: ServiceFormProps) {
             label="مدة الجلسة (دقيقة)"
             hint="كم دقيقة تأخذ هذه الخدمة؟ يساعد في تنظيم المواعيد"
           />
-          <input type="number" min="5" step="5" value={form.duration_minutes} onChange={(e) => field("duration_minutes", e.target.value)} placeholder="مثال: 30" style={inputStyle}
+          <input type="text" inputMode="decimal" min="5" step="5" value={form.duration_minutes} onChange={(e) => field("duration_minutes", e.target.value)} placeholder="مثال: 30" style={inputStyle}
             onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
             onBlur={(e)  => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")} />
         </div>

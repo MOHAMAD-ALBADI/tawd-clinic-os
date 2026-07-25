@@ -166,15 +166,15 @@ function SalaryModal({ staff, onSave, onClose, pending, err }: {
             <F label="تاريخ التعيين"><input className="field ltr-nums" type="date" dir="ltr" value={f.hire_date ?? ""} onChange={(e) => set("hire_date", e.target.value)} /></F>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <F label="الراتب الأساسي (ر.ع)"><input className="field ltr-nums" type="number" min={0} step="0.001" dir="ltr" value={f.basic_salary ?? 0} onChange={(e) => set("basic_salary", e.target.value)} /></F>
-            <F label="بدل سكن"><input className="field ltr-nums" type="number" min={0} step="0.001" dir="ltr" value={f.housing_allowance ?? 0} onChange={(e) => set("housing_allowance", e.target.value)} /></F>
+            <F label="الراتب الأساسي (ر.ع)"><input className="field ltr-nums" type="text" inputMode="decimal" min={0} step="0.001" dir="ltr" value={f.basic_salary ?? 0} onChange={(e) => set("basic_salary", e.target.value)} /></F>
+            <F label="بدل سكن"><input className="field ltr-nums" type="text" inputMode="decimal" min={0} step="0.001" dir="ltr" value={f.housing_allowance ?? 0} onChange={(e) => set("housing_allowance", e.target.value)} /></F>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <F label="بدل نقل"><input className="field ltr-nums" type="number" min={0} step="0.001" dir="ltr" value={f.transport_allowance ?? 0} onChange={(e) => set("transport_allowance", e.target.value)} /></F>
-            <F label="بدلات أخرى"><input className="field ltr-nums" type="number" min={0} step="0.001" dir="ltr" value={f.other_allowance ?? 0} onChange={(e) => set("other_allowance", e.target.value)} /></F>
+            <F label="بدل نقل"><input className="field ltr-nums" type="text" inputMode="decimal" min={0} step="0.001" dir="ltr" value={f.transport_allowance ?? 0} onChange={(e) => set("transport_allowance", e.target.value)} /></F>
+            <F label="بدلات أخرى"><input className="field ltr-nums" type="text" inputMode="decimal" min={0} step="0.001" dir="ltr" value={f.other_allowance ?? 0} onChange={(e) => set("other_allowance", e.target.value)} /></F>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <F label="نسبة العمولة % (للأطباء)"><input className="field ltr-nums" type="number" min={0} max={100} step="0.5" dir="ltr" value={f.commission_rate ?? 0} onChange={(e) => set("commission_rate", e.target.value)} /></F>
+            <F label="نسبة العمولة % (للأطباء)"><input className="field ltr-nums" type="text" inputMode="decimal" min={0} max={100} step="0.5" dir="ltr" value={f.commission_rate ?? 0} onChange={(e) => set("commission_rate", e.target.value)} /></F>
             <F label="البنك"><input className="field" value={f.bank_name ?? ""} onChange={(e) => set("bank_name", e.target.value)} placeholder="اختياري" /></F>
           </div>
           <F label="IBAN"><input className="field ltr-nums" dir="ltr" value={f.iban ?? ""} onChange={(e) => set("iban", e.target.value)} placeholder="OM.." /></F>

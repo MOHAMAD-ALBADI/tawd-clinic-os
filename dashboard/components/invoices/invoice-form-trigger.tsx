@@ -117,8 +117,8 @@ function InvoiceModal({ patients, services, onClose }: { patients: PatientOpt[];
                       {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
                     <input className="field col-span-4" value={l.description} onChange={(e) => setLine(i, { description: e.target.value })} placeholder="الوصف" />
-                    <input className="field col-span-2 ltr-nums" type="number" min={1} value={l.quantity} onChange={(e) => setLine(i, { quantity: Math.max(1, +e.target.value || 1) })} placeholder="الكمية" />
-                    <input className="field col-span-2 ltr-nums" type="number" min={0} step="0.001" value={l.unit_price || ""} onChange={(e) => setLine(i, { unit_price: +e.target.value || 0 })} placeholder="السعر" />
+                    <input className="field col-span-2 ltr-nums" type="text" inputMode="decimal" min={1} value={l.quantity} onChange={(e) => setLine(i, { quantity: Math.max(1, +e.target.value || 1) })} placeholder="الكمية" />
+                    <input className="field col-span-2 ltr-nums" type="text" inputMode="decimal" min={0} step="0.001" value={l.unit_price || ""} onChange={(e) => setLine(i, { unit_price: +e.target.value || 0 })} placeholder="السعر" />
                     <button onClick={() => removeLine(i)} className="col-span-1 h-9 rounded-lg flex items-center justify-center transition-colors hover:bg-white/[0.06]" style={{ color: "var(--text-3)" }} title="حذف البند">
                       <Trash2 className="w-4 h-4" />
                     </button>

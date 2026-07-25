@@ -57,7 +57,7 @@ export function RecordVitalsForm({ patientId }: { patientId: string }) {
         {FIELDS.map((f) => (
           <div key={f.key}>
             <label className="text-[11px] font-medium block mb-1" style={{ color: "rgba(148,163,184,0.6)" }}>{f.label} {f.unit && <span className="opacity-60">({f.unit})</span>}</label>
-            <input type="number" step={f.step ?? "1"} value={vals[f.key] ?? ""} onChange={(e) => setVals((s) => ({ ...s, [f.key]: e.target.value }))}
+            <input type="text" inputMode="decimal" step={f.step ?? "1"} value={vals[f.key] ?? ""} onChange={(e) => setVals((s) => ({ ...s, [f.key]: e.target.value }))}
               style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(226,232,240,0.92)", borderRadius: 8, padding: "0.45rem 0.6rem", fontSize: 13, outline: "none" }} />
           </div>
         ))}

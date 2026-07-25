@@ -214,8 +214,8 @@ function ItemForm({ initial, onSubmit, pending, err }: {
         <Field label="الوحدة"><input className="field" value={f.unit ?? ""} onChange={(e) => set("unit", e.target.value)} placeholder="علبة، مل، حبة" /></Field>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="حد الطلب (تنبيه)"><input className="field ltr-nums" type="number" min={0} step="0.001" dir="ltr" value={f.reorder_level ?? 0} onChange={(e) => set("reorder_level", e.target.value)} /></Field>
-        <Field label="سعر التكلفة (ر.ع)"><input className="field ltr-nums" type="number" min={0} step="0.001" dir="ltr" value={f.cost_price ?? 0} onChange={(e) => set("cost_price", e.target.value)} /></Field>
+        <Field label="حد الطلب (تنبيه)"><input className="field ltr-nums" type="text" inputMode="decimal" min={0} step="0.001" dir="ltr" value={f.reorder_level ?? 0} onChange={(e) => set("reorder_level", e.target.value)} /></Field>
+        <Field label="سعر التكلفة (ر.ع)"><input className="field ltr-nums" type="text" inputMode="decimal" min={0} step="0.001" dir="ltr" value={f.cost_price ?? 0} onChange={(e) => set("cost_price", e.target.value)} /></Field>
       </div>
       <ErrLine err={err} />
       <button className="btn-primary w-full justify-center" disabled={pending} onClick={() => onSubmit(f)}>
@@ -239,8 +239,8 @@ function ReceiveForm({ item, suppliers, onSubmit, pending, err }: {
       <h3 className="font-bold text-white text-lg mb-1">استلام مخزون</h3>
       <p className="text-[12px]" style={{ color: "var(--text-3)" }}>{item.name_ar ?? item.name} — الرصيد الحالي <span className="ltr-nums font-bold text-white">{num(item.current_stock)}</span> {item.unit}</p>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="الكمية المستلمة *"><input className="field ltr-nums" type="number" min={0} step="0.001" dir="ltr" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="0" /></Field>
-        <Field label="سعر التكلفة (ر.ع)"><input className="field ltr-nums" type="number" min={0} step="0.001" dir="ltr" value={cost} onChange={(e) => setCost(e.target.value)} /></Field>
+        <Field label="الكمية المستلمة *"><input className="field ltr-nums" type="text" inputMode="decimal" min={0} step="0.001" dir="ltr" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="0" /></Field>
+        <Field label="سعر التكلفة (ر.ع)"><input className="field ltr-nums" type="text" inputMode="decimal" min={0} step="0.001" dir="ltr" value={cost} onChange={(e) => setCost(e.target.value)} /></Field>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <Field label="تاريخ الانتهاء"><input className="field ltr-nums" type="date" dir="ltr" value={expiry} onChange={(e) => setExpiry(e.target.value)} /></Field>
@@ -273,7 +273,7 @@ function AdjustForm({ item, onSubmit, pending, err }: {
     <div className="space-y-3">
       <h3 className="font-bold text-white text-lg mb-1">جرد / تعديل الكمية</h3>
       <p className="text-[12px]" style={{ color: "var(--text-3)" }}>{item.name_ar ?? item.name} — النظام يسجّل <span className="ltr-nums font-bold text-white">{num(item.current_stock)}</span> {item.unit}</p>
-      <Field label="الكمية الفعلية بعد الجرد *"><input className="field ltr-nums" type="number" min={0} step="0.001" dir="ltr" value={qty} onChange={(e) => setQty(e.target.value)} /></Field>
+      <Field label="الكمية الفعلية بعد الجرد *"><input className="field ltr-nums" type="text" inputMode="decimal" min={0} step="0.001" dir="ltr" value={qty} onChange={(e) => setQty(e.target.value)} /></Field>
       <Field label="السبب"><input className="field" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="تالف، فرق جرد…" /></Field>
       <ErrLine err={err} />
       <button className="btn-primary w-full justify-center" disabled={pending} onClick={() => onSubmit({ new_qty: Number(qty), reason })}>
