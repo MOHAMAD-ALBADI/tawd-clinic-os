@@ -308,7 +308,11 @@ async function logUsage(
 
 export async function POST(req: Request) {
   const claims = await getUserClaims();
-  if (!claims || !claims.clinic_id) {
+  /* The platform owner has NO clinic_id by design (they're untied from any clinic
+     so their dashboard stays isolated) and runs Sura in unscoped cross-clinic
+     mode below. Requiring clinic_id here locked them out entirely. */
+  const isPlatform = claims ? hasRole(claims, "platform_admin") : false;
+  if (!claims || (!claims.clinic_id && !isPlatform)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   const role = (claims.role ?? "clinic_admin") as Role;
@@ -328,19 +332,23 @@ export async function POST(req: Request) {
   if (!question) return NextResponse.json({ error: "empty question" }, { status: 400 });
 
   const sb = await createServiceRoleClient();
-  const isPlatform = hasRole(claims, "platform_admin");
   const cid = isPlatform ? "" : claims.clinic_id; // '' = unscoped platform mode
 
   const [cfgRes, clinicRes, meRes] = await Promise.all([
     sb.from("channel_configs").select("config").eq("channel", "whatsapp").eq("is_active", true).limit(1).maybeSingle(),
-    sb.from("tawd_clinics").select("name, name_ar, clinic_type").eq("id", claims.clinic_id).maybeSingle(),
+    // platform mode has no clinic_id — an empty value against a uuid column errors
+    isPlatform
+      ? Promise.resolve({ data: null })
+      : sb.from("tawd_clinics").select("name, name_ar, clinic_type").eq("id", claims.clinic_id).maybeSingle(),
     sb.from("tawd_staff_users").select("name, name_ar").eq("id", claims.sub).maybeSingle(),
   ]);
   const geminiKey = (cfgRes.data?.config as Record<string, string> | null)?.gemini_key;
   if (!geminiKey) {
     return NextResponse.json({ answer: "إعداد الذكاء الاصطناعي غير مكتمل لهذه العيادة — تواصل مع دعم طود." });
   }
-  const clinicName = clinicRes.data?.name_ar ?? clinicRes.data?.name ?? "العيادة";
+  const clinicName = isPlatform
+    ? "منصة طود (كل العيادات)"
+    : (clinicRes.data?.name_ar ?? clinicRes.data?.name ?? "العيادة");
   const userName = meRes.data?.name_ar ?? meRes.data?.name ?? "";
 
   const now = new Date();
