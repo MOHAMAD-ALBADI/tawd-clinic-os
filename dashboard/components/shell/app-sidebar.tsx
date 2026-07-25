@@ -94,15 +94,27 @@ export function AppSidebar({ role, allRoles, userName, clinicName }: AppSidebarP
       {/* ── Navigation ── */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
         <div className="space-y-0.5">
-          {navItems.map((item) => {
+          {navItems.map((item, i) => {
+            /* print a group heading the first time a section appears — keeps a long
+               menu scannable; menus without sections stay flat */
+            const heading =
+              item.section && item.section !== navItems[i - 1]?.section ? item.section : null;
             const isActive = item.exact
               ? pathname === item.href
               : pathname === item.href ||
                 (item.href !== "/" && pathname.startsWith(item.href + "/"));
 
             return (
+              <div key={item.href}>
+                {heading && (
+                  <p
+                    className="text-[9.5px] font-bold tracking-[0.16em] uppercase px-3 pt-4 pb-1.5"
+                    style={{ color: "var(--text-4)" }}
+                  >
+                    {heading}
+                  </p>
+                )}
               <Link
-                key={item.href}
                 href={item.href}
                 className={cn(
                   "relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] transition-all duration-150 group",
@@ -146,6 +158,7 @@ export function AppSidebar({ role, allRoles, userName, clinicName }: AppSidebarP
                   </span>
                 )}
               </Link>
+              </div>
             );
           })}
         </div>

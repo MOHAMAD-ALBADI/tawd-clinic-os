@@ -29,25 +29,38 @@ export interface NavItem {
   icon: LucideIcon;
   badge?: string;
   exact?: boolean;
+  /** Optional group heading. The sidebar prints it once above the first item
+      that carries it; menus with no sections render flat as before. */
+  section?: string;
 }
 
 export const NAV_ITEMS: Record<Role, NavItem[]> = {
   clinic_admin: [
     { label: "لوحة التحكم",  href: "/clinic-admin",              icon: LayoutDashboard, exact: true },
-    { label: "المواعيد",     href: "/clinic-admin/appointments",  icon: Calendar },
+
+    { section: "العيادة اليوم",
+      label: "المواعيد",     href: "/clinic-admin/appointments",  icon: Calendar },
     { label: "المرضى",       href: "/clinic-admin/patients",      icon: UserCircle },
     { label: "خطط العلاج",   href: "/clinic-admin/treatment-plans", icon: ClipboardList },
-    { label: "الفواتير",     href: "/clinic-admin/invoices",      icon: CreditCard },
-    { label: "الخدمات",      href: "/clinic-admin/services",      icon: Scissors },
+
+    { section: "المال",
+      label: "الفواتير",     href: "/clinic-admin/invoices",      icon: CreditCard },
+    { label: "المالية",      href: "/clinic-admin/finance",        icon: Receipt },
+    { label: "التأمين",      href: "/clinic-admin/insurance",      icon: ShieldCheck },
+
+    { section: "الموارد",
+      label: "الخدمات",      href: "/clinic-admin/services",      icon: Scissors },
     { label: "المخزون",      href: "/clinic-admin/inventory",     icon: Boxes },
     { label: "الكادر الطبي", href: "/clinic-admin/staff",         icon: Users },
     { label: "الرواتب",      href: "/clinic-admin/payroll",        icon: Wallet },
-    { label: "المالية",      href: "/clinic-admin/finance",        icon: Receipt },
-    { label: "التأمين",      href: "/clinic-admin/insurance",      icon: ShieldCheck },
-    { label: "التسويق",      href: "/clinic-admin/marketing",     icon: Megaphone },
+
+    { section: "النمو",
+      label: "التسويق",      href: "/clinic-admin/marketing",     icon: Megaphone },
     { label: "تحليلات سُرى",  href: "/clinic-admin/sura-analytics", icon: Bot },
     { label: "التقارير",     href: "/clinic-admin/reports",       icon: BarChart3 },
-    { label: "الإعدادات",   href: "/clinic-admin/settings",      icon: Settings },
+
+    { section: "النظام",
+      label: "الإعدادات",   href: "/clinic-admin/settings",      icon: Settings },
   ],
   doctor: [
     { label: "جدولي اليوم",    href: "/doctor",              icon: Stethoscope, exact: true },

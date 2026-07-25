@@ -11,6 +11,7 @@ import { SparkLine }                 from "@/components/dashboard/spark-line";
 import { KpiGrid }                   from "@/components/dashboard/kpi-grid";
 import { SuraRecoveryPanel }         from "@/components/dashboard/sura-recovery";
 import { EmergencyAlerts }           from "@/components/dashboard/emergency-alerts";
+import { ActionCenter }              from "@/components/dashboard/action-center";
 import { SupportAccessBanner }       from "@/components/platform/manage-widgets";
 import { TawdBarsGlyph }             from "@/components/shell/tawd-logo";
 
@@ -105,6 +106,49 @@ export default async function ClinicAdminPage() {
     .order("created_at", { ascending: false })
     .limit(1);
 
+  /* ── Action-center signals: what the manager must act on, pulled from the
+     operational modules (inventory / insurance / commissions / finance). ── */
+  const monthStart = `${today.slice(0, 7)}-01`;
+  const soon60 = new Date(Date.now() + 60 * 86_400_000).toISOString().slice(0, 10);
+  const [invItemsRes, expiringRes, claimsRes, commRes, expensesRes, monthPaidRes, unbilledRes] =
+    await Promise.all([
+      sb.from("inventory_items").select("current_stock, reorder_level")
+        .eq("clinic_id", claims.clinic_id).eq("is_active", true).is("deleted_at", null),
+      sb.from("inventory_batches").select("id", { count: "exact", head: true })
+        .eq("clinic_id", claims.clinic_id).gt("qty_remaining", 0)
+        .not("expiry_date", "is", null).lte("expiry_date", soon60),
+      sb.from("insurance_claims").select("submitted_amount")
+        .eq("clinic_id", claims.clinic_id).in("status", ["pending", "submitted"]),
+      sb.from("doctor_commissions").select("id", { count: "exact", head: true })
+        .eq("clinic_id", claims.clinic_id).eq("status", "pending"),
+      sb.from("expenses").select("amount")
+        .eq("clinic_id", claims.clinic_id).is("deleted_at", null).gte("expense_date", monthStart),
+      sb.from("payments").select("amount")
+        .eq("clinic_id", claims.clinic_id).eq("status", "completed")
+        .gte("created_at", `${monthStart}T00:00:00`),
+      sb.from("appointments").select("id, invoices!appt_id(id)")
+        .eq("clinic_id", claims.clinic_id).eq("status", "completed").is("deleted_at", null).limit(500),
+    ]);
+
+  const num = (v: unknown) => Number(v ?? 0) || 0;
+  const claimRows = claimsRes.data ?? [];
+  const actionSignals = {
+    lowStock: (invItemsRes.data ?? []).filter(
+      (i) => num(i.reorder_level) > 0 && num(i.current_stock) <= num(i.reorder_level)
+    ).length,
+    expiringSoon: expiringRes.count ?? 0,
+    openClaims: claimRows.length,
+    claimsValue: claimRows.reduce((s, c) => s + num(c.submitted_amount), 0),
+    pendingCommissions: commRes.count ?? 0,
+    monthProfit:
+      (monthPaidRes.data ?? []).reduce((s, p) => s + num(p.amount), 0) -
+      (expensesRes.data ?? []).reduce((s, e) => s + num(e.amount), 0),
+    unbilledVisits: (unbilledRes.data ?? []).filter((a) => {
+      const inv = a.invoices as unknown as { id?: string }[] | { id?: string } | null;
+      return Array.isArray(inv) ? inv.length === 0 : !inv;
+    }).length,
+  };
+
   const appts           = apptRes.data       ?? [];
   const clinic          = clinicRes.data;
   const clinicName      = clinic?.name_ar    ?? clinic?.name ?? "عيادتك";
@@ -194,6 +238,8 @@ export default async function ClinicAdminPage() {
 
       {/* ══ EMERGENCY ALERTS (safety-critical, top) ══ */}
       <EmergencyAlerts alerts={emergencyAlerts} />
+
+      <ActionCenter s={actionSignals} />
 
       {/* ══ HERO ROW ══ */}
       <div className="grid grid-cols-12 gap-4">
