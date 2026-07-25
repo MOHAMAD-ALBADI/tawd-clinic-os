@@ -161,13 +161,15 @@ export async function createInvoiceForAppointment(appointmentId: string) {
   const vatAmount = round3((subtotal * rate) / 100);
   const total = round3(subtotal + vatAmount);
 
-  /* sequential number: INV-YYYYMM-#### */
-  const ym = new Date().toISOString().slice(0, 7).replace("-", "");
-  const { count } = await sb
-    .from("invoices").select("id", { count: "exact", head: true })
-    .eq("clinic_id", claims.clinic_id)
-    .ilike("invoice_number", `INV-${ym}-%`);
-  const invoiceNumber = `INV-${ym}-${String((count ?? 0) + 1).padStart(4, "0")}`;
+  /* Same allocator the manager's invoice form uses. Two count-based schemes ran
+     here before — one counting the month's invoices, one counting all of them —
+     so the cashier and the manager could compute the same number and one of them
+     would hit the (clinic_id, invoice_number) unique index. */
+  const { data: numData, error: numErr } = await sb.rpc("next_invoice_number", {
+    p_clinic: claims.clinic_id,
+  });
+  if (numErr || !numData) return { ok: false as const, reason: "تعذّر توليد رقم الفاتورة" };
+  const invoiceNumber = numData as string;
 
   const { data: inv, error: ierr } = await sb
     .from("invoices")

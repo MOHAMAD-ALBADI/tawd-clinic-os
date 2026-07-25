@@ -2,33 +2,36 @@
 
 import { useState, useRef, useTransition } from "react";
 import Link from "next/link";
-import { MoreHorizontal, Check, Trash2, FileText } from "lucide-react";
-import { updateInvoiceStatus, deleteInvoice, type InvoiceStatus } from "@/app/actions/invoices";
-
-const STATUS_OPTS: { value: InvoiceStatus; label: string }[] = [
-  { value: "draft", label: "مسودة" },
-  { value: "sent", label: "مُرسلة" },
-  { value: "paid", label: "مدفوعة" },
-  { value: "partially_paid", label: "مدفوعة جزئياً" },
-  { value: "overdue", label: "متأخرة" },
-  { value: "refunded", label: "مستردة" },
-];
+import { MoreHorizontal, Check, Trash2, FileText, Banknote, AlertTriangle } from "lucide-react";
+import { updateInvoiceStatus, deleteInvoice, recordInvoicePayment } from "@/app/actions/invoices";
+import { MANUAL_STATUSES, STATUS_META, GATEWAY_AR, fmt3, type InvoiceStatus } from "@/lib/invoice-meta";
+import { NumField } from "@/components/ui/num-field";
 
 type Pos = { left: number; top?: number; bottom?: number };
 const MENU_W = 216;
 
-export function InvoiceRowActions({ id, status }: { id: string; status: string }) {
+type Gateway = "cash" | "bank_transfer" | "thawani" | "insurance";
+const GATEWAYS: Gateway[] = ["cash", "bank_transfer", "thawani", "insurance"];
+
+export function InvoiceRowActions({
+  id, status, total, paid,
+}: { id: string; status: string; total: number; paid: number }) {
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [paying, setPaying] = useState(false);
   const [pos, setPos] = useState<Pos | null>(null);
+  const [err, setErr] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const btnRef = useRef<HTMLButtonElement>(null);
 
+  const remaining = Math.round((total - paid) * 1000) / 1000;
+  const collectable = remaining > 0 && !["paid", "cancelled", "refunded"].includes(status);
+
   function toggle() {
-    if (open) { setOpen(false); setConfirming(false); return; }
+    if (open) { close(); return; }
     const r = btnRef.current?.getBoundingClientRect();
     if (r) {
-      const openUp = window.innerHeight - r.bottom < 320;
+      const openUp = window.innerHeight - r.bottom < 340;
       const left = Math.max(8, Math.min(r.right - MENU_W, window.innerWidth - MENU_W - 8));
       setPos({
         left,
@@ -38,14 +41,27 @@ export function InvoiceRowActions({ id, status }: { id: string; status: string }
     }
     setOpen(true);
   }
+  function close() { setOpen(false); setConfirming(false); setPaying(false); setErr(null); }
 
   function change(s: InvoiceStatus) {
-    startTransition(async () => { try { await updateInvoiceStatus(id, s); } finally { setOpen(false); } });
+    setErr(null);
+    startTransition(async () => {
+      try {
+        const r = await updateInvoiceStatus(id, s);
+        if (!r.ok) { setErr(r.reason); return; }
+        close();
+      } catch { setErr("تعذّر الاتصال"); }
+    });
   }
-  /* Confirmation lives inside the menu — a native confirm() opens a browser dialog
-     outside the RTL dark UI. */
   function remove() {
-    startTransition(async () => { try { await deleteInvoice(id); } finally { setOpen(false); } });
+    setErr(null);
+    startTransition(async () => {
+      try {
+        const r = await deleteInvoice(id);
+        if (!r.ok) { setErr(r.reason); return; }
+        close();
+      } catch { setErr("تعذّر الاتصال"); }
+    });
   }
 
   return (
@@ -56,12 +72,29 @@ export function InvoiceRowActions({ id, status }: { id: string; status: string }
       </button>
       {open && pos && (
         <>
-          <div className="fixed inset-0 z-[55]" onClick={() => { setOpen(false); setConfirming(false); }} />
+          <div className="fixed inset-0 z-[55]" onClick={close} />
           <div
             className="panel py-1.5 animate-scale-in"
             style={{ position: "fixed", left: pos.left, top: pos.top, bottom: pos.bottom, width: MENU_W, maxHeight: "70vh", overflowY: "auto", zIndex: 60, background: "rgba(12,18,28,0.99)" }}
           >
-            {confirming ? (
+            {err && (
+              <div className="mx-2 mb-1.5 px-2.5 py-2 rounded-lg flex items-start gap-1.5 text-[11px] leading-relaxed"
+                style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.25)", color: "#fda4b4" }}>
+                <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" /> {err}
+              </div>
+            )}
+
+            {paying ? (
+              <PaymentPanel
+                id={id}
+                remaining={remaining}
+                pending={pending}
+                onError={setErr}
+                onDone={close}
+                start={startTransition}
+                onBack={() => { setPaying(false); setErr(null); }}
+              />
+            ) : confirming ? (
               <div className="px-3 py-2 space-y-2">
                 <p className="eyebrow" style={{ color: "#fda4b4" }}>تأكيد الإلغاء</p>
                 <p className="text-[11.5px] leading-relaxed" style={{ color: "var(--text-3)" }}>
@@ -76,16 +109,29 @@ export function InvoiceRowActions({ id, status }: { id: string; status: string }
               <>
                 <Link href={`/clinic-admin/finance/invoices/${id}`}
                   className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-right transition-colors hover:bg-white/[0.04]" style={{ color: "var(--text-1)" }}>
-                  <FileText className="w-3.5 h-3.5" style={{ color: "var(--color-info)" }} /> عرض / طباعة PDF
+                  <FileText className="w-3.5 h-3.5" style={{ color: "var(--color-info)" }} /> عرض / طباعة
                 </Link>
+
+                {collectable && (
+                  <>
+                    <div className="my-1" style={{ borderTop: "1px solid var(--hairline)" }} />
+                    <button onClick={() => { setErr(null); setPaying(true); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-right transition-colors hover:bg-white/[0.04]" style={{ color: "var(--accent-1)" }}>
+                      <Banknote className="w-3.5 h-3.5" /> تسجيل دفعة
+                      <span className="ms-auto text-[11px] ltr-nums" style={{ color: "var(--text-4)" }}>{fmt3(remaining)}</span>
+                    </button>
+                  </>
+                )}
+
                 <div className="my-1" style={{ borderTop: "1px solid var(--hairline)" }} />
                 <p className="eyebrow px-3 py-1.5">تغيير الحالة</p>
-                {STATUS_OPTS.filter((o) => o.value !== status).map((o) => (
-                  <button key={o.value} onClick={() => change(o.value)}
+                {MANUAL_STATUSES.filter((s) => s !== status && s !== "cancelled").map((s) => (
+                  <button key={s} onClick={() => change(s)}
                     className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-right transition-colors hover:bg-white/[0.04]" style={{ color: "var(--text-1)" }}>
-                    <Check className="w-3.5 h-3.5" style={{ color: "var(--color-brand-400)" }} /> {o.label}
+                    <Check className="w-3.5 h-3.5" style={{ color: "var(--color-brand-400)" }} /> {STATUS_META[s].label}
                   </button>
                 ))}
+
                 <div className="my-1" style={{ borderTop: "1px solid var(--hairline)" }} />
                 <button onClick={() => setConfirming(true)} className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-right transition-colors hover:bg-white/[0.04]" style={{ color: "#fda4b4" }}>
                   <Trash2 className="w-3.5 h-3.5" /> إلغاء الفاتورة
@@ -96,5 +142,51 @@ export function InvoiceRowActions({ id, status }: { id: string; status: string }
         </>
       )}
     </>
+  );
+}
+
+/** Collecting money: amount defaults to what is still owed, method is explicit
+    because the day-close reconciles cash separately from card. */
+function PaymentPanel({
+  id, remaining, pending, onError, onDone, onBack, start,
+}: {
+  id: string; remaining: number; pending: boolean;
+  onError: (m: string | null) => void; onDone: () => void; onBack: () => void;
+  start: (fn: () => void) => void;
+}) {
+  const [amount, setAmount] = useState(String(remaining));
+  const [gateway, setGateway] = useState<Gateway>("cash");
+
+  function submit() {
+    onError(null);
+    start(async () => {
+      try {
+        const r = await recordInvoicePayment(id, Number(amount) || 0, gateway);
+        if (!r.ok) { onError(r.reason); return; }
+        onDone();
+      } catch { onError("تعذّر الاتصال"); }
+    });
+  }
+
+  return (
+    <div className="px-3 py-2 space-y-2.5">
+      <p className="eyebrow" style={{ color: "var(--accent-1)" }}>تسجيل دفعة</p>
+      <div>
+        <label className="text-[10.5px] block mb-1" style={{ color: "var(--text-4)" }}>
+          المبلغ — المتبقّي <span className="ltr-nums">{fmt3(remaining)}</span>
+        </label>
+        <NumField value={amount} onChange={setAmount} max={remaining} />
+      </div>
+      <div>
+        <label className="text-[10.5px] block mb-1" style={{ color: "var(--text-4)" }}>طريقة الدفع</label>
+        <select className="field" value={gateway} onChange={(e) => setGateway(e.target.value as Gateway)} style={{ cursor: "pointer" }}>
+          {GATEWAYS.map((g) => <option key={g} value={g}>{GATEWAY_AR[g]}</option>)}
+        </select>
+      </div>
+      <div className="flex gap-2 pt-0.5">
+        <button onClick={onBack} className="btn-ghost flex-1 h-9">رجوع</button>
+        <button onClick={submit} disabled={pending} className="btn-primary flex-1 h-9">{pending ? "..." : "تحصيل"}</button>
+      </div>
+    </div>
   );
 }

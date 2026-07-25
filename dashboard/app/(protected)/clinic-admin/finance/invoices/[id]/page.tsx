@@ -4,19 +4,15 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { PrintInvoiceButton } from "@/components/invoices/print-button";
+import { STATUS_META, GATEWAY_AR, fmt3 as fmt, type InvoiceStatus } from "@/lib/invoice-meta";
 import { ChevronRight } from "lucide-react";
 
 export const metadata = { title: "فاتورة — طود" };
-
-const STATUS_LABEL: Record<string, string> = {
-  draft: "مسودة", sent: "مُرسلة", paid: "مدفوعة", partially_paid: "مدفوعة جزئياً",
-  overdue: "متأخرة", cancelled: "ملغاة", refunded: "مستردة",
-};
-
-const fmt = (n: number) => Number(n ?? 0).toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+export const dynamic = "force-dynamic";
 const d = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-GB") : "—");
 
 type Item = { id: string; description: string; quantity: number; unit_price_snapshot: number; vat_amount: number; total: number };
+type Payment = { id: string; amount: number; gateway: string; paid_at: string | null };
 
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -24,7 +20,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   if (!claims || !(claims.role === "clinic_admin" || hasRole(claims, "accountant"))) redirect("/login");
 
   const supabase = await createServerSupabaseClient();
-  const [{ data: inv }, { data: items }, { data: clinic }] = await Promise.all([
+  const [{ data: inv }, { data: items }, { data: clinic }, { data: pays }] = await Promise.all([
     supabase.from("invoices")
       .select("id,invoice_number,subtotal,discount_amount,vat_amount,total,status,due_date,created_at,notes,patients(name,phone)")
       .eq("id", id).eq("clinic_id", claims.clinic_id).maybeSingle(),
@@ -33,6 +29,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
       .eq("invoice_id", id).eq("clinic_id", claims.clinic_id).order("sort_order"),
     supabase.from("tawd_clinics")
       .select("name,name_ar,vat_number,phone,address").eq("id", claims.clinic_id).maybeSingle(),
+    supabase.from("payments")
+      .select("id,amount,gateway,paid_at").eq("invoice_id", id).eq("clinic_id", claims.clinic_id)
+      .eq("status", "completed").order("paid_at"),
   ]);
 
   if (!inv) notFound();
@@ -40,6 +39,10 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const patient = inv.patients as unknown as { name: string; phone: string | null } | null;
   const lines = (items ?? []) as Item[];
   const clinicName = clinic?.name_ar ?? clinic?.name ?? "طود";
+
+  const payments = (pays ?? []) as Payment[];
+  const paidTotal = payments.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+  const balance = Math.round((Number(inv.total ?? 0) - paidTotal) * 1000) / 1000;
 
   return (
     <div className="animate-fade-in">
@@ -68,7 +71,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             <div className="text-left">
               <p className="text-[12px]" style={{ color: "var(--text-3)" }}>رقم الفاتورة</p>
               <p className="text-lg font-black ltr-nums text-white print:text-black">{inv.invoice_number}</p>
-              <span className="badge badge-brand mt-2 inline-flex">{STATUS_LABEL[inv.status] ?? inv.status}</span>
+              <span className="badge badge-brand mt-2 inline-flex">{STATUS_META[inv.status as InvoiceStatus]?.label ?? inv.status}</span>
             </div>
           </div>
 
@@ -92,6 +95,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                 <th className="text-right py-2.5 eyebrow">البند</th>
                 <th className="text-center py-2.5 eyebrow">الكمية</th>
                 <th className="text-left py-2.5 eyebrow">السعر</th>
+                {/* A tax invoice has to show the tax on each line, not only the sum */}
+                <th className="text-left py-2.5 eyebrow">الضريبة</th>
                 <th className="text-left py-2.5 eyebrow">الإجمالي</th>
               </tr>
             </thead>
@@ -101,6 +106,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                   <td className="py-3 text-[13px] text-white print:text-black">{l.description}</td>
                   <td className="py-3 text-center text-[13px] ltr-nums" style={{ color: "var(--text-2)" }}>{l.quantity}</td>
                   <td className="py-3 text-left text-[13px] ltr-nums" style={{ color: "var(--text-2)" }}>{fmt(l.unit_price_snapshot)}</td>
+                  <td className="py-3 text-left text-[13px] ltr-nums" style={{ color: "var(--text-2)" }}>
+                    {Number(l.vat_amount) > 0 ? fmt(l.vat_amount) : "معفى"}
+                  </td>
                   <td className="py-3 text-left text-[13px] ltr-nums font-bold text-white print:text-black">{fmt(l.total)}</td>
                 </tr>
               ))}
@@ -117,8 +125,41 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                 <span className="font-bold text-white print:text-black">الإجمالي</span>
                 <span className="font-black ltr-nums text-lg text-gradient-brand print:text-black">{fmt(inv.total)} <span className="text-sm">ر.ع</span></span>
               </div>
+
+              {/* What has actually been collected. Whoever is holding this sheet
+                  needs the balance, not just the invoice value. */}
+              {paidTotal > 0 && (
+                <>
+                  <div className="flex justify-between text-[13px] pt-2" style={{ color: "var(--text-3)" }}>
+                    <span>المدفوع</span>
+                    <span className="ltr-nums" style={{ color: "var(--color-ok)" }}>−{fmt(paidTotal)} ر.ع</span>
+                  </div>
+                  <div className="flex justify-between text-[13px] font-bold">
+                    <span className="text-white print:text-black">المتبقّي</span>
+                    <span className="ltr-nums" style={{ color: balance > 0 ? "var(--color-warn)" : "var(--color-ok)" }}>
+                      {fmt(balance)} ر.ع
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
+
+          {payments.length > 0 && (
+            <div className="mt-6 pt-4" style={{ borderTop: "1px solid var(--hairline-2)" }}>
+              <p className="eyebrow mb-2">الدفعات المستلمة</p>
+              <div className="space-y-1">
+                {payments.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between text-[12.5px]">
+                    <span style={{ color: "var(--text-2)" }}>
+                      {GATEWAY_AR[p.gateway] ?? p.gateway} · <span className="ltr-nums">{d(p.paid_at)}</span>
+                    </span>
+                    <span className="ltr-nums font-bold text-white print:text-black">{fmt(p.amount)} ر.ع</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {inv.notes && (
             <div className="mt-6 pt-4" style={{ borderTop: "1px solid var(--hairline-2)" }}>

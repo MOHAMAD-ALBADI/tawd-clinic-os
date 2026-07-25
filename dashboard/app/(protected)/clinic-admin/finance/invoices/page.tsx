@@ -2,9 +2,11 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { AddInvoiceTrigger } from "@/components/invoices/invoice-form-trigger";
 import { InvoiceRowActions } from "@/components/invoices/invoice-row-actions";
+import { STATUS_META, fmt3 as fmt, type InvoiceStatus } from "@/lib/invoice-meta";
 import { FileText, Calendar, Clock } from "lucide-react";
 
 export const metadata = { title: "الفواتير — طود" };
+export const dynamic = "force-dynamic";
 
 type Invoice = {
   id: string; total: number; subtotal: number; vat_amount: number;
@@ -12,28 +14,20 @@ type Invoice = {
   patients: { name: string } | null;
 };
 
-const STATUS_META: Record<string, { label: string; cls: string }> = {
-  draft:          { label: "مسودة",          cls: "badge-mute" },
-  sent:           { label: "مُرسلة",          cls: "badge-info" },
-  paid:           { label: "مدفوعة",          cls: "badge-ok" },
-  partially_paid: { label: "مدفوعة جزئياً",   cls: "badge-warn" },
-  overdue:        { label: "متأخرة",          cls: "badge-bad" },
-  cancelled:      { label: "ملغاة",           cls: "badge-mute" },
-  refunded:       { label: "مستردة",          cls: "badge-brand" },
-};
-
-const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-
 export default async function InvoicesPage() {
   const claims = (await getUserClaims())!; // the finance layout already gated this
   const supabase = await createServerSupabaseClient();
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
-  const [{ data, count }, { data: monthData }, { data: patientsData }, { data: servicesData }] = await Promise.all([
+  const [{ data, count }, { data: monthPayData }, { data: monthData }, { data: patientsData }, { data: servicesData }] = await Promise.all([
     supabase.from("invoices")
       .select("id,invoice_number,total,subtotal,vat_amount,status,due_date,created_at,patients(name)", { count: "exact" })
       .eq("clinic_id", claims.clinic_id).is("deleted_at", null)
       .order("created_at", { ascending: false }).limit(100),
+    /* Revenue is money received, not invoices flagged paid — the two diverge on a
+       partially paid invoice, and the day-close reconciles against payments. */
+    supabase.from("payments").select("amount").eq("clinic_id", claims.clinic_id)
+      .eq("status", "completed").gte("paid_at", monthStart),
     supabase.from("invoices").select("total,status").eq("clinic_id", claims.clinic_id).is("deleted_at", null).gte("created_at", monthStart),
     supabase.from("patients").select("id,name,phone").eq("clinic_id", claims.clinic_id).is("deleted_at", null).eq("is_archived", false).order("name"),
     supabase.from("services").select("id,name,price").eq("clinic_id", claims.clinic_id).is("deleted_at", null).eq("is_active", true).order("name"),
@@ -44,7 +38,20 @@ export default async function InvoicesPage() {
   const patients  = (patientsData ?? []) as { id: string; name: string; phone: string | null }[];
   const services  = (servicesData ?? []) as { id: string; name: string; price: number }[];
 
-  const totalRevenue = monthInvs.filter((i) => i.status === "paid").reduce((s, i) => s + (i.total ?? 0), 0);
+  /* Per-invoice settled amount, so the row menu knows what is still owed and can
+     stop a clinic collecting more than the invoice is worth. */
+  const paidByInvoice = new Map<string, number>();
+  if (invoices.length) {
+    const { data: pays } = await supabase.from("payments")
+      .select("invoice_id, amount").eq("clinic_id", claims.clinic_id).eq("status", "completed")
+      .in("invoice_id", invoices.map((i) => i.id));
+    for (const p of pays ?? []) {
+      const k = p.invoice_id as string;
+      paidByInvoice.set(k, (paidByInvoice.get(k) ?? 0) + (Number(p.amount) || 0));
+    }
+  }
+
+  const totalRevenue = (monthPayData ?? []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
   const totalPending = monthInvs.filter((i) => ["sent", "partially_paid", "overdue"].includes(i.status)).reduce((s, i) => s + (i.total ?? 0), 0);
   const countOverdue = invoices.filter((i) => i.status === "overdue").length;
   const countPaid    = invoices.filter((i) => i.status === "paid").length;
@@ -61,7 +68,7 @@ export default async function InvoicesPage() {
       {/* Hero row */}
       <div className="grid grid-cols-12 gap-4">
         <div className="col-span-12 lg:col-span-7 panel-feature" style={{ padding: "1.75rem 2rem" }}>
-          <p className="eyebrow mb-3">إيراد هذا الشهر · مدفوع</p>
+          <p className="eyebrow mb-3">محصَّل هذا الشهر</p>
           <div className="flex items-baseline gap-3 mb-1">
             <span className="font-black ltr-nums leading-none text-gradient-brand"
               style={{ fontSize: "clamp(2.4rem, 4.5vw, 3.5rem)", letterSpacing: "-0.04em" }}>
@@ -69,7 +76,7 @@ export default async function InvoicesPage() {
             </span>
             <span className="text-lg font-bold" style={{ color: "var(--color-brand-400)" }}>ر.ع</span>
           </div>
-          <p className="text-[11px] mb-5" style={{ color: "var(--text-3)" }}>فواتير مدفوعة فعلياً هذا الشهر</p>
+          <p className="text-[11px] mb-5" style={{ color: "var(--text-3)" }}>دفعات وصلت فعلاً — لا فواتير مؤشَّرة يدوياً</p>
           <div className="flex items-center gap-2 pt-4" style={{ borderTop: "1px solid var(--hairline)" }}>
             <Clock className="w-3.5 h-3.5" style={{ color: "var(--color-warn)" }} />
             <span className="text-[11px]" style={{ color: "var(--text-3)" }}>معلّق التحصيل:</span>
@@ -138,7 +145,7 @@ export default async function InvoicesPage() {
               </thead>
               <tbody>
                 {invoices.map((inv) => {
-                  const s = STATUS_META[inv.status] ?? STATUS_META.draft;
+                  const s = STATUS_META[inv.status as InvoiceStatus] ?? STATUS_META.draft;
                   const patient = inv.patients as { name: string } | null;
                   return (
                     <tr key={inv.id} className="row-hover" style={{ borderTop: "1px solid var(--hairline-2)" }}>
@@ -153,7 +160,7 @@ export default async function InvoicesPage() {
                         {fmt(inv.total ?? 0)} <span className="text-[10px] font-normal" style={{ color: "var(--text-4)" }}>ر.ع</span>
                       </td>
                       <td className="py-3.5 px-6"><span className={`badge ${s.cls}`}>{s.label}</span></td>
-                      <td className="py-3.5 px-4"><InvoiceRowActions id={inv.id} status={inv.status} /></td>
+                      <td className="py-3.5 px-4"><InvoiceRowActions id={inv.id} status={inv.status} total={inv.total ?? 0} paid={paidByInvoice.get(inv.id) ?? 0} /></td>
                     </tr>
                   );
                 })}

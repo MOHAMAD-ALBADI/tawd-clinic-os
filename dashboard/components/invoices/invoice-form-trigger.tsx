@@ -3,14 +3,20 @@
 import { useState, useMemo, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X, Trash2, User, FileText, CheckCircle2 } from "lucide-react";
-import { createInvoice, type InvoiceStatus } from "@/app/actions/invoices";
+import { createInvoice } from "@/app/actions/invoices";
+import { OMAN_VAT_RATE, fmt3, type InvoiceStatus } from "@/lib/invoice-meta";
+import { NumField } from "@/components/ui/num-field";
 
 type PatientOpt = { id: string; name: string; phone?: string | null };
 type ServiceOpt = { id: string; name: string; price: number };
 
-type Line = { description: string; service_id: string; quantity: number; unit_price: number };
+/* Quantities and prices are strings while being typed: an Arabic keyboard
+   produces ٠١٢٣ and a half-typed "1." is not yet a number. They are parsed once,
+   at the edge, when totals are computed and when the invoice is submitted. */
+type Line = { description: string; service_id: string; quantity: string; unit_price: string; vat: boolean };
 
-const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+const num = (s: string) => Number(s) || 0;
+const emptyLine = (): Line => ({ description: "", service_id: "", quantity: "1", unit_price: "", vat: false });
 
 function InvoiceModal({ patients, services, onClose }: { patients: PatientOpt[]; services: ServiceOpt[]; onClose: () => void }) {
   const router = useRouter();
@@ -21,24 +27,37 @@ function InvoiceModal({ patients, services, onClose }: { patients: PatientOpt[];
   const [patientId, setPatientId] = useState("");
   const [status, setStatus] = useState<InvoiceStatus>("sent");
   const [dueDate, setDueDate] = useState("");
-  const [lines, setLines] = useState<Line[]>([{ description: "", service_id: "", quantity: 1, unit_price: 0 }]);
+  const [discount, setDiscount] = useState("");
+  const [notes, setNotes] = useState("");
+  const [lines, setLines] = useState<Line[]>([emptyLine()]);
 
-  const subtotal = useMemo(() => lines.reduce((s, l) => s + l.quantity * l.unit_price, 0), [lines]);
+  const totals = useMemo(() => {
+    const subtotal = lines.reduce((s, l) => s + num(l.quantity) * num(l.unit_price), 0);
+    const vat = lines.reduce((s, l) => s + (l.vat ? num(l.quantity) * num(l.unit_price) * OMAN_VAT_RATE : 0), 0);
+    const disc = Math.min(num(discount), subtotal);
+    return { subtotal, vat, disc, total: subtotal + vat - disc };
+  }, [lines, discount]);
 
   function setLine(i: number, patch: Partial<Line>) {
     setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
   }
   function onPickService(i: number, serviceId: string) {
     const svc = services.find((s) => s.id === serviceId);
-    setLine(i, { service_id: serviceId, description: svc?.name ?? lines[i].description, unit_price: svc?.price ?? lines[i].unit_price });
+    setLines((prev) => prev.map((l, idx) => idx !== i ? l : {
+      ...l,
+      service_id: serviceId,
+      description: svc?.name ?? l.description,
+      unit_price: svc ? String(svc.price) : l.unit_price,
+    }));
   }
-  function addLine() { setLines((p) => [...p, { description: "", service_id: "", quantity: 1, unit_price: 0 }]); }
-  function removeLine(i: number) { setLines((p) => (p.length === 1 ? p : p.filter((_, idx) => idx !== i))); }
+  const addLine = () => setLines((p) => [...p, emptyLine()]);
+  const removeLine = (i: number) => setLines((p) => (p.length === 1 ? p : p.filter((_, idx) => idx !== i)));
 
   function handleSubmit() {
     if (!patientId) { setError("اختر المريض"); return; }
-    const valid = lines.filter((l) => l.description.trim() && l.unit_price > 0);
+    const valid = lines.filter((l) => l.description.trim() && num(l.unit_price) > 0);
     if (!valid.length) { setError("أضف بنداً واحداً على الأقل بسعر صحيح"); return; }
+    if (num(discount) > totals.subtotal) { setError("الخصم أكبر من قيمة البنود"); return; }
     setError(null);
     startTransition(async () => {
       try {
@@ -46,7 +65,15 @@ function InvoiceModal({ patients, services, onClose }: { patients: PatientOpt[];
           patient_id: patientId,
           status,
           due_date: dueDate || null,
-          items: valid.map((l) => ({ description: l.description.trim(), service_id: l.service_id || null, quantity: l.quantity, unit_price: l.unit_price })),
+          discount_amount: num(discount),
+          notes,
+          items: valid.map((l) => ({
+            description: l.description.trim(),
+            service_id: l.service_id || null,
+            quantity: Math.max(1, num(l.quantity) || 1),
+            unit_price: num(l.unit_price),
+            vat_rate: l.vat ? OMAN_VAT_RATE : 0,
+          })),
         });
         setDone(true);
         router.refresh();
@@ -61,7 +88,7 @@ function InvoiceModal({ patients, services, onClose }: { patients: PatientOpt[];
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
       style={{ background: "rgba(2,8,18,0.82)", backdropFilter: "blur(8px)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="w-full max-w-2xl panel animate-scale-in" style={{ background: "rgba(8,14,24,0.98)", padding: "1.5rem", maxHeight: "90vh", overflowY: "auto" }}>
+      <div className="w-full max-w-3xl panel animate-scale-in" style={{ background: "rgba(8,14,24,0.98)", padding: "1.5rem", maxHeight: "90vh", overflowY: "auto" }}>
         <div className="flex items-center justify-between mb-5">
           <div>
             <p className="eyebrow mb-1">NEW INVOICE</p>
@@ -94,10 +121,10 @@ function InvoiceModal({ patients, services, onClose }: { patients: PatientOpt[];
               </div>
               <div>
                 <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--text-2)" }}>الحالة</label>
+                {/* No "paid" here — an invoice becomes paid by recording a payment */}
                 <select className="field" value={status} onChange={(e) => setStatus(e.target.value as InvoiceStatus)} style={{ cursor: "pointer" }}>
                   <option value="draft">مسودة</option>
                   <option value="sent">مُرسلة</option>
-                  <option value="paid">مدفوعة</option>
                 </select>
               </div>
               <div>
@@ -108,7 +135,12 @@ function InvoiceModal({ patients, services, onClose }: { patients: PatientOpt[];
 
             {/* Lines */}
             <div>
-              <p className="eyebrow mb-2">البنود</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="eyebrow">البنود</p>
+                <p className="text-[10.5px]" style={{ color: "var(--text-4)" }}>
+                  ض.ق.م ٥٪ — أكثر الخدمات الطبية معفاة، فعّلها للبند الخاضع فقط
+                </p>
+              </div>
               <div className="space-y-2">
                 {lines.map((l, i) => (
                   <div key={i} className="grid grid-cols-12 gap-2 items-center">
@@ -116,9 +148,21 @@ function InvoiceModal({ patients, services, onClose }: { patients: PatientOpt[];
                       <option value="">خدمة...</option>
                       {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                     </select>
-                    <input className="field col-span-4" value={l.description} onChange={(e) => setLine(i, { description: e.target.value })} placeholder="الوصف" />
-                    <input className="field col-span-2 ltr-nums" type="text" inputMode="decimal" min={1} value={l.quantity} onChange={(e) => setLine(i, { quantity: Math.max(1, +e.target.value || 1) })} placeholder="الكمية" />
-                    <input className="field col-span-2 ltr-nums" type="text" inputMode="decimal" min={0} step="0.001" value={l.unit_price || ""} onChange={(e) => setLine(i, { unit_price: +e.target.value || 0 })} placeholder="السعر" />
+                    <input className="field col-span-3" value={l.description} onChange={(e) => setLine(i, { description: e.target.value })} placeholder="الوصف" />
+                    <NumField className="field ltr-nums col-span-2" allowDecimal={false} value={l.quantity}
+                      onChange={(v) => setLine(i, { quantity: v })} placeholder="الكمية" />
+                    <NumField className="field ltr-nums col-span-2" value={l.unit_price}
+                      onChange={(v) => setLine(i, { unit_price: v })} placeholder="السعر" />
+                    <button type="button" onClick={() => setLine(i, { vat: !l.vat })}
+                      className="col-span-1 h-9 rounded-lg text-[11px] font-bold transition-colors"
+                      title={l.vat ? "خاضع لـ ٥٪ ضريبة" : "معفى من الضريبة"}
+                      style={{
+                        background: l.vat ? "rgba(45,212,191,0.14)" : "rgba(255,255,255,0.03)",
+                        border: `1px solid ${l.vat ? "rgba(45,212,191,0.4)" : "var(--hairline)"}`,
+                        color: l.vat ? "var(--accent-1)" : "var(--text-4)",
+                      }}>
+                      ٪٥
+                    </button>
                     <button onClick={() => removeLine(i)} className="col-span-1 h-9 rounded-lg flex items-center justify-center transition-colors hover:bg-white/[0.06]" style={{ color: "var(--text-3)" }} title="حذف البند">
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -128,10 +172,33 @@ function InvoiceModal({ patients, services, onClose }: { patients: PatientOpt[];
               <button onClick={addLine} className="btn-ghost mt-2"><Plus className="w-3.5 h-3.5" /> إضافة بند</button>
             </div>
 
-            {/* Total */}
-            <div className="flex items-center justify-between pt-3" style={{ borderTop: "1px solid var(--hairline)" }}>
-              <span className="text-sm" style={{ color: "var(--text-2)" }}>الإجمالي</span>
-              <span className="text-xl font-black ltr-nums text-gradient-brand">{fmt(subtotal)} <span className="text-sm">ر.ع</span></span>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--text-2)" }}>خصم (ر.ع)</label>
+                <NumField value={discount} onChange={setDiscount} placeholder="0.000" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--text-2)" }}>ملاحظات</label>
+                <input className="field" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="تظهر أسفل الفاتورة المطبوعة" />
+              </div>
+            </div>
+
+            {/* Totals — the full breakdown, not just the line sum */}
+            <div className="rounded-2xl p-4 space-y-1.5" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid var(--hairline)" }}>
+              {[
+                { label: "المجموع قبل الضريبة", value: totals.subtotal },
+                ...(totals.disc > 0 ? [{ label: "الخصم", value: -totals.disc }] : []),
+                ...(totals.vat > 0 ? [{ label: "ضريبة القيمة المضافة ٥٪", value: totals.vat }] : []),
+              ].map((r) => (
+                <div key={r.label} className="flex items-center justify-between text-[12.5px]">
+                  <span style={{ color: "var(--text-3)" }}>{r.label}</span>
+                  <span className="ltr-nums" style={{ color: r.value < 0 ? "#fbbf24" : "var(--text-2)" }}>{fmt3(r.value)}</span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between pt-2 mt-1" style={{ borderTop: "1px solid var(--hairline)" }}>
+                <span className="text-sm font-bold text-white">الإجمالي المستحق</span>
+                <span className="text-xl font-black ltr-nums text-gradient-brand">{fmt3(totals.total)} <span className="text-sm">ر.ع</span></span>
+              </div>
             </div>
 
             {error && (
