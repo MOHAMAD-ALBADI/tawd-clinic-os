@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { saveTemplate, toggleTemplate, deleteTemplate } from "@/app/actions/templates";
 import {
-  TEMPLATE_TYPES, TEMPLATE_VARIABLES, TYPE_AR,
+  TEMPLATE_TYPES, TEMPLATE_VARIABLES, TYPE_AR, previewBody,
   type TemplateType, type TemplateInput,
 } from "@/lib/template-meta";
 import { F } from "@/components/ui/num-field";
@@ -169,17 +169,32 @@ function TemplateModal({ row, onSave, onClose, pending, err }: {
           </F>
 
           <div>
-            <p className="text-[11px] mb-1.5" style={{ color: "var(--text-3)" }}>اضغط لإضافة بيانات تُستبدل تلقائياً:</p>
+            <p className="text-[11px] mb-1.5" style={{ color: "var(--text-3)" }}>
+              اضغط لإدراج بيانات المريض — يكتبها النظام تلقائياً عند الإرسال:
+            </p>
             <div className="flex flex-wrap gap-1.5">
               {TEMPLATE_VARIABLES.map((v) => (
-                <button key={v} type="button" onClick={() => addVar(v)}
-                  className="text-[10.5px] px-2 py-1 rounded-lg ltr-nums" dir="ltr"
+                <button key={v.token} type="button" onClick={() => addVar(v.token)}
+                  title={`يُستبدل بـ: ${v.sample}`}
+                  className="text-[11px] font-semibold px-2.5 py-1 rounded-lg"
                   style={{ background: "rgba(45,212,191,0.08)", border: "1px solid rgba(45,212,191,0.2)", color: "#5dd9cb" }}>
-                  {v}
+                  + {v.label}
                 </button>
               ))}
             </div>
           </div>
+
+          {/* Live preview: the fastest way to make placeholders make sense */}
+          {f.body_ar.trim() && (
+            <div className="rounded-xl p-3" style={{ background: "rgba(45,212,191,0.05)", border: "1px solid rgba(45,212,191,0.18)" }}>
+              <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "#5dd9cb" }}>
+                كما ستظهر للمريض
+              </p>
+              <p className="text-[12.5px] whitespace-pre-wrap" style={{ color: "var(--text-1)" }}>
+                {previewBody(f.body_ar)}
+              </p>
+            </div>
+          )}
 
           <F label="نص إنجليزي (اختياري)">
             <textarea className="field" rows={3} dir="ltr" style={{ resize: "vertical" }}

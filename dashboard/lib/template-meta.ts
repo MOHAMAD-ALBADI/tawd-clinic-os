@@ -19,11 +19,30 @@ export const TEMPLATE_TYPES = [
 ] as const;
 export type TemplateType = (typeof TEMPLATE_TYPES)[number];
 
-/** Placeholders the automation replaces at send time. */
+/** Placeholders the automation replaces at send time.
+
+   `token` is what actually goes in the message body (the automation needs that
+   exact syntax); `label` is what the clinic sees — nobody running a clinic thinks
+   in {{snake_case}}. `sample` powers the live preview so the concept is obvious
+   without explaining it. */
 export const TEMPLATE_VARIABLES = [
-  "{{patient_name}}", "{{clinic_name}}", "{{doctor_name}}",
-  "{{date}}", "{{time}}", "{{service}}", "{{amount}}",
+  { token: "{{patient_name}}", label: "اسم المريض",  sample: "محمد البادي" },
+  { token: "{{clinic_name}}",  label: "اسم العيادة", sample: "عيادة طود للأسنان" },
+  { token: "{{doctor_name}}",  label: "اسم الطبيب",  sample: "د. سارة البلوشي" },
+  { token: "{{date}}",         label: "التاريخ",     sample: "الأحد ٢٧ يوليو" },
+  { token: "{{time}}",         label: "الوقت",       sample: "٥:٣٠ م" },
+  { token: "{{service}}",      label: "الخدمة",      sample: "تنظيف الأسنان" },
+  { token: "{{amount}}",       label: "المبلغ",      sample: "١٥.٠٠٠ ر.ع" },
 ] as const;
+
+/** Replace every placeholder with its sample value — used for the preview. */
+export function previewBody(body: string): string {
+  let out = body;
+  for (const v of TEMPLATE_VARIABLES) {
+    out = out.replaceAll(v.token, v.sample);
+  }
+  return out;
+}
 
 export type TemplateInput = {
   id?: string;
