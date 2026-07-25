@@ -56,12 +56,22 @@ export async function saveHrProfile(input: HrInput) {
   return { ok: true as const };
 }
 
-/** Mark one staff member's attendance for a day (upsert on staff_id+date). */
+/** attendance_status enum — the full set, so a manager can log real situations
+    (leave / sick / half day), not just present-or-absent. */
+export const ATTENDANCE_STATUSES = ["present", "absent", "leave", "sick", "holiday", "half_day"] as const;
+export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number];
+
+/** Mark one staff member's attendance for ANY day (upsert on staff_id+date),
+    including check-in/out times and a note. */
 export async function markAttendance(input: {
-  staff_id: string; work_date: string; status: string; notes?: string;
+  staff_id: string; work_date: string; status: string;
+  check_in?: string | null; check_out?: string | null; notes?: string;
 }) {
   const claims = await requireAdmin();
   if (!input.staff_id || !input.work_date) return { ok: false as const, reason: "بيانات ناقصة" };
+  if (!ATTENDANCE_STATUSES.includes(input.status as AttendanceStatus)) {
+    return { ok: false as const, reason: "حالة الحضور غير صالحة" };
+  }
   const sb = await createServerSupabaseClient();
   const { error } = await sb.from("attendance").upsert(
     {
@@ -69,11 +79,24 @@ export async function markAttendance(input: {
       staff_id: input.staff_id,
       work_date: input.work_date,
       status: input.status,
+      check_in: input.check_in || null,
+      check_out: input.check_out || null,
       notes: input.notes?.trim() || null,
     },
     { onConflict: "staff_id,work_date" }
   );
   if (error) return { ok: false as const, reason: "تعذّر حفظ الحضور" };
+  rev();
+  return { ok: true as const };
+}
+
+/** Remove an attendance record (e.g. logged on the wrong day). */
+export async function clearAttendance(staffId: string, workDate: string) {
+  const claims = await requireAdmin();
+  const sb = await createServerSupabaseClient();
+  const { error } = await sb.from("attendance").delete()
+    .eq("clinic_id", claims.clinic_id).eq("staff_id", staffId).eq("work_date", workDate);
+  if (error) return { ok: false as const, reason: "تعذّر حذف السجل" };
   rev();
   return { ok: true as const };
 }

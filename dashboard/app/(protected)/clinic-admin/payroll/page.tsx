@@ -11,7 +11,11 @@ export const metadata = { title: "الرواتب والموظفون — طود" 
 const n = (v: unknown) => Number(v ?? 0) || 0;
 const fmt = (v: number) => new Intl.NumberFormat("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(v);
 
-export default async function PayrollPage() {
+export default async function PayrollPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ d?: string }>;
+}) {
   const claims = await getUserClaims();
   if (!claims || claims.role !== "clinic_admin") redirect("/login");
 
@@ -21,6 +25,11 @@ export default async function PayrollPage() {
   const monthStart = `${period}-01`;
   const today = now.toISOString().slice(0, 10);
 
+  /* attendance day comes from the URL so the highlighted status always matches the
+     date the manager picked (server refetches) — never a stale "today" */
+  const { d } = await searchParams;
+  const attDate = /^\d{4}-\d{2}-\d{2}$/.test(d ?? "") && (d as string) <= today ? (d as string) : today;
+
   const [staffRes, profRes, absRes, todayRes, runsRes, commRes] = await Promise.all([
     sb.from("tawd_staff_users").select("id, name, name_ar, role")
       .eq("clinic_id", claims.clinic_id).eq("is_active", true).is("deleted_at", null)
@@ -28,7 +37,7 @@ export default async function PayrollPage() {
     sb.from("staff_hr_profiles").select("*").eq("clinic_id", claims.clinic_id),
     sb.from("attendance").select("staff_id").eq("clinic_id", claims.clinic_id)
       .eq("status", "absent").gte("work_date", monthStart).lte("work_date", today),
-    sb.from("attendance").select("staff_id, status").eq("clinic_id", claims.clinic_id).eq("work_date", today),
+    sb.from("attendance").select("staff_id, status").eq("clinic_id", claims.clinic_id).eq("work_date", attDate),
     sb.from("payroll_runs").select("id, period, status, total_net")
       .eq("clinic_id", claims.clinic_id).order("period", { ascending: false }).limit(24),
     sb.from("doctor_commissions")
@@ -49,6 +58,8 @@ export default async function PayrollPage() {
       basic: n(p?.basic_salary), housing: n(p?.housing_allowance),
       transport: n(p?.transport_allowance), other: n(p?.other_allowance),
       commission_rate: n(p?.commission_rate),
+      contract_type: (p?.contract_type as string) ?? "full_time",
+      annual_leave_days: p?.annual_leave_days != null ? n(p.annual_leave_days) : 30,
       job_title: (p?.job_title as string) ?? "", hire_date: (p?.hire_date as string) ?? "",
       bank_name: (p?.bank_name as string) ?? "", iban: (p?.iban as string) ?? "",
       monthAbsence: absCount.get(s.id) ?? 0,
@@ -118,7 +129,7 @@ export default async function PayrollPage() {
         ))}
       </div>
 
-      <SalaryAndAttendance staff={staff} today={today} />
+      <SalaryAndAttendance staff={staff} today={today} attDate={attDate} />
       <PayrollRuns period={period} runs={runs} currentRun={currentRun} payslips={payslips} />
       <CommissionsBoard commissions={commissions} />
     </div>

@@ -4,22 +4,39 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, X, CheckCircle2, AlertTriangle, UserCheck, UserX, Wallet } from "lucide-react";
 import { F } from "@/components/ui/num-field";
-import { saveHrProfile, markAttendance, type HrInput } from "@/app/actions/payroll";
+import {
+  saveHrProfile, markAttendance, clearAttendance,
+  type HrInput, type AttendanceStatus,
+} from "@/app/actions/payroll";
 
 export type StaffRow = {
   id: string; name: string; role: string; hasProfile: boolean;
   basic: number; housing: number; transport: number; other: number;
   commission_rate: number;
+  contract_type: string; annual_leave_days: number;
   job_title: string; hire_date: string; bank_name: string; iban: string;
   monthAbsence: number; todayStatus: string | null;
 };
+
+/** every attendance_status the DB allows — a manager needs leave/sick/half-day,
+    not just present-or-absent */
+const ATT_OPTIONS: { v: AttendanceStatus; label: string; color: string }[] = [
+  { v: "present",  label: "حاضر",   color: "#5dd9cb" },
+  { v: "absent",   label: "غائب",   color: "#fda4b4" },
+  { v: "leave",    label: "إجازة",  color: "#38bdf8" },
+  { v: "sick",     label: "مرضي",   color: "#fbbf24" },
+  { v: "half_day", label: "نصف يوم", color: "#a1a1aa" },
+  { v: "holiday",  label: "عطلة",   color: "#71717a" },
+];
 
 const ROLE_AR: Record<string, string> = {
   clinic_admin: "مدير", doctor: "طبيب", receptionist: "استقبال", accountant: "محاسبة", admin: "مدير",
 };
 const fmt = (v: number) => new Intl.NumberFormat("en-US", { maximumFractionDigits: 3 }).format(v);
 
-export function SalaryAndAttendance({ staff, today }: { staff: StaffRow[]; today: string }) {
+export function SalaryAndAttendance({ staff, today, attDate }: {
+  staff: StaffRow[]; today: string; attDate: string;
+}) {
   const router = useRouter();
   const [edit, setEdit] = useState<StaffRow | null>(null);
   const [pending, start] = useTransition();
@@ -29,11 +46,28 @@ export function SalaryAndAttendance({ staff, today }: { staff: StaffRow[]; today
 
   function flashOk(m: string) { setFlash(m); setTimeout(() => setFlash(null), 2500); }
 
-  function attend(id: string, status: "present" | "absent") {
+  /* The day being logged lives in the URL (?d=) so the server refetches that day's
+     records — the highlighted status therefore always matches the chosen date
+     instead of showing a stale "today". Back-filling is normal clinic reality. */
+  function pickDate(v: string) {
+    const d = v || today;
+    router.push(d === today ? "/clinic-admin/payroll" : `/clinic-admin/payroll?d=${d}`);
+  }
+
+  function attend(id: string, status: AttendanceStatus) {
     setBusyAtt(id + status);
     start(async () => {
       try {
-        const r = await markAttendance({ staff_id: id, work_date: today, status });
+        const r = await markAttendance({ staff_id: id, work_date: attDate, status });
+        if (r.ok) router.refresh();
+      } finally { setBusyAtt(null); }
+    });
+  }
+  function clearDay(id: string) {
+    setBusyAtt(id + "clear");
+    start(async () => {
+      try {
+        const r = await clearAttendance(id, attDate);
         if (r.ok) router.refresh();
       } finally { setBusyAtt(null); }
     });
@@ -41,9 +75,16 @@ export function SalaryAndAttendance({ staff, today }: { staff: StaffRow[]; today
 
   return (
     <div className="panel" style={{ padding: "1.25rem" }}>
-      <div className="section-title mb-4">
-        <Wallet className="w-3.5 h-3.5" style={{ color: "var(--accent-1)" }} />
-        <h2>رواتب الموظفين وحضور اليوم</h2>
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div className="section-title">
+          <Wallet className="w-3.5 h-3.5" style={{ color: "var(--accent-1)" }} />
+          <h2>رواتب الموظفين والحضور</h2>
+        </div>
+        <label className="flex items-center gap-2 text-[12px]" style={{ color: "var(--text-3)" }}>
+          يوم الحضور
+          <input type="date" dir="ltr" className="field ltr-nums" style={{ width: 150, padding: "0.35rem 0.6rem" }}
+            value={attDate} max={today} onChange={(e) => pickDate(e.target.value)} />
+        </label>
       </div>
 
       {flash && (
@@ -87,10 +128,14 @@ export function SalaryAndAttendance({ staff, today }: { staff: StaffRow[]; today
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-1.5">
-                        <AttBtn active={s.todayStatus === "present"} busy={busyAtt === s.id + "present"}
-                          color="#5dd9cb" onClick={() => attend(s.id, "present")}><UserCheck className="w-3.5 h-3.5" /> حاضر</AttBtn>
-                        <AttBtn active={s.todayStatus === "absent"} busy={busyAtt === s.id + "absent"}
-                          color="#fda4b4" onClick={() => attend(s.id, "absent")}><UserX className="w-3.5 h-3.5" /> غائب</AttBtn>
+                        {ATT_OPTIONS.map((o) => (
+                          <AttBtn key={o.v} active={s.todayStatus === o.v} busy={busyAtt === s.id + o.v}
+                            color={o.color} onClick={() => attend(s.id, o.v)}>{o.label}</AttBtn>
+                        ))}
+                        {s.todayStatus && (
+                          <button title="حذف السجل" disabled={busyAtt === s.id + "clear"} onClick={() => clearDay(s.id)}
+                            className="text-[11px] px-1.5 py-1 rounded-lg" style={{ color: "var(--text-4)" }}>✕</button>
+                        )}
                       </div>
                     </td>
                     <td className="px-3 py-3 text-end">
@@ -148,6 +193,8 @@ function SalaryModal({ staff, onSave, onClose, pending, err }: {
     basic_salary: staff.basic, housing_allowance: staff.housing,
     transport_allowance: staff.transport, other_allowance: staff.other,
     commission_rate: staff.commission_rate,
+    contract_type: staff.contract_type || "full_time",
+    annual_leave_days: staff.annual_leave_days ?? 30,
     bank_name: staff.bank_name, iban: staff.iban,
   });
   const set = (k: keyof HrInput, v: unknown) => setF((p) => ({ ...p, [k]: v }));
@@ -170,6 +217,20 @@ function SalaryModal({ staff, onSave, onClose, pending, err }: {
           <div className="grid grid-cols-2 gap-3">
             <F label="بدل نقل"><input className="field ltr-nums" type="text" inputMode="decimal" min={0} step="0.001" dir="ltr" value={f.transport_allowance ?? 0} onChange={(e) => set("transport_allowance", e.target.value)} /></F>
             <F label="بدلات أخرى"><input className="field ltr-nums" type="text" inputMode="decimal" min={0} step="0.001" dir="ltr" value={f.other_allowance ?? 0} onChange={(e) => set("other_allowance", e.target.value)} /></F>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <F label="نوع العقد">
+              <select className="field" value={f.contract_type ?? "full_time"} onChange={(e) => set("contract_type", e.target.value)}>
+                <option value="full_time">دوام كامل</option>
+                <option value="part_time">دوام جزئي</option>
+                <option value="visiting">زائر / بالحصة</option>
+                <option value="contract">عقد مؤقت</option>
+              </select>
+            </F>
+            <F label="رصيد الإجازة السنوية (يوم)">
+              <input className="field ltr-nums" type="text" inputMode="decimal" dir="ltr"
+                value={f.annual_leave_days ?? 30} onChange={(e) => set("annual_leave_days", e.target.value)} />
+            </F>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <F label="نسبة العمولة % (للأطباء)"><input className="field ltr-nums" type="text" inputMode="decimal" min={0} max={100} step="0.5" dir="ltr" value={f.commission_rate ?? 0} onChange={(e) => set("commission_rate", e.target.value)} /></F>
