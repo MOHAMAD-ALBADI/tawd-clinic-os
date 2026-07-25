@@ -3,37 +3,35 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { AppErrorsPanel, type AppErrorRow } from "@/components/platform/app-errors-panel";
+import { n8nGet, n8nErrorMessage } from "@/lib/n8n";
 import { Workflow } from "lucide-react";
 
 export const metadata = { title: "الأتمتة — طود" };
 export const dynamic = "force-dynamic";
 
 async function getWorkflows() {
-  const key = process.env.N8N_API_KEY;
-  const base = process.env.N8N_BASE_URL ?? "https://n8n.srv1239666.hstgr.cloud/api/v1";
-  if (!key) return null;
-  try {
-    const H = { "X-N8N-API-KEY": key };
-    const [wfRes, exRes] = await Promise.all([
-      fetch(`${base}/workflows?limit=100`, { headers: H, signal: AbortSignal.timeout(5000), cache: "no-store" }),
-      fetch(`${base}/executions?limit=100`, { headers: H, signal: AbortSignal.timeout(5000), cache: "no-store" }),
-    ]);
-    const wfs = (await wfRes.json()).data as { id: string; active: boolean; name: string }[];
-    const exs = (await exRes.json()).data as { status: string; startedAt: string; workflowId: string }[];
-    const dayAgo = Date.now() - 86_400_000;
-    const errBy: Record<string, number> = {};
-    const runBy: Record<string, number> = {};
-    for (const e of exs) {
-      if (new Date(e.startedAt).getTime() < dayAgo) continue;
-      runBy[e.workflowId] = (runBy[e.workflowId] ?? 0) + 1;
-      if (e.status === "error") errBy[e.workflowId] = (errBy[e.workflowId] ?? 0) + 1;
-    }
-    return wfs
-      .sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name))
-      .map((w) => ({ ...w, runs: runBy[w.id] ?? 0, errors: errBy[w.id] ?? 0 }));
-  } catch {
-    return null;
+  const [wf, ex] = await Promise.all([
+    n8nGet<{ data: { id: string; active: boolean; name: string }[] }>("workflows?limit=100"),
+    n8nGet<{ data: { status: string; startedAt: string; workflowId: string }[] }>("executions?limit=100"),
+  ]);
+  if (!wf.ok) return { error: n8nErrorMessage(wf.reason) };
+  if (!ex.ok) return { error: n8nErrorMessage(ex.reason) };
+
+  const wfs = wf.data.data ?? [];
+  const exs = ex.data.data ?? [];
+  const dayAgo = Date.now() - 86_400_000;
+  const errBy: Record<string, number> = {};
+  const runBy: Record<string, number> = {};
+  for (const e of exs) {
+    if (new Date(e.startedAt).getTime() < dayAgo) continue;
+    runBy[e.workflowId] = (runBy[e.workflowId] ?? 0) + 1;
+    if (e.status === "error") errBy[e.workflowId] = (errBy[e.workflowId] ?? 0) + 1;
   }
+  return {
+    rows: wfs
+      .sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name))
+      .map((w) => ({ ...w, runs: runBy[w.id] ?? 0, errors: errBy[w.id] ?? 0 })),
+  };
 }
 
 export default async function AutomationPage() {
@@ -64,13 +62,13 @@ export default async function AutomationPage() {
       </div>
 
       <div className="panel" style={{ padding: "1.25rem" }}>
-        {!wfs ? (
+        {"error" in wfs ? (
           <p className="text-sm py-6 text-center" style={{ color: "var(--text-4)" }}>
-            تعذّر الاتصال بـ n8n من الخادم — تأكد من N8N_API_KEY على Vercel
+            {wfs.error}
           </p>
         ) : (
           <div className="space-y-1">
-            {wfs.map((w) => (
+            {wfs.rows.map((w) => (
               <div key={w.id} className="flex items-center gap-3 px-3 py-2 rounded-lg flex-wrap"
                 style={{ background: "rgba(255,255,255,0.018)", border: "1px solid rgba(255,255,255,0.045)" }}>
                 <span className="w-1.5 h-1.5 rounded-full shrink-0"

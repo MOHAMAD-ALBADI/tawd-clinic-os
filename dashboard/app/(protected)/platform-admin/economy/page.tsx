@@ -3,6 +3,7 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { CostsCard } from "@/components/platform/manage-widgets";
+import { n8nGet } from "@/lib/n8n";
 
 export const metadata = { title: "اقتصاد المنصة — طود" };
 export const dynamic = "force-dynamic";
@@ -14,17 +15,12 @@ export default async function EconomyPage() {
   const sb = await createServiceRoleClient();
   const monthStart = `${new Date().toISOString().slice(0, 7)}-01T00:00:00`;
 
-  /* live n8n runs (24h) — same graceful pattern as the overview */
+  /* live n8n runs (24h) — shared helper normalises the /api/v1 base */
   async function n8nRuns(): Promise<number | null> {
-    const key = process.env.N8N_API_KEY;
-    const base = process.env.N8N_BASE_URL ?? "https://n8n.srv1239666.hstgr.cloud/api/v1";
-    if (!key) return null;
-    try {
-      const r = await fetch(`${base}/executions?limit=100`, { headers: { "X-N8N-API-KEY": key }, signal: AbortSignal.timeout(4000), cache: "no-store" });
-      const exs = (await r.json()).data as { startedAt: string }[];
-      const dayAgo = Date.now() - 86_400_000;
-      return exs.filter((e) => new Date(e.startedAt).getTime() > dayAgo).length;
-    } catch { return null; }
+    const res = await n8nGet<{ data: { startedAt: string }[] }>("executions?limit=100", 4000);
+    if (!res.ok) return null;
+    const dayAgo = Date.now() - 86_400_000;
+    return (res.data.data ?? []).filter((e) => new Date(e.startedAt).getTime() > dayAgo).length;
   }
 
   const [{ data: costs }, { data: tokenRows }, waRes, { data: subs }, dbSizeRes, convRes, runs24h] = await Promise.all([

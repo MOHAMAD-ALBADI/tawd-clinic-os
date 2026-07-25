@@ -5,6 +5,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { TawdBarsGlyph } from "@/components/shell/tawd-logo";
 import { CostsCard } from "@/components/platform/manage-widgets";
+import { n8nGet, n8nErrorMessage } from "@/lib/n8n";
 import {
   Building2, Plus, ChevronLeft, Workflow, AlertTriangle,
   MessageCircle, Bot, Timer, Wallet,
@@ -25,30 +26,26 @@ const TYPE_LABEL: Record<string, string> = {
 };
 const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 
-/** Live n8n automation health (graceful when the key isn't configured). */
+/** Live n8n automation health. Returns the real failure reason so the UI can
+    say whether the key is missing, rejected, or the server is unreachable. */
 async function getAutomationHealth() {
-  const key = process.env.N8N_API_KEY;
-  const base = process.env.N8N_BASE_URL ?? "https://n8n.srv1239666.hstgr.cloud/api/v1";
-  if (!key) return null;
-  try {
-    const H = { "X-N8N-API-KEY": key };
-    const [wfRes, exRes] = await Promise.all([
-      fetch(`${base}/workflows?limit=100`, { headers: H, signal: AbortSignal.timeout(4000), cache: "no-store" }),
-      fetch(`${base}/executions?limit=100`, { headers: H, signal: AbortSignal.timeout(4000), cache: "no-store" }),
-    ]);
-    const wfs = (await wfRes.json()).data as { active: boolean; name: string }[];
-    const exs = (await exRes.json()).data as { status: string; startedAt: string; workflowId: string }[];
-    const dayAgo = Date.now() - 86_400_000;
-    const recent = exs.filter((e) => new Date(e.startedAt).getTime() > dayAgo);
-    return {
-      total: wfs.length,
-      active: wfs.filter((w) => w.active).length,
-      runs24h: recent.length,
-      errors24h: recent.filter((e) => e.status === "error").length,
-    };
-  } catch {
-    return null;
-  }
+  const [wf, ex] = await Promise.all([
+    n8nGet<{ data: { active: boolean; name: string }[] }>("workflows?limit=100", 4000),
+    n8nGet<{ data: { status: string; startedAt: string; workflowId: string }[] }>("executions?limit=100", 4000),
+  ]);
+  if (!wf.ok) return { error: n8nErrorMessage(wf.reason) };
+  if (!ex.ok) return { error: n8nErrorMessage(ex.reason) };
+
+  const wfs = wf.data.data ?? [];
+  const exs = ex.data.data ?? [];
+  const dayAgo = Date.now() - 86_400_000;
+  const recent = exs.filter((e) => new Date(e.startedAt).getTime() > dayAgo);
+  return {
+    total: wfs.length,
+    active: wfs.filter((w) => w.active).length,
+    runs24h: recent.length,
+    errors24h: recent.filter((e) => e.status === "error").length,
+  };
 }
 
 export default async function PlatformAdminPage() {
@@ -164,9 +161,9 @@ export default async function PlatformAdminPage() {
           <div className="section-title mb-3">
             <Workflow className="w-4 h-4" style={{ color: "var(--accent-1)" }} />
             <h2>الأتمتة (n8n)</h2>
-            {automation && automation.errors24h === 0 && <span className="live-dot" />}
+            {automation && !("error" in automation) && automation.errors24h === 0 && <span className="live-dot" />}
           </div>
-          {automation ? (
+          {automation && !("error" in automation) ? (
             <div className="space-y-2 text-[13px]">
               <div className="flex justify-between"><span style={{ color: "var(--text-3)" }}>ووركفلو مفعّل</span><span className="font-bold ltr-nums text-white">{automation.active} / {automation.total}</span></div>
               <div className="flex justify-between"><span style={{ color: "var(--text-3)" }}>تشغيلة آخر 24 ساعة</span><span className="font-bold ltr-nums text-white">{automation.runs24h}</span></div>
@@ -177,7 +174,7 @@ export default async function PlatformAdminPage() {
             </div>
           ) : (
             <p className="text-[12px]" style={{ color: "var(--text-4)" }}>
-              مفتاح n8n غير مضبوط على الخادم — الحالة الحية غير متاحة هنا (الأتمتة نفسها تعمل)
+              {automation?.error ?? "الحالة الحية غير متاحة"}
             </p>
           )}
           <div className="mt-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
