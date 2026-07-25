@@ -5,10 +5,14 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { revalidatePath } from "next/cache";
 
+/* Treatment planning is a CLINICAL act: only a doctor may create or change a plan.
+   The clinic manager oversees the clinic — they read plans (their page is a
+   read-only audit view) but cannot author care. Enforced here, server-side, so
+   hiding buttons is not the only thing standing in the way. */
 async function requireClinician() {
   const claims = await getUserClaims();
-  if (!claims || !(claims.role === "clinic_admin" || hasRole(claims, "doctor"))) {
-    throw new Error("غير مصرح");
+  if (!claims || !hasRole(claims, "doctor")) {
+    throw new Error("تعديل خطط العلاج من صلاحية الطبيب فقط");
   }
   return claims;
 }
@@ -18,23 +22,17 @@ const rev = () => {
 };
 
 type Claims = Awaited<ReturnType<typeof getUserClaims>>;
-/** A plain doctor may only touch their OWN plans. The clinic admin may touch any
-    plan in the clinic. Defence-in-depth: RLS already blocks other clinics, this
-    blocks doctor-vs-doctor within the same clinic. */
-function doctorOnly(claims: NonNullable<Claims>): string | null {
-  return hasRole(claims, "doctor") && claims.role !== "clinic_admin" ? claims.sub : null;
-}
 
-/** Resolve a plan the caller is allowed to mutate, or null. */
+/** Every mutator is a doctor now, so a plan is only theirs to change. RLS already
+    isolates other clinics; this blocks doctor-vs-doctor inside the same clinic. */
 async function ownedPlanId(
   sb: Awaited<ReturnType<typeof createServerSupabaseClient>>,
   claims: NonNullable<Claims>,
   planId: string
 ): Promise<string | null> {
-  const mine = doctorOnly(claims);
-  let q = sb.from("treatment_plans").select("id").eq("id", planId).eq("clinic_id", claims.clinic_id);
-  if (mine) q = q.eq("doctor_id", mine);
-  const { data } = await q.maybeSingle();
+  const { data } = await sb.from("treatment_plans").select("id")
+    .eq("id", planId).eq("clinic_id", claims.clinic_id).eq("doctor_id", claims.sub)
+    .maybeSingle();
   return (data?.id as string | undefined) ?? null;
 }
 
@@ -46,20 +44,17 @@ export async function createPlan(input: {
   const claims = await requireClinician();
   if (!input.patient_id) return { ok: false as const, reason: "اختر المريض" };
   const sb = await createServerSupabaseClient();
-  /* A doctor creating a plan from their own page owns it — otherwise the plan
-     would have no doctor_id and vanish from their (doctor-scoped) list. */
-  const isDoctor = !!doctorOnly(claims);
-  if (isDoctor) {
-    // a doctor may only plan for a patient they actually treat
-    const { data: seen } = await sb.from("appointments").select("id")
-      .eq("clinic_id", claims.clinic_id).eq("doctor_id", claims.sub)
-      .eq("patient_id", input.patient_id).is("deleted_at", null).limit(1);
-    if (!seen?.length) return { ok: false as const, reason: "هذا المريض ليس من مرضاك" };
-  }
+  // a doctor may only plan for a patient they actually treat
+  const { data: seen } = await sb.from("appointments").select("id")
+    .eq("clinic_id", claims.clinic_id).eq("doctor_id", claims.sub)
+    .eq("patient_id", input.patient_id).is("deleted_at", null).limit(1);
+  if (!seen?.length) return { ok: false as const, reason: "هذا المريض ليس من مرضاك" };
+
   const { data, error } = await sb.from("treatment_plans").insert({
     clinic_id: claims.clinic_id,
     patient_id: input.patient_id,
-    doctor_id: input.doctor_id || (isDoctor ? claims.sub : null),
+    // the authoring doctor always owns the plan
+    doctor_id: claims.sub,
     title: input.title?.trim() || "خطة علاج",
     notes: input.notes?.trim() || null,
     created_by: claims.sub,

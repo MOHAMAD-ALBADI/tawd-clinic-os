@@ -4,7 +4,7 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
 import { Phone, Star, ChevronLeft, UserPlus } from "lucide-react";
-import { AddPatientTrigger, EditPatientTrigger, ArchivePatientTrigger } from "@/components/patients/add-patient-trigger";
+import { EditPatientTrigger, ArchivePatientTrigger } from "@/components/patients/add-patient-trigger";
 import { ImportTrigger } from "@/components/patients/import-trigger";
 
 export const metadata = { title: "المرضى — طود" };
@@ -42,10 +42,10 @@ export default async function PatientsPage() {
           <p className="eyebrow mb-1" style={{ color: "var(--color-brand-400)" }}>PATIENTS</p>
           <h2 className="text-2xl font-black text-white tracking-tight leading-none">المرضى</h2>
         </div>
-        <div className="flex items-center gap-2">
-          <ImportTrigger />
-          <AddPatientTrigger />
-        </div>
+        {/* Registering a walk-in patient is front-desk work, so no single "add
+            patient" here. Bulk import stays: migrating an existing clinic's records
+            is an administrative/onboarding task, not clinical intake. */}
+        <ImportTrigger />
       </div>
 
       {/* Stat pills */}

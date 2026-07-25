@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { TreatmentPlansManager, type PlanRow, type ItemRow, type Opt, type SvcOpt } from "@/components/treatment/treatment-plans-manager";
+import { TreatmentPlansAudit } from "@/components/treatment/treatment-plans-audit";
+import type { PlanRow, ItemRow } from "@/components/treatment/treatment-plans-manager";
 import { ClipboardList, ListChecks, Coins, CheckCircle2 } from "lucide-react";
 
 export const metadata = { title: "خطط العلاج — طود" };
@@ -15,16 +16,13 @@ export default async function TreatmentPlansPage() {
   if (!claims || claims.role !== "clinic_admin") redirect("/login");
 
   const sb = await createServerSupabaseClient();
-  const [planRes, itemRes, patRes, docRes, svcRes] = await Promise.all([
+  const [planRes, itemRes] = await Promise.all([
     sb.from("treatment_plans")
       .select("id, title, status, total_estimate, patients!patient_id(name, name_ar), tawd_staff_users!doctor_id(name, name_ar)")
       .eq("clinic_id", claims.clinic_id).order("created_at", { ascending: false }).limit(100),
     sb.from("treatment_plan_items")
       .select("id, plan_id, description, tooth_number, quantity, unit_price, line_total, status")
       .eq("clinic_id", claims.clinic_id).order("sort_order"),
-    sb.from("patients").select("id, name, name_ar").eq("clinic_id", claims.clinic_id).is("deleted_at", null).order("name").limit(500),
-    sb.from("tawd_staff_users").select("id, name, name_ar").eq("clinic_id", claims.clinic_id).eq("role", "doctor").eq("is_active", true).is("deleted_at", null),
-    sb.from("services").select("id, name, name_ar, price").eq("clinic_id", claims.clinic_id).eq("is_active", true).order("name_ar"),
   ]);
 
   const itemsByPlan = new Map<string, ItemRow[]>();
@@ -47,9 +45,8 @@ export default async function TreatmentPlansPage() {
     };
   });
 
-  const patients: Opt[] = (patRes.data ?? []).map((p) => ({ id: p.id, label: (p.name_ar ?? p.name) as string }));
-  const doctors: Opt[] = (docRes.data ?? []).map((d) => ({ id: d.id, label: (d.name_ar ?? d.name) as string }));
-  const services: SvcOpt[] = (svcRes.data ?? []).map((s) => ({ id: s.id, label: (s.name_ar ?? s.name) as string, price: n(s.price) }));
+  /* No patient/doctor/service option lists here any more: this page is read-only,
+     so there is no form to populate. */
 
   const active = plans.filter((p) => ["proposed", "accepted", "in_progress"].includes(p.status));
   const proposedVal = plans.filter((p) => p.status === "proposed").reduce((s, p) => s + p.total_estimate, 0);
@@ -82,7 +79,7 @@ export default async function TreatmentPlansPage() {
         ))}
       </div>
 
-      <TreatmentPlansManager plans={plans} patients={patients} doctors={doctors} services={services} />
+      <TreatmentPlansAudit plans={plans} />
     </div>
   );
 }

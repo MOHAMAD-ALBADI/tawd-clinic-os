@@ -2,8 +2,7 @@ import { redirect } from "next/navigation";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { AppointmentsTable } from "@/components/appointments/appointments-table";
-import { BookingTrigger } from "@/components/reception/booking-trigger";
-import { Clock, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Clock, Loader2, CheckCircle2, XCircle, Eye } from "lucide-react";
 
 export const metadata = { title: "المواعيد — طود" };
 
@@ -71,11 +70,12 @@ export default async function AppointmentsPage() {
             <span className="ltr-nums font-bold text-white">{total}</span> موعد مسجّل
           </p>
         </div>
-        <BookingTrigger
-          patients={patients as { id: string; name: string; phone?: string }[]}
-          services={services as { id: string; name: string; price?: number }[]}
-          doctors={doctors  as { id: string; name: string; name_ar?: string }[]}
-        />
+        {/* No booking button: taking a booking is the front desk's job (الاستقبال)
+            and Sura's. The manager supervises the schedule rather than filling it. */}
+        <span className="flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-xl self-start"
+          style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--hairline)", color: "var(--text-3)" }}>
+          <Eye className="w-3 h-3" /> إشراف — الحجز من الاستقبال أو سُرى
+        </span>
       </div>
 
       {/* ── STATUS OVERVIEW ── */}
