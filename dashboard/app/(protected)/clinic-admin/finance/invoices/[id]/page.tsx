@@ -45,7 +45,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
     <div className="animate-fade-in">
       {/* Toolbar (hidden in print) */}
       <div className="flex items-center justify-between mb-4 no-print">
-        <Link href="/clinic-admin/invoices" className="btn-ghost">
+        <Link href="/clinic-admin/finance/invoices" className="btn-ghost">
           <ChevronRight className="w-4 h-4" /> رجوع للفواتير
         </Link>
         <PrintInvoiceButton />

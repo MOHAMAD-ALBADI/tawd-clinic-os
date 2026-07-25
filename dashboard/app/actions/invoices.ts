@@ -17,7 +17,7 @@ export type InvoiceLineInput = {
 };
 
 function revalidateInvoices() {
-  revalidatePath("/clinic-admin/invoices");
+  revalidatePath("/clinic-admin/finance/invoices");
   revalidatePath("/clinic-admin");
   revalidatePath("/accountant");
   revalidatePath("/accountant/invoices");

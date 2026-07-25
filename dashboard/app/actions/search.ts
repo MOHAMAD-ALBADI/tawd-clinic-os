@@ -85,7 +85,7 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
   for (const s of (servicesRes.data ?? []) as { id: string; name: string; price: number }[]) {
     results.push({ kind: "service", id: s.id, title: s.name, subtitle: `${Number(s.price).toLocaleString("en-US", { minimumFractionDigits: 3 })} ر.ع`, href: "/clinic-admin/services" });
   }
-  const invHref = claims.role === "clinic_admin" ? "/clinic-admin/invoices" : "/accountant/invoices";
+  const invHref = claims.role === "clinic_admin" ? "/clinic-admin/finance/invoices" : "/accountant/invoices";
   for (const inv of (invoicesRes.data ?? []) as { id: string; invoice_number: string; patients: { name: string } | null }[]) {
     results.push({ kind: "invoice", id: inv.id, title: inv.invoice_number, subtitle: inv.patients?.name ?? "فاتورة", href: invHref });
   }

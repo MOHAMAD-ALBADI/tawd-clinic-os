@@ -102,7 +102,7 @@ export async function GET() {
   if (ready > 0) items.push({ id: "ready", title: `${ready} كشف مكتمل بانتظار الفوترة`, href: "/accountant", severity: "warn" });
   const overdue = (overdueR as { count: number | null }).count ?? 0;
   if (overdue > 0) {
-    items.push({ id: "overdue", title: `${overdue} فاتورة متأخرة تحتاج متابعة`, href: claims.role === "clinic_admin" ? "/clinic-admin/invoices" : "/accountant/invoices", severity: "bad" });
+    items.push({ id: "overdue", title: `${overdue} فاتورة متأخرة تحتاج متابعة`, href: claims.role === "clinic_admin" ? "/clinic-admin/finance/invoices" : "/accountant/invoices", severity: "bad" });
   }
 
   return NextResponse.json({ items: items.slice(0, 12), count: items.length });

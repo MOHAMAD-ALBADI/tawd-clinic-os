@@ -10,7 +10,7 @@ async function requireAdmin() {
   if (!claims || claims.role !== "clinic_admin") throw new Error("غير مصرح");
   return claims;
 }
-const rev = () => revalidatePath("/clinic-admin/payroll");
+const rev = () => revalidatePath("/clinic-admin/finance/payroll");
 
 export type HrInput = {
   staff_id: string;

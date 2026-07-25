@@ -51,7 +51,7 @@ export function SalaryAndAttendance({ staff, today, attDate }: {
      instead of showing a stale "today". Back-filling is normal clinic reality. */
   function pickDate(v: string) {
     const d = v || today;
-    router.push(d === today ? "/clinic-admin/payroll" : `/clinic-admin/payroll?d=${d}`);
+    router.push(d === today ? "/clinic-admin/finance/payroll" : `/clinic-admin/payroll?d=${d}`);
   }
 
   function attend(id: string, status: AttendanceStatus) {

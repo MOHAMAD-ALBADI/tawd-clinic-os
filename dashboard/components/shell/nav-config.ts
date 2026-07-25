@@ -43,16 +43,16 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "المرضى",       href: "/clinic-admin/patients",      icon: UserCircle },
     { label: "خطط العلاج",   href: "/clinic-admin/treatment-plans", icon: ClipboardList },
 
+    /* Invoicing, expenses, payroll, commissions and the online gateway all
+       answer "where is the clinic's money?" — one entry, tabs inside. */
     { section: "المال",
-      label: "الفواتير",     href: "/clinic-admin/invoices",      icon: CreditCard },
-    { label: "المالية",      href: "/clinic-admin/finance",        icon: Receipt },
+      label: "المالية",      href: "/clinic-admin/finance",        icon: Wallet },
     { label: "التأمين",      href: "/clinic-admin/insurance",      icon: ShieldCheck },
 
     { section: "الموارد",
       label: "الخدمات",      href: "/clinic-admin/services",      icon: Scissors },
     { label: "المخزون",      href: "/clinic-admin/inventory",     icon: Boxes },
     { label: "الكادر الطبي", href: "/clinic-admin/staff",         icon: Users },
-    { label: "الرواتب",      href: "/clinic-admin/payroll",        icon: Wallet },
 
     { section: "النمو",
       label: "التسويق",      href: "/clinic-admin/marketing",     icon: Megaphone },

@@ -12,7 +12,7 @@ async function requireFinance() {
   }
   return claims;
 }
-const rev = () => { revalidatePath("/clinic-admin/finance"); revalidatePath("/accountant"); };
+const rev = () => { revalidatePath("/clinic-admin/finance/expenses"); revalidatePath("/clinic-admin/finance"); revalidatePath("/accountant"); };
 
 export type ExpenseInput = {
   category: string;

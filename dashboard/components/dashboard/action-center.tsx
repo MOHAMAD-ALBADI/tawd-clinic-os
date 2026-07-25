@@ -39,7 +39,7 @@ export function ActionCenter({ s }: { s: ActionSignals }) {
       hint: `${fmt(s.claimsValue)} ر.ع مستحقة`,
     },
     s.pendingCommissions > 0 && {
-      href: "/clinic-admin/payroll", tone: "info" as const, Icon: Coins,
+      href: "/clinic-admin/finance/payroll", tone: "info" as const, Icon: Coins,
       label: "عمولات تنتظر اعتمادك", value: String(s.pendingCommissions), hint: "اعتمد ثم اصرف",
     },
   ].filter(Boolean) as {

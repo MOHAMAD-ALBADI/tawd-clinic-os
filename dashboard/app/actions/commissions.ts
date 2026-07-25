@@ -10,7 +10,7 @@ async function requireAdmin() {
   if (!claims || claims.role !== "clinic_admin") throw new Error("غير مصرح");
   return claims;
 }
-const rev = () => { revalidatePath("/clinic-admin/payroll"); revalidatePath("/clinic-admin/finance"); };
+const rev = () => { revalidatePath("/clinic-admin/finance/commissions"); revalidatePath("/clinic-admin/finance"); };
 
 /** Approve a pending commission (clinic agrees the doctor earned it). */
 export async function approveCommission(id: string) {

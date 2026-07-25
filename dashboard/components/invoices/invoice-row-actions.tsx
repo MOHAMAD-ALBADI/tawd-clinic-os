@@ -74,7 +74,7 @@ export function InvoiceRowActions({ id, status }: { id: string; status: string }
               </div>
             ) : (
               <>
-                <Link href={`/clinic-admin/invoices/${id}`}
+                <Link href={`/clinic-admin/finance/invoices/${id}`}
                   className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-right transition-colors hover:bg-white/[0.04]" style={{ color: "var(--text-1)" }}>
                   <FileText className="w-3.5 h-3.5" style={{ color: "var(--color-info)" }} /> عرض / طباعة PDF
                 </Link>
