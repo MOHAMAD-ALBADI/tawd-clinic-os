@@ -22,6 +22,7 @@ export type HrInput = {
   transport_allowance?: number;
   other_allowance?: number;
   annual_leave_days?: number;
+  commission_rate?: number;
   bank_name?: string;
   iban?: string;
 };
@@ -43,6 +44,7 @@ export async function saveHrProfile(input: HrInput) {
       transport_allowance: Number(input.transport_allowance ?? 0) || 0,
       other_allowance: Number(input.other_allowance ?? 0) || 0,
       annual_leave_days: Number(input.annual_leave_days ?? 30) || 30,
+      commission_rate: Math.max(0, Math.min(100, Number(input.commission_rate ?? 0) || 0)),
       bank_name: input.bank_name?.trim() || null,
       iban: input.iban?.trim() || null,
       updated_at: new Date().toISOString(),

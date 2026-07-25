@@ -8,6 +8,7 @@ import { saveHrProfile, markAttendance, type HrInput } from "@/app/actions/payro
 export type StaffRow = {
   id: string; name: string; role: string; hasProfile: boolean;
   basic: number; housing: number; transport: number; other: number;
+  commission_rate: number;
   job_title: string; hire_date: string; bank_name: string; iban: string;
   monthAbsence: number; todayStatus: string | null;
 };
@@ -145,6 +146,7 @@ function SalaryModal({ staff, onSave, onClose, pending, err }: {
     staff_id: staff.id, job_title: staff.job_title, hire_date: staff.hire_date || "",
     basic_salary: staff.basic, housing_allowance: staff.housing,
     transport_allowance: staff.transport, other_allowance: staff.other,
+    commission_rate: staff.commission_rate,
     bank_name: staff.bank_name, iban: staff.iban,
   });
   const set = (k: keyof HrInput, v: unknown) => setF((p) => ({ ...p, [k]: v }));
@@ -172,9 +174,10 @@ function SalaryModal({ staff, onSave, onClose, pending, err }: {
             <F label="بدلات أخرى"><input className="field ltr-nums" type="number" min={0} step="0.001" dir="ltr" value={f.other_allowance ?? 0} onChange={(e) => set("other_allowance", e.target.value)} /></F>
           </div>
           <div className="grid grid-cols-2 gap-3">
+            <F label="نسبة العمولة % (للأطباء)"><input className="field ltr-nums" type="number" min={0} max={100} step="0.5" dir="ltr" value={f.commission_rate ?? 0} onChange={(e) => set("commission_rate", e.target.value)} /></F>
             <F label="البنك"><input className="field" value={f.bank_name ?? ""} onChange={(e) => set("bank_name", e.target.value)} placeholder="اختياري" /></F>
-            <F label="IBAN"><input className="field ltr-nums" dir="ltr" value={f.iban ?? ""} onChange={(e) => set("iban", e.target.value)} placeholder="OM.." /></F>
           </div>
+          <F label="IBAN"><input className="field ltr-nums" dir="ltr" value={f.iban ?? ""} onChange={(e) => set("iban", e.target.value)} placeholder="OM.." /></F>
           <div className="flex items-center justify-between text-[13px] px-3 py-2 rounded-xl" style={{ background: "rgba(45,212,191,0.08)", border: "1px solid rgba(45,212,191,0.2)" }}>
             <span style={{ color: "var(--text-2)" }}>إجمالي الراتب الشهري</span>
             <span className="font-black ltr-nums" style={{ color: "#5dd9cb" }}>{fmt(total)} ر.ع</span>

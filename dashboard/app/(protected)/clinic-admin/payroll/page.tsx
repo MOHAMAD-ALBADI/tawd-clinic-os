@@ -3,6 +3,7 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { SalaryAndAttendance, type StaffRow } from "@/components/payroll/salary-attendance";
 import { PayrollRuns, type RunRow, type PayslipRow } from "@/components/payroll/payroll-runs";
+import { CommissionsBoard, type CommissionRow } from "@/components/payroll/commissions-board";
 import { Wallet, Users, CalendarCheck } from "lucide-react";
 
 export const metadata = { title: "الرواتب والموظفون — طود" };
@@ -20,7 +21,7 @@ export default async function PayrollPage() {
   const monthStart = `${period}-01`;
   const today = now.toISOString().slice(0, 10);
 
-  const [staffRes, profRes, absRes, todayRes, runsRes] = await Promise.all([
+  const [staffRes, profRes, absRes, todayRes, runsRes, commRes] = await Promise.all([
     sb.from("tawd_staff_users").select("id, name, name_ar, role")
       .eq("clinic_id", claims.clinic_id).eq("is_active", true).is("deleted_at", null)
       .neq("role", "platform_admin").order("name"),
@@ -30,6 +31,9 @@ export default async function PayrollPage() {
     sb.from("attendance").select("staff_id, status").eq("clinic_id", claims.clinic_id).eq("work_date", today),
     sb.from("payroll_runs").select("id, period, status, total_net")
       .eq("clinic_id", claims.clinic_id).order("period", { ascending: false }).limit(24),
+    sb.from("doctor_commissions")
+      .select("id, commission_rate, commission_amount, status, created_at, tawd_staff_users!doctor_id(name, name_ar)")
+      .eq("clinic_id", claims.clinic_id).order("created_at", { ascending: false }).limit(100),
   ]);
 
   const profByStaff = new Map((profRes.data ?? []).map((p) => [p.staff_id, p]));
@@ -44,6 +48,7 @@ export default async function PayrollPage() {
       hasProfile: !!p,
       basic: n(p?.basic_salary), housing: n(p?.housing_allowance),
       transport: n(p?.transport_allowance), other: n(p?.other_allowance),
+      commission_rate: n(p?.commission_rate),
       job_title: (p?.job_title as string) ?? "", hire_date: (p?.hire_date as string) ?? "",
       bank_name: (p?.bank_name as string) ?? "", iban: (p?.iban as string) ?? "",
       monthAbsence: absCount.get(s.id) ?? 0,
@@ -72,6 +77,15 @@ export default async function PayrollPage() {
       };
     }).sort((a, b) => a.staff_name.localeCompare(b.staff_name));
   }
+
+  const commissions: CommissionRow[] = (commRes.data ?? []).map((c) => {
+    const u = c.tawd_staff_users as unknown as { name?: string; name_ar?: string } | null;
+    return {
+      id: c.id, doctor_name: u?.name_ar ?? u?.name ?? "طبيب",
+      rate: n(c.commission_rate), amount: n(c.commission_amount),
+      status: c.status as CommissionRow["status"], created_at: c.created_at as string,
+    };
+  });
 
   const withSalary = staff.filter((s) => s.hasProfile).length;
   const monthlyCost = staff.reduce((s, x) => s + x.basic + x.housing + x.transport + x.other, 0);
@@ -106,6 +120,7 @@ export default async function PayrollPage() {
 
       <SalaryAndAttendance staff={staff} today={today} />
       <PayrollRuns period={period} runs={runs} currentRun={currentRun} payslips={payslips} />
+      <CommissionsBoard commissions={commissions} />
     </div>
   );
 }
