@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Plus, X, Trash2, Check, CheckCircle2, AlertTriangle, ClipboardList, ChevronLeft,
 } from "lucide-react";
+import { F } from "@/components/ui/num-field";
 import {
   createPlan, updatePlanStatus, deletePlan, addPlanItem, togglePlanItem, deletePlanItem,
   type PlanStatus,
@@ -222,9 +223,6 @@ function CreatePlanModal({ patients, doctors, onSave, onClose, pending, err }: {
 }) {
   const [f, setF] = useState({ patient_id: "", doctor_id: "", title: "خطة علاج" });
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
-  const F = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <label className="block"><span className="text-[11px] font-semibold block mb-1" style={{ color: "var(--text-3)" }}>{label}</span>{children}</label>
-  );
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }} onClick={onClose}>
       <div className="w-full max-w-md panel-feature" style={{ padding: "1.5rem" }} onClick={(e) => e.stopPropagation()}>

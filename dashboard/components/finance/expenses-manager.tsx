@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X, Trash2, CheckCircle2, AlertTriangle, Receipt, Link2 } from "lucide-react";
 import { addExpense, deleteExpense, type ExpenseInput } from "@/app/actions/expenses";
-import { NumField } from "@/components/ui/num-field";
+import { NumField, F } from "@/components/ui/num-field";
 
 export type ExpenseRow = {
   id: string; category: string; amount: number; expense_date: string;
@@ -102,9 +102,6 @@ function AddModal({ onSubmit, onClose, pending, err }: {
     payment_method: "cash", description: "", vendor: "",
   });
   const set = (k: keyof ExpenseInput, v: unknown) => setF((p) => ({ ...p, [k]: v }));
-  const F = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <label className="block"><span className="text-[11px] font-semibold block mb-1" style={{ color: "var(--text-3)" }}>{label}</span>{children}</label>
-  );
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }} onClick={onClose}>
       <div className="w-full max-w-md panel-feature" style={{ padding: "1.5rem" }} onClick={(e) => e.stopPropagation()}>

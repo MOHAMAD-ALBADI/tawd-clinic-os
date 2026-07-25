@@ -11,6 +11,23 @@
    mobile) that normalises Arabic-Indic and Persian digits to ASCII, keeps at most
    one decimal separator, and reports a clean ASCII string to the caller. */
 
+/* Labelled form row.
+
+   MUST live at module scope. It was previously re-declared inside each modal
+   (`const F = ({label, children}) => …`), which gave it a NEW function identity on
+   every render — React then unmounted and remounted the whole row, destroying the
+   <input> and its focus. Symptom: the field accepted one character, then you had to
+   click it again. Defining form helpers inside a component is never safe when they
+   wrap inputs. */
+export function F({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="text-[11px] font-semibold block mb-1" style={{ color: "var(--text-3)" }}>{label}</span>
+      {children}
+    </label>
+  );
+}
+
 const AR_DIGITS = "٠١٢٣٤٥٦٧٨٩";
 const FA_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
 

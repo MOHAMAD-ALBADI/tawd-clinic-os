@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X, Send, CheckCircle2, XCircle, Ban, AlertTriangle, FileText } from "lucide-react";
+import { F } from "@/components/ui/num-field";
 import { createClaim, submitClaim, resolveClaim, cancelClaim } from "@/app/actions/insurance";
 import type { ProviderRow } from "@/components/insurance/providers-manager";
 import type { PatientOpt } from "@/components/insurance/patient-insurance-manager";
@@ -133,9 +134,6 @@ function CreateClaimModal({ providers, patients, onSave, onClose, pending, err }
 }) {
   const [f, setF] = useState({ patient_id: "", provider_id: "", submitted_amount: "" });
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
-  const F = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <label className="block"><span className="text-[11px] font-semibold block mb-1" style={{ color: "var(--text-3)" }}>{label}</span>{children}</label>
-  );
   return (
     <Overlay onClose={onClose}>
       <h3 className="font-bold text-white text-lg mb-3">مطالبة جديدة</h3>

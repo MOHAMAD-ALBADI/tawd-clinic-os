@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, X, CheckCircle2, AlertTriangle, UserCheck, UserX, Wallet } from "lucide-react";
+import { F } from "@/components/ui/num-field";
 import { saveHrProfile, markAttendance, type HrInput } from "@/app/actions/payroll";
 
 export type StaffRow = {
@@ -150,9 +151,6 @@ function SalaryModal({ staff, onSave, onClose, pending, err }: {
     bank_name: staff.bank_name, iban: staff.iban,
   });
   const set = (k: keyof HrInput, v: unknown) => setF((p) => ({ ...p, [k]: v }));
-  const F = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <label className="block"><span className="text-[11px] font-semibold block mb-1" style={{ color: "var(--text-3)" }}>{label}</span>{children}</label>
-  );
   const total = (Number(f.basic_salary) || 0) + (Number(f.housing_allowance) || 0) + (Number(f.transport_allowance) || 0) + (Number(f.other_allowance) || 0);
 
   return (

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, AlertTriangle, ShieldCheck, Save } from "lucide-react";
+import { F } from "@/components/ui/num-field";
 import { savePatientInsurance } from "@/app/actions/insurance";
 import type { ProviderRow } from "@/components/insurance/providers-manager";
 
@@ -37,9 +38,6 @@ export function PatientInsuranceManager({ coverage, providers, patients }: {
     });
   }
 
-  const F = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <label className="block"><span className="text-[11px] font-semibold block mb-1" style={{ color: "var(--text-3)" }}>{label}</span>{children}</label>
-  );
 
   return (
     <div className="panel" style={{ padding: "1.25rem" }}>
