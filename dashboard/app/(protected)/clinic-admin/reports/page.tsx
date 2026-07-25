@@ -1,307 +1,266 @@
 import { redirect } from "next/navigation";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
-import { ComparisonBars } from "@/components/reports/comparison-bars";
+import {
+  TrendingUp, TrendingDown, Percent, UserPlus, Repeat, CalendarX,
+  Stethoscope, Scissors, ClipboardCheck, Wallet,
+} from "lucide-react";
 
 export const metadata = { title: "التقارير — طود" };
+
+/* Reports built on the metrics clinics are actually judged by — collection rate
+   (where revenue leaks), no-show rate, treatment-plan acceptance, per-doctor
+   productivity — instead of plain row counts. Every figure comes from data the
+   clinic already produces, and is compared with last month so a number always
+   carries a direction. */
+
+const n = (v: unknown) => Number(v ?? 0) || 0;
+const omr = (v: number) =>
+  new Intl.NumberFormat("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(v);
+const pct = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 100) : 0);
 
 export default async function ReportsPage() {
   const claims = await getUserClaims();
   if (!claims || claims.role !== "clinic_admin") redirect("/login");
 
-  const supabase = await createServerSupabaseClient();
+  const sb = await createServerSupabaseClient();
   const now = new Date();
-  const monthStart    = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split("T")[0];
-  const lastMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split("T")[0];
+  const y = now.getUTCFullYear(), m = now.getUTCMonth();
+  const thisStart = new Date(Date.UTC(y, m, 1)).toISOString();
+  const nextStart = new Date(Date.UTC(y, m + 1, 1)).toISOString();
+  const prevStart = new Date(Date.UTC(y, m - 1, 1)).toISOString();
+  const monthLabel = `${y}-${String(m + 1).padStart(2, "0")}`;
 
   const [
-    { data: apptsCurrent },
-    { data: apptsLast },
-    { data: invoicesCurrent },
-    { data: invoicesLast },
-    { count: patientsCount },
-    { count: staffCount },
+    apptThis, apptPrev, invThis, payThis, payPrev, expThis,
+    plansAll, staffRes, patientsAll,
   ] = await Promise.all([
-    supabase.from("appointments").select("id,status").eq("clinic_id", claims.clinic_id).gte("slot_time", `${monthStart}T00:00:00`),
-    supabase.from("appointments").select("id,status").eq("clinic_id", claims.clinic_id).gte("slot_time", `${lastMonthStart}T00:00:00`).lte("slot_time", `${lastMonthEnd}T23:59:59`),
-    supabase.from("invoices").select("total,status").eq("clinic_id", claims.clinic_id).gte("created_at", `${monthStart}T00:00:00`),
-    supabase.from("invoices").select("total,status").eq("clinic_id", claims.clinic_id).gte("created_at", `${lastMonthStart}T00:00:00`).lte("created_at", `${lastMonthEnd}T23:59:59`),
-    supabase.from("patients").select("id", { count: "exact", head: true }).eq("clinic_id", claims.clinic_id),
-    supabase.from("tawd_staff_users").select("id", { count: "exact", head: true }).eq("clinic_id", claims.clinic_id),
+    sb.from("appointments").select("id, status, doctor_id, service_id, patient_id")
+      .eq("clinic_id", claims.clinic_id).is("deleted_at", null)
+      .gte("slot_time", thisStart).lt("slot_time", nextStart).limit(100000),
+    sb.from("appointments").select("id, status")
+      .eq("clinic_id", claims.clinic_id).is("deleted_at", null)
+      .gte("slot_time", prevStart).lt("slot_time", thisStart).limit(100000),
+    sb.from("invoices").select("total, status")
+      .eq("clinic_id", claims.clinic_id).is("deleted_at", null)
+      .gte("created_at", thisStart).lt("created_at", nextStart).limit(100000),
+    sb.from("payments").select("amount").eq("clinic_id", claims.clinic_id).eq("status", "completed")
+      .gte("created_at", thisStart).lt("created_at", nextStart).limit(100000),
+    sb.from("payments").select("amount").eq("clinic_id", claims.clinic_id).eq("status", "completed")
+      .gte("created_at", prevStart).lt("created_at", thisStart).limit(100000),
+    sb.from("expenses").select("amount").eq("clinic_id", claims.clinic_id).is("deleted_at", null)
+      .gte("expense_date", thisStart.slice(0, 10)).limit(100000),
+    sb.from("treatment_plans").select("status, total_estimate").eq("clinic_id", claims.clinic_id).limit(100000),
+    sb.from("tawd_staff_users").select("id, name, name_ar, role")
+      .eq("clinic_id", claims.clinic_id).eq("is_active", true).is("deleted_at", null),
+    sb.from("patients").select("id, created_at").eq("clinic_id", claims.clinic_id).is("deleted_at", null).limit(100000),
   ]);
 
-  const curAppts  = apptsCurrent ?? [];
-  const lastAppts = apptsLast ?? [];
-  const curInv    = invoicesCurrent ?? [];
-  const lastInv   = invoicesLast ?? [];
+  const appts = apptThis.data ?? [];
+  const prevAppts = apptPrev.data ?? [];
+  const invoices = invThis.data ?? [];
+  const staff = staffRes.data ?? [];
+  const plans = plansAll.data ?? [];
 
-  const revenue     = curInv.filter((i) => i.status === "paid").reduce((s, i) => s + (i.total ?? 0), 0);
-  const lastRevenue = lastInv.filter((i) => i.status === "paid").reduce((s, i) => s + (i.total ?? 0), 0);
+  /* ── operations ── */
+  const completed = appts.filter((a) => a.status === "completed").length;
+  const noShow = appts.filter((a) => a.status === "no_show").length;
+  const cancelled = appts.filter((a) => a.status === "cancelled").length;
+  const finished = completed + noShow; // only appointments with a known outcome
+  const noShowRate = pct(noShow, finished);
+  const prevFinished = prevAppts.filter((a) => a.status === "completed" || a.status === "no_show").length;
+  const prevNoShowRate = pct(prevAppts.filter((a) => a.status === "no_show").length, prevFinished);
 
-  const completedCur  = curAppts.filter((a) => a.status === "completed").length;
-  const completedLast = lastAppts.filter((a) => a.status === "completed").length;
-  const completionPct = curAppts.length > 0 ? Math.round((completedCur / curAppts.length) * 100) : 0;
-  const lastCompPct   = lastAppts.length > 0 ? Math.round((completedLast / lastAppts.length) * 100) : 0;
+  /* ── money: billed vs collected is where revenue leaks ── */
+  const billed = invoices.reduce((s, i) => s + n(i.total), 0);
+  const collected = (payThis.data ?? []).reduce((s, p) => s + n(p.amount), 0);
+  const prevCollected = (payPrev.data ?? []).reduce((s, p) => s + n(p.amount), 0);
+  const expenses = (expThis.data ?? []).reduce((s, e) => s + n(e.amount), 0);
+  const collectionRate = pct(collected, billed);
+  const profit = collected - expenses;
+  const revPerVisit = completed > 0 ? collected / completed : 0;
+  const revenueTrend = prevCollected > 0 ? Math.round(((collected - prevCollected) / prevCollected) * 100) : null;
 
-  const apptChange   = lastAppts.length > 0 ? Math.round(((curAppts.length - lastAppts.length) / lastAppts.length) * 100) : 0;
-  const revenueChange = lastRevenue > 0 ? Math.round(((revenue - lastRevenue) / lastRevenue) * 100) : 0;
+  /* ── patients: new vs returning this month ── */
+  const uniquePatients = new Set(appts.map((a) => a.patient_id).filter(Boolean)).size;
+  const newThisMonth = (patientsAll.data ?? []).filter(
+    (p) => (p.created_at as string) >= thisStart && (p.created_at as string) < nextStart
+  ).length;
+  const returning = Math.max(0, uniquePatients - newThisMonth);
 
-  const dayOfMonth  = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const monthProgress = Math.round((dayOfMonth / daysInMonth) * 100);
+  /* ── treatment plans: acceptance is the core clinical-sales metric ── */
+  const proposed = plans.filter((p) => p.status !== "draft").length;
+  const accepted = plans.filter((p) => ["accepted", "in_progress", "completed"].includes(p.status as string)).length;
+  const acceptanceRate = pct(accepted, proposed);
+  const pipeline = plans.filter((p) => p.status === "proposed").reduce((s, p) => s + n(p.total_estimate), 0);
 
-  const monthAr = now.toLocaleDateString("ar-SA", { month: "long", year: "numeric" });
+  /* ── per-doctor productivity ── */
+  const doctorName = (id: string) => {
+    const d = staff.find((s) => s.id === id);
+    return (d?.name_ar ?? d?.name ?? "—") as string;
+  };
+  const byDoctor = new Map<string, { done: number; total: number }>();
+  for (const a of appts) {
+    if (!a.doctor_id) continue;
+    const cur = byDoctor.get(a.doctor_id) ?? { done: 0, total: 0 };
+    cur.total += 1;
+    if (a.status === "completed") cur.done += 1;
+    byDoctor.set(a.doctor_id, cur);
+  }
+  const doctorRows = [...byDoctor.entries()]
+    .map(([id, v]) => ({ name: doctorName(id), ...v }))
+    .sort((a, b) => b.done - a.done);
 
-  const revenueStr = revenue > 0
-    ? revenue.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })
-    : "0.000";
+  /* ── top services by volume ── */
+  const svcCount = new Map<string, number>();
+  for (const a of appts) if (a.service_id) svcCount.set(a.service_id, (svcCount.get(a.service_id) ?? 0) + 1);
+  const topSvcIds = [...svcCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  let serviceRows: { name: string; count: number }[] = [];
+  if (topSvcIds.length) {
+    const { data: svcs } = await sb.from("services").select("id, name, name_ar")
+      .in("id", topSvcIds.map(([id]) => id));
+    serviceRows = topSvcIds.map(([id, count]) => {
+      const s = (svcs ?? []).find((x) => x.id === id);
+      return { name: (s?.name_ar ?? s?.name ?? "خدمة") as string, count };
+    });
+  }
 
-  const circumference = 2 * Math.PI * 54;
-  const dashOffset = circumference - (completionPct / 100) * circumference;
-
-  const ChangeIcon = revenueChange > 0 ? ArrowUpRight : revenueChange < 0 ? ArrowDownRight : Minus;
-  const changeColor = revenueChange > 0 ? "#4ADE80" : revenueChange < 0 ? "#F87171" : "rgba(148,163,184,0.5)";
+  const kpis = [
+    { label: "محصّل هذا الشهر", value: omr(collected), unit: "ر.ع", Icon: Wallet,
+      trend: revenueTrend, color: "#5dd9cb" },
+    { label: "معدل التحصيل", value: `${collectionRate}%`, unit: `من ${omr(billed)} مفوتر`,
+      Icon: Percent, trend: null, color: collectionRate >= 80 ? "#5dd9cb" : "#fbbf24" },
+    { label: "صافي الربح", value: omr(profit), unit: "ر.ع بعد المصروفات", Icon: TrendingUp,
+      trend: null, color: profit >= 0 ? "#5dd9cb" : "#fda4b4" },
+    { label: "متوسط إيراد الزيارة", value: omr(revPerVisit), unit: "ر.ع", Icon: TrendingUp,
+      trend: null, color: "var(--accent-1)" },
+    { label: "معدل عدم الحضور", value: `${noShowRate}%`,
+      unit: prevFinished > 0 ? `الشهر الماضي ${prevNoShowRate}%` : "لا مقارنة بعد",
+      Icon: CalendarX, trend: null,
+      color: noShowRate <= 10 ? "#5dd9cb" : noShowRate <= 20 ? "#fbbf24" : "#fda4b4" },
+    { label: "مواعيد مكتملة", value: String(completed), unit: `من ${appts.length} موعد`,
+      Icon: ClipboardCheck, trend: null, color: "var(--accent-1)" },
+    { label: "مرضى جدد", value: String(newThisMonth), unit: `عائدون ${returning}`,
+      Icon: UserPlus, trend: null, color: "var(--accent-1)" },
+    { label: "قبول خطط العلاج", value: proposed > 0 ? `${acceptanceRate}%` : "—",
+      unit: pipeline > 0 ? `معروض ${omr(pipeline)} ر.ع` : "لا خطط معروضة", Icon: Repeat,
+      trend: null, color: acceptanceRate >= 50 ? "#5dd9cb" : "#fbbf24" },
+  ];
 
   return (
-    <div className="space-y-4 animate-fade-in">
-
-      {/* ── PAGE HEADER ── */}
-      <div className="flex items-end justify-between">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1" style={{ color: "rgba(20,184,166,0.5)" }}>
-            ANALYTICS
-          </p>
-          <h2 className="text-2xl font-black text-white tracking-tight leading-none">التقارير</h2>
-        </div>
-        <p className="text-[11px] font-medium pb-1" style={{ color: "rgba(148,163,184,0.35)" }}>
-          {monthAr}
+    <div className="space-y-5 animate-fade-in pb-20">
+      <div>
+        <p className="eyebrow">REPORTS</p>
+        <h1 className="text-2xl font-black text-white tracking-tight leading-none mt-1">التقارير</h1>
+        <p className="text-[12px] mt-1" style={{ color: "var(--text-4)" }}>
+          أداء العيادة لشهر <span className="ltr-nums">{monthLabel}</span> — مقارنةً بالشهر الماضي
         </p>
       </div>
 
-      {/* ── HERO ROW ── */}
-      <div className="grid grid-cols-12 gap-4">
-
-        {/* Revenue hero — 8 cols */}
-        <div
-          className="col-span-12 lg:col-span-8 rounded-3xl relative overflow-hidden"
-          style={{
-            background: "linear-gradient(145deg, rgba(20,184,166,0.07) 0%, rgba(13,13,15,0.92) 55%, rgba(13,13,15,0.97) 100%)",
-            border: "1px solid rgba(20,184,166,0.12)",
-            padding: "2rem 2.25rem 1.75rem",
-            boxShadow: "0 24px 64px rgba(0,0,0,0.5), inset 0 1px 0 rgba(94,217,203,0.06)",
-          }}
-        >
-          {/* Ambient glow */}
-          <div
-            aria-hidden
-            style={{
-              position: "absolute", top: -60, right: -60,
-              width: 220, height: 220, borderRadius: "50%",
-              background: "radial-gradient(circle, rgba(20,184,166,0.09) 0%, transparent 70%)",
-              pointerEvents: "none",
-            }}
-          />
-
-          {/* Label + change badge */}
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: "rgba(148,163,184,0.35)" }}>
-              إيرادات {monthAr}
-            </p>
-            <div
-              className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold"
-              style={{
-                background: revenueChange > 0 ? "rgba(74,222,128,0.1)" : revenueChange < 0 ? "rgba(248,113,113,0.1)" : "rgba(148,163,184,0.07)",
-                color: changeColor,
-                border: `1px solid ${changeColor}30`,
-              }}
-            >
-              <ChangeIcon className="w-3 h-3" />
-              {Math.abs(revenueChange)}%
-              <span className="font-normal ms-0.5" style={{ color: "rgba(148,163,184,0.4)" }}>عن الشهر الماضي</span>
-            </div>
-          </div>
-
-          {/* Revenue number */}
-          <div className="flex items-baseline gap-3 mb-1">
-            <span
-              className="font-black ltr-nums leading-none"
-              style={{
-                fontSize: "clamp(2.8rem, 5vw, 4rem)",
-                letterSpacing: "-0.04em",
-                color: revenue > 0 ? "#14b8a6" : "rgba(20,184,166,0.15)",
-                textShadow: revenue > 0 ? "0 0 60px rgba(20,184,166,0.35), 0 0 100px rgba(20,184,166,0.1)" : "none",
-              }}
-            >
-              {revenueStr}
-            </span>
-            <span className="text-lg font-bold" style={{ color: "rgba(20,184,166,0.4)" }}>ر.ع</span>
-          </div>
-
-          <p className="text-[11px] mb-6" style={{ color: "rgba(148,163,184,0.3)" }}>
-            الإيراد الشهري المُحصَّل · فواتير مدفوعة فقط
-          </p>
-
-          {/* Month progress bar */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: "rgba(148,163,184,0.25)" }}>
-                تقدم الشهر
-              </span>
-              <span className="text-[10px] ltr-nums font-medium" style={{ color: "rgba(148,163,184,0.35)" }}>
-                يوم {dayOfMonth} من {daysInMonth}
-              </span>
-            </div>
-            <div className="rounded-full overflow-hidden" style={{ height: 5, background: "rgba(255,255,255,0.04)" }}>
-              <div
-                className="h-full rounded-full"
-                style={{
-                  width: `${monthProgress}%`,
-                  background: "linear-gradient(90deg, rgba(20,184,166,0.4), rgba(20,184,166,0.7))",
-                }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Completion ring — 4 cols */}
-        <div
-          className="col-span-12 lg:col-span-4 rounded-3xl flex flex-col items-center justify-center relative overflow-hidden"
-          style={{
-            background: "rgba(255,255,255,0.02)",
-            border: "1px solid rgba(255,255,255,0.06)",
-            backdropFilter: "blur(20px)",
-            padding: "2rem 1.5rem",
-            minHeight: 200,
-          }}
-        >
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] mb-5" style={{ color: "rgba(148,163,184,0.3)" }}>
-            معدل الإكمال
-          </p>
-
-          {/* SVG circle progress */}
-          <div className="relative">
-            <svg width={140} height={140} viewBox="0 0 140 140">
-              {/* Track */}
-              <circle cx="70" cy="70" r="54" fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="8" />
-              {/* Progress */}
-              <circle
-                cx="70" cy="70" r="54" fill="none"
-                stroke="url(#comp-grad)"
-                strokeWidth="8"
-                strokeLinecap="round"
-                strokeDasharray={circumference}
-                strokeDashoffset={dashOffset}
-                transform="rotate(-90 70 70)"
-              />
-              <defs>
-                <linearGradient id="comp-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#0f766e" />
-                  <stop offset="100%" stopColor="#5dd9cb" />
-                </linearGradient>
-              </defs>
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span
-                className="font-black ltr-nums leading-none"
-                style={{
-                  fontSize: "2.4rem",
-                  color: completionPct > 0 ? "#14b8a6" : "rgba(148,163,184,0.2)",
-                  textShadow: completionPct > 0 ? "0 0 30px rgba(20,184,166,0.4)" : "none",
-                }}
-              >
-                {completionPct}%
-              </span>
-              <span className="text-[10px] mt-1" style={{ color: "rgba(148,163,184,0.3)" }}>إكمال</span>
-            </div>
-          </div>
-
-          <p className="text-[11px] mt-3 text-center" style={{ color: "rgba(148,163,184,0.3)" }}>
-            {completedCur} مكتمل من {curAppts.length} موعد
-          </p>
-        </div>
-      </div>
-
-      {/* ── SECONDARY STATS ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { label: "إجمالي المواعيد", value: curAppts.length,    note: `${apptChange > 0 ? "+" : ""}${apptChange}% الشهر الماضي`, noteColor: apptChange >= 0 ? "#4ADE80" : "#F87171" },
-          { label: "مواعيد مكتملة",  value: completedCur,        note: `${completedLast} الشهر الماضي`, noteColor: "rgba(148,163,184,0.3)" },
-          { label: "إجمالي المرضى",  value: patientsCount ?? 0,  note: "مريض مسجّل", noteColor: "rgba(148,163,184,0.3)" },
-          { label: "أعضاء الفريق",   value: staffCount ?? 0,     note: "موظف نشط", noteColor: "rgba(148,163,184,0.3)" },
-        ].map((s) => (
-          <div
-            key={s.label}
-            className="rounded-2xl"
-            style={{
-              background: "rgba(255,255,255,0.018)",
-              border: "1px solid rgba(255,255,255,0.055)",
-              backdropFilter: "blur(16px)",
-              padding: "1.2rem 1.4rem",
-            }}
-          >
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] mb-3" style={{ color: "rgba(148,163,184,0.3)" }}>
-              {s.label}
-            </p>
-            <p
-              className="font-black ltr-nums leading-none mb-1.5"
-              style={{ fontSize: "2.2rem", color: "rgba(226,232,240,0.9)", letterSpacing: "-0.03em" }}
-            >
-              {s.value}
-            </p>
-            <p className="text-[10px] font-medium" style={{ color: s.noteColor }}>
-              {s.note}
-            </p>
+        {kpis.map((k) => (
+          <div key={k.label} className="panel" style={{ padding: "1.1rem 1.2rem" }}>
+            <div className="flex items-center justify-between mb-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--text-4)" }}>{k.label}</p>
+              <k.Icon className="w-3.5 h-3.5" style={{ color: k.color }} />
+            </div>
+            <div className="flex items-end gap-2">
+              <p className="font-black ltr-nums leading-none" style={{ fontSize: "1.7rem", color: k.color }}>{k.value}</p>
+              {k.trend != null && (
+                <span className="flex items-center gap-0.5 text-[11px] font-bold ltr-nums mb-0.5"
+                  style={{ color: k.trend >= 0 ? "#5dd9cb" : "#fda4b4" }}>
+                  {k.trend >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  {Math.abs(k.trend)}%
+                </span>
+              )}
+            </div>
+            <p className="text-[10.5px] mt-1.5 ltr-nums" style={{ color: "var(--text-4)" }}>{k.unit}</p>
           </div>
         ))}
       </div>
 
-      {/* ── VISUAL COMPARISON ── */}
-      <div
-        className="rounded-3xl"
-        style={{
-          background: "rgba(255,255,255,0.018)",
-          border: "1px solid rgba(255,255,255,0.055)",
-          backdropFilter: "blur(20px)",
-          padding: "1.75rem 2rem",
-        }}
-      >
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] mb-1" style={{ color: "rgba(148,163,184,0.3)" }}>
-              COMPARISON
-            </p>
-            <h3 className="text-base font-bold text-white">مقارنة شهرية</h3>
+      {/* revenue leakage — the most actionable finance number on the page */}
+      {billed > 0 && collected < billed && (
+        <div className="panel" style={{ padding: "1.1rem 1.25rem", border: "1px solid rgba(251,191,36,0.22)" }}>
+          <p className="text-[13px]" style={{ color: "var(--text-2)" }}>
+            <span className="font-bold ltr-nums" style={{ color: "#fbbf24" }}>{omr(billed - collected)} ر.ع</span>
+            {" "}مفوترة ولم تُحصّل بعد هذا الشهر — راجع الفواتير غير المسددة.
+          </p>
+        </div>
+      )}
+
+      <div className="grid lg:grid-cols-2 gap-4 items-start">
+        {/* per-doctor productivity */}
+        <div className="panel" style={{ padding: "1.25rem" }}>
+          <div className="section-title mb-4">
+            <Stethoscope className="w-3.5 h-3.5" style={{ color: "var(--accent-1)" }} />
+            <h2>إنتاجية الأطباء</h2>
           </div>
-          <div className="flex items-center gap-3 text-[10px]">
-            <span className="font-bold" style={{ color: "#14b8a6" }}>هذا الشهر</span>
-            <span style={{ color: "rgba(148,163,184,0.3)" }}>الشهر الماضي</span>
-          </div>
+          {doctorRows.length === 0 ? (
+            <p className="text-[12px] text-center py-6" style={{ color: "var(--text-4)" }}>لا مواعيد هذا الشهر</p>
+          ) : (
+            <div className="space-y-2.5">
+              {doctorRows.map((d) => (
+                <div key={d.name}>
+                  <div className="flex items-center justify-between text-[12px] mb-1">
+                    <span className="text-white font-semibold">{d.name}</span>
+                    <span className="ltr-nums" style={{ color: "var(--text-3)" }}>{d.done} / {d.total} مكتمل</span>
+                  </div>
+                  <div className="rounded-full overflow-hidden" style={{ height: 5, background: "rgba(255,255,255,0.04)" }}>
+                    <div className="h-full rounded-full" style={{ width: `${pct(d.done, d.total)}%`, background: "var(--accent-1)", opacity: 0.75 }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        <ComparisonBars
-          rows={[
-            {
-              label: "إجمالي المواعيد",
-              current: curAppts.length, last: lastAppts.length,
-              currentNum: curAppts.length, lastNum: lastAppts.length,
-              color: "#14b8a6",
-            },
-            {
-              label: "مواعيد مكتملة",
-              current: completedCur, last: completedLast,
-              currentNum: completedCur, lastNum: completedLast,
-              color: "#38bdf8",
-            },
-            {
-              label: "معدل الإكمال",
-              current: `${completionPct}%`, last: `${lastCompPct}%`,
-              currentNum: completionPct, lastNum: lastCompPct,
-              color: "#5dd9cb",
-            },
-          ]}
-        />
+        {/* top services */}
+        <div className="panel" style={{ padding: "1.25rem" }}>
+          <div className="section-title mb-4">
+            <Scissors className="w-3.5 h-3.5" style={{ color: "var(--accent-1)" }} />
+            <h2>أكثر الخدمات طلباً</h2>
+          </div>
+          {serviceRows.length === 0 ? (
+            <p className="text-[12px] text-center py-6" style={{ color: "var(--text-4)" }}>لا بيانات بعد</p>
+          ) : (
+            <div className="space-y-2.5">
+              {serviceRows.map((s) => (
+                <div key={s.name}>
+                  <div className="flex items-center justify-between text-[12px] mb-1">
+                    <span className="text-white font-semibold">{s.name}</span>
+                    <span className="ltr-nums" style={{ color: "var(--text-3)" }}>{s.count}</span>
+                  </div>
+                  <div className="rounded-full overflow-hidden" style={{ height: 5, background: "rgba(255,255,255,0.04)" }}>
+                    <div className="h-full rounded-full"
+                      style={{ width: `${pct(s.count, serviceRows[0].count)}%`, background: "var(--accent-1)", opacity: 0.75 }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* appointment outcomes */}
+      <div className="panel" style={{ padding: "1.25rem" }}>
+        <div className="section-title mb-4">
+          <ClipboardCheck className="w-3.5 h-3.5" style={{ color: "var(--accent-1)" }} />
+          <h2>مصير مواعيد الشهر</h2>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { l: "مكتملة", v: completed, c: "#5dd9cb" },
+            { l: "لم يحضر", v: noShow, c: "#fda4b4" },
+            { l: "ملغاة", v: cancelled, c: "var(--text-3)" },
+            { l: "قادمة / جارية", v: Math.max(0, appts.length - completed - noShow - cancelled), c: "var(--accent-1)" },
+          ].map((x) => (
+            <div key={x.l} className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--hairline)" }}>
+              <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-4)" }}>{x.l}</p>
+              <p className="font-black ltr-nums mt-1" style={{ fontSize: "1.4rem", color: x.c }}>{x.v}</p>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

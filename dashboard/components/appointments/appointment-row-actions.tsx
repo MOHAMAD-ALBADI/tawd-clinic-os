@@ -17,7 +17,7 @@ const MENU_W = 216;
 
 export function AppointmentRowActions({ id, status, slotTime }: { id: string; status: string; slotTime: string }) {
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<"menu" | "reschedule">("menu");
+  const [mode, setMode] = useState<"menu" | "reschedule" | "confirmCancel">("menu");
   const [pos, setPos] = useState<Pos | null>(null);
   const [pending, startTransition] = useTransition();
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -50,8 +50,9 @@ export function AppointmentRowActions({ id, status, slotTime }: { id: string; st
   function reschedule() {
     startTransition(async () => { try { await rescheduleAppointment(id, `${date}T${time}:00`); } finally { close(); } });
   }
+  /* Confirmation happens inside the menu — a native confirm() dialog looks like a
+     browser popup and breaks the RTL/dark UI. */
   function cancel() {
-    if (!confirm("سيتم إلغاء الموعد (يبقى في السجل، لا حذف نهائي). متابعة؟")) return;
     startTransition(async () => { try { await cancelAppointment(id); } finally { close(); } });
   }
 
@@ -83,11 +84,22 @@ export function AppointmentRowActions({ id, status, slotTime }: { id: string; st
                   className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-right transition-colors hover:bg-white/[0.04]" style={{ color: "var(--text-1)" }}>
                   <CalendarClock className="w-3.5 h-3.5" style={{ color: "var(--color-info)" }} /> إعادة جدولة
                 </button>
-                <button onClick={cancel}
+                <button onClick={() => setMode("confirmCancel")}
                   className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-right transition-colors hover:bg-white/[0.04]" style={{ color: "#fda4b4" }}>
                   <XCircle className="w-3.5 h-3.5" /> إلغاء الموعد
                 </button>
               </>
+            ) : mode === "confirmCancel" ? (
+              <div className="px-3 py-2 space-y-2">
+                <p className="eyebrow" style={{ color: "#fda4b4" }}>تأكيد الإلغاء</p>
+                <p className="text-[11.5px] leading-relaxed" style={{ color: "var(--text-3)" }}>
+                  يبقى الموعد في السجل كملغي — لا حذف نهائي.
+                </p>
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => setMode("menu")} className="btn-ghost flex-1 h-9">رجوع</button>
+                  <button onClick={cancel} disabled={pending} className="btn-danger flex-1 h-9">{pending ? "..." : "إلغاء الموعد"}</button>
+                </div>
+              </div>
             ) : (
               <div className="px-3 py-2 space-y-2">
                 <p className="eyebrow">موعد جديد</p>

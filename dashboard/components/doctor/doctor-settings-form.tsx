@@ -19,31 +19,42 @@ export function DoctorSettingsForm({
   const [profile, setProfile] = useState({ ar: nameAr, en: nameEn });
   const [pw, setPw] = useState({ p1: "", p2: "" });
   const [done, setDone] = useState<"" | "profile" | "password">("");
+  const [err, setErr] = useState<string | null>(null);
 
+  /* in-app messages — a native alert() pops a browser dialog outside the RTL dark UI */
   function saveProfile() {
+    setErr(null);
     startSave(async () => {
       try {
         await updateMyProfile(profile.ar, profile.en);
         setDone("profile"); setTimeout(() => setDone(""), 2500);
         router.refresh();
-      } catch (e) { alert(e instanceof Error ? e.message : "حدث خطأ"); }
+      } catch (e) { setErr(e instanceof Error ? e.message : "تعذّر حفظ البيانات"); }
     });
   }
 
   function savePassword() {
-    if (pw.p1.length < 8) { alert("كلمة المرور 8 أحرف على الأقل"); return; }
-    if (pw.p1 !== pw.p2) { alert("كلمتا المرور غير متطابقتين"); return; }
+    if (pw.p1.length < 8) { setErr("كلمة المرور 8 أحرف على الأقل"); return; }
+    if (pw.p1 !== pw.p2) { setErr("كلمتا المرور غير متطابقتين"); return; }
+    setErr(null);
     startSave(async () => {
       try {
         await changeMyPassword(pw.p1);
         setPw({ p1: "", p2: "" });
         setDone("password"); setTimeout(() => setDone(""), 2500);
-      } catch (e) { alert(e instanceof Error ? e.message : "حدث خطأ"); }
+      } catch (e) { setErr(e instanceof Error ? e.message : "تعذّر تغيير كلمة المرور"); }
     });
   }
 
   return (
     <div className="grid lg:grid-cols-2 gap-4 items-start">
+      {err && (
+        <p className="lg:col-span-2 text-[12.5px] px-4 py-2.5 rounded-xl"
+          style={{ background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.2)", color: "#fda4b4" }}>
+          {err}
+        </p>
+      )}
+
       {/* profile */}
       <div className="panel" style={{ padding: "1.25rem" }}>
         <h3 className="font-bold text-white flex items-center gap-2 text-sm mb-1">

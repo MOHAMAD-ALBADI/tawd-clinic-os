@@ -70,6 +70,7 @@ export function LoyaltyCenter({
   const router            = useRouter();
   const [tab, setTab]     = useState<Tab>("loyalty");
   const [editing, setEditing] = useState(false);
+  const [saveErr, setSaveErr] = useState<string | null>(null);
   const [saving, startSave]   = useTransition();
   const [form, setForm]   = useState({
     points_per_visit:    loyaltySettings?.points_per_visit    ?? 10,
@@ -96,9 +97,11 @@ export function LoyaltyCenter({
           expiry_months:       Number(form.expiry_months),
         });
         setEditing(false);
+        setSaveErr(null);
         router.refresh();
       } catch (e) {
-        alert(e instanceof Error ? e.message : "حدث خطأ");
+        // in-app message — a browser alert() breaks out of the dark RTL UI
+        setSaveErr(e instanceof Error ? e.message : "تعذّر حفظ الإعدادات");
       }
     });
   }
@@ -253,6 +256,13 @@ export function LoyaltyCenter({
                 >
                   {form.is_active ? "✓ النظام نشط — انقر لتعطيله" : "○ النظام معطّل — انقر لتفعيله"}
                 </button>
+
+                {saveErr && (
+                  <p className="text-[12px] px-3 py-2 rounded-lg"
+                    style={{ background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.2)", color: "#fda4b4" }}>
+                    {saveErr}
+                  </p>
+                )}
 
                 <button
                   onClick={handleSave}
