@@ -106,7 +106,7 @@ export default async function AutomationPage() {
         )}
       </div>
 
-      <AppErrorsPanel errors={(appErrs ?? []) as unknown as AppErrorRow[]} ago={ago} />
+      <AppErrorsPanel errors={(appErrs ?? []) as unknown as AppErrorRow[]} />
     </div>
   );
 }

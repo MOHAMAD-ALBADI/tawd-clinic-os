@@ -13,8 +13,26 @@ const SEV_COLOR: Record<string, string> = {
   critical: "#fda4b4", high: "#fda4b4", medium: "#fbbf24", low: "var(--text-4)",
 };
 
+/* Own copy of the relative-time helper: a Server Component cannot pass a
+   function as a prop to a Client Component (props must be serialisable). */
+function ago(iso: string) {
+  const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000);
+  return h < 1 ? "الآن" : h < 24 ? `منذ ${h} س` : `منذ ${Math.floor(h / 24)} يوم`;
+}
+
+/** new URL() throws on a malformed value — never let a logged error crash the
+    page that displays it. */
+function pathOf(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return null;
+  }
+}
+
 /** TAWD's in-house Sentry-equivalent — see app/actions/error-tracking.ts. */
-export function AppErrorsPanel({ errors, ago }: { errors: AppErrorRow[]; ago: (iso: string) => string }) {
+export function AppErrorsPanel({ errors }: { errors: AppErrorRow[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
 
@@ -41,7 +59,7 @@ export function AppErrorsPanel({ errors, ago }: { errors: AppErrorRow[]; ago: (i
                 <div className="flex-1 min-w-0">
                   <p className="text-[12px] font-semibold text-white">{e.error_message.slice(0, 140)}</p>
                   <p className="text-[11px] mt-0.5" style={{ color: "var(--text-4)" }}>
-                    {e.severity} · {ago(e.created_at)}{url ? ` · ${new URL(url).pathname}` : ""}
+                    {e.severity} · {ago(e.created_at)}{pathOf(url) ? ` · ${pathOf(url)}` : ""}
                   </p>
                 </div>
                 <button title="تعليم كمُراجَع" disabled={pending} onClick={() => resolve(e.id)}
