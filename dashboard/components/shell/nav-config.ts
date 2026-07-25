@@ -53,6 +53,7 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "جدولي اليوم",    href: "/doctor",              icon: Stethoscope, exact: true },
     { label: "مواعيدي",        href: "/doctor/appointments",  icon: Calendar },
     { label: "مرضاي",          href: "/doctor/patients",      icon: UserCircle },
+    { label: "خطط علاجي",      href: "/doctor/treatment-plans", icon: ClipboardList },
     { label: "دوامي وإجازاتي", href: "/doctor/schedule",      icon: ClipboardList },
     { label: "إحصائياتي",      href: "/doctor/stats",         icon: BarChart3 },
     { label: "إعداداتي",       href: "/doctor/settings",      icon: Settings },
