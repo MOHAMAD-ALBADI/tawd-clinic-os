@@ -66,6 +66,7 @@ export default async function PlatformAdminPage() {
     { data: openAlerts }, hitlRes, { data: sysErrors }, { data: channels },
     automation,
     { data: costs }, { data: tokenRows }, waMsgsMonthRes,
+    dbSizeRes, convMonthRes,
   ] = await Promise.all([
     sb.from("tawd_clinics").select("id, name, name_ar, clinic_type, status, plan, created_at").order("created_at", { ascending: false }),
     sb.from("tawd_subscriptions").select("clinic_id, plan, status, price_omr, trial_ends_at"),
@@ -84,7 +85,12 @@ export default async function PlatformAdminPage() {
     sb.from("platform_costs").select("id, name, monthly_omr").order("created_at"),
     sb.from("ai_usage_metrics").select("tokens_total").gte("recorded_at", monthStart).limit(100000),
     sb.from("chat_messages").select("id", { count: "exact", head: true }).gte("created_at", monthStart),
+    sb.rpc("platform_db_size_mb"),
+    sb.from("chat_sessions").select("id", { count: "exact", head: true }).gte("created_at", monthStart),
   ]);
+
+  // PostgREST returns NUMERIC as a string — coerce, then treat non-numeric as unknown
+  const dbSizeMb = typeof dbSizeRes.data === "number" ? dbSizeRes.data : Number(dbSizeRes.data ?? NaN);
 
   const list = clinics ?? [];
   const by = <T extends { clinic_id: string }>(rows: T[] | null) => {
@@ -241,6 +247,9 @@ export default async function PlatformAdminPage() {
         geminiTokensMonth={(tokenRows ?? []).reduce((s, r) => s + Number(r.tokens_total ?? 0), 0)}
         waMessagesMonth={waMsgsMonthRes.count ?? 0}
         mrr={mrr}
+        dbSizeMb={Number.isFinite(dbSizeMb) ? dbSizeMb : null}
+        waConversationsMonth={convMonthRes.count ?? 0}
+        n8nRuns24h={automation && !("error" in automation) ? automation.runs24h : null}
       />
 
       {/* ══ العيادات — صحة كل مستأجر ══ */}
