@@ -162,6 +162,7 @@ export async function createClinic(input: NewClinicInput) {
     name_ar: input.adminName.trim(),
     email,
     role: "admin",
+    all_roles: ["admin"],
     is_active: true,
   });
 
@@ -188,6 +189,7 @@ export async function createClinic(input: NewClinicInput) {
       name_ar: d.name.trim(),
       email: dEmail,
       role: "doctor",
+      all_roles: ["doctor"],
       is_active: true,
     });
     if (dse) teamWarnings.push(`${dEmail}: ${dse.message}`);
@@ -217,6 +219,7 @@ export async function createClinic(input: NewClinicInput) {
           name_ar: "الاستقبال والمحاسبة",
           email: fEmail,
           role: "receptionist",
+          all_roles: ["receptionist", "accountant"],
           is_active: true,
         });
         frontdeskCreated = true;
@@ -286,6 +289,7 @@ export async function createStaffAccount(clinicId: string, input: NewStaffInput)
     name_ar: input.name.trim(),
     email,
     role: STAFF_ROLE_MAP[primary],
+    all_roles: roles.map((r) => STAFF_ROLE_MAP[r]),
     is_active: true,
   });
   if (sterr) return { ok: false as const, reason: `الحساب أُنشئ لكن تعذّر سجل الموظف: ${sterr.message}` };
