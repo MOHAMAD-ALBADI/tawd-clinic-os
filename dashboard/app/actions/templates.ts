@@ -2,6 +2,7 @@
 
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { TEMPLATE_TYPES, type TemplateInput } from "@/lib/template-meta";
 import { revalidatePath } from "next/cache";
 
 async function requireAdmin() {
@@ -10,37 +11,6 @@ async function requireAdmin() {
   return claims;
 }
 const rev = () => revalidatePath("/clinic-admin/marketing/templates");
-
-/** notification_template_type enum — the clinic picks what the message is FOR. */
-export const TEMPLATE_TYPES = [
-  "appointment_reminder_24h",
-  "appointment_reminder_2h",
-  "appointment_confirmation",
-  "appointment_cancellation",
-  "invoice_ready",
-  "payment_received",
-  "no_show_followup",
-  "sura_welcome",
-  "custom",
-] as const;
-export type TemplateType = (typeof TEMPLATE_TYPES)[number];
-
-/** Placeholders the automation replaces at send time. Kept in one place so the
-    editor can show the clinic exactly what it may use. */
-export const TEMPLATE_VARIABLES = [
-  "{{patient_name}}", "{{clinic_name}}", "{{doctor_name}}",
-  "{{date}}", "{{time}}", "{{service}}", "{{amount}}",
-] as const;
-
-export type TemplateInput = {
-  id?: string;
-  name: string;
-  template_type: TemplateType;
-  channel: string;          // channel_type enum: whatsapp / sms / email…
-  body_ar: string;
-  body_en?: string;
-  is_active?: boolean;
-};
 
 /** Extract the {{placeholders}} actually used, so `variables` stays accurate
     without the clinic having to maintain it by hand. */

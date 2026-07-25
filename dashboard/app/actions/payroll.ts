@@ -57,8 +57,12 @@ export async function saveHrProfile(input: HrInput) {
 }
 
 /** attendance_status enum — the full set, so a manager can log real situations
-    (leave / sick / half day), not just present-or-absent. */
-export const ATTENDANCE_STATUSES = ["present", "absent", "leave", "sick", "holiday", "half_day"] as const;
+    (leave / sick / half day), not just present-or-absent.
+
+    NOT exported: a "use server" file may only export async functions. Exporting a
+    const from here is what crashed the templates page (a client component importing
+    it). The TYPE below is fine — types are erased at compile time. */
+const ATTENDANCE_STATUSES = ["present", "absent", "leave", "sick", "holiday", "half_day"] as const;
 export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number];
 
 /** Mark one staff member's attendance for ANY day (upsert on staff_id+date),

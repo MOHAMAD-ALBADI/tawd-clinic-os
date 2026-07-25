@@ -5,30 +5,16 @@ import { useRouter } from "next/navigation";
 import {
   Plus, X, Pencil, Trash2, CheckCircle2, AlertTriangle, MessageSquare, Power,
 } from "lucide-react";
+import { saveTemplate, toggleTemplate, deleteTemplate } from "@/app/actions/templates";
 import {
-  saveTemplate, toggleTemplate, deleteTemplate,
-  TEMPLATE_TYPES, TEMPLATE_VARIABLES, type TemplateType, type TemplateInput,
-} from "@/app/actions/templates";
+  TEMPLATE_TYPES, TEMPLATE_VARIABLES, TYPE_AR,
+  type TemplateType, type TemplateInput,
+} from "@/lib/template-meta";
 import { F } from "@/components/ui/num-field";
 
 export type TemplateRow = {
   id: string; name: string; template_type: string; channel: string;
   body_ar: string; body_en: string | null; is_active: boolean;
-};
-
-/* Arabic labels for the REAL notification_template_type enum values. The page
-   previously mapped invented names (birthday/promotion/…) that don't exist in the
-   database, so live templates rendered as raw enum strings. */
-export const TYPE_AR: Record<string, string> = {
-  appointment_reminder_24h: "تذكير موعد (24 ساعة)",
-  appointment_reminder_2h: "تذكير موعد (ساعتين)",
-  appointment_confirmation: "تأكيد موعد",
-  appointment_cancellation: "إلغاء موعد",
-  invoice_ready: "الفاتورة جاهزة",
-  payment_received: "تأكيد استلام دفعة",
-  no_show_followup: "متابعة عدم الحضور",
-  sura_welcome: "ترحيب سُرى",
-  custom: "مخصّص",
 };
 
 const CHANNELS = [
