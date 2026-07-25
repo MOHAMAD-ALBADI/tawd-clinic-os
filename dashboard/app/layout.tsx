@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Sans_Arabic, IBM_Plex_Mono } from "next/font/google";
+import { ErrorTracker } from "@/components/system/error-tracker";
+import { PostHogProvider } from "@/components/system/posthog-provider";
 import "./globals.css";
 
 /* Body + display: engineered Arabic — precise, clinical, excellent weights */
@@ -36,7 +38,11 @@ export default function RootLayout({
       className={`dark ${plexArabic.variable} ${plexMono.variable}`}
       suppressHydrationWarning
     >
-      <body>{children}</body>
+      <body>
+        <ErrorTracker />
+        <PostHogProvider />
+        {children}
+      </body>
     </html>
   );
 }

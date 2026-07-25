@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
+import { AppErrorsPanel, type AppErrorRow } from "@/components/platform/app-errors-panel";
 import { Workflow } from "lucide-react";
 
 export const metadata = { title: "الأتمتة — طود" };
@@ -40,9 +41,12 @@ export default async function AutomationPage() {
   if (!claims || !hasRole(claims, "platform_admin")) redirect("/login");
 
   const sb = await createServiceRoleClient();
-  const [wfs, { data: errs }] = await Promise.all([
+  const [wfs, { data: errs }, { data: appErrs }] = await Promise.all([
     getWorkflows(),
     sb.from("sura_errors").select("workflow_name, node_name, error_message, created_at").order("created_at", { ascending: false }).limit(10),
+    sb.from("tawd_error_logs").select("id, error_message, severity, context, created_at")
+      .eq("workflow_id", "dashboard-app").eq("resolved", false)
+      .order("created_at", { ascending: false }).limit(15),
   ]);
 
   const ago = (iso: string) => {
@@ -103,6 +107,8 @@ export default async function AutomationPage() {
           </div>
         )}
       </div>
+
+      <AppErrorsPanel errors={(appErrs ?? []) as unknown as AppErrorRow[]} ago={ago} />
     </div>
   );
 }
