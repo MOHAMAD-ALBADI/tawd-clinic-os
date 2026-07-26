@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Wallet, RefreshCcw, Send, Trash2, Plus } from "lucide-react";
 import {
@@ -9,9 +10,18 @@ import {
 } from "@/app/actions/platform";
 
 const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-const PLANS = ["starter", "growth", "pro", "enterprise"] as const;
 
-/* ─── subscription management (clinic file) ─── */
+/* ─── subscription status + renewal (clinic file) ───
+
+   This used to be a second editor for plan, price and status, sitting on the
+   same page as the contract panel and the header's status toggle. Three
+   controls writing the same two fields is three answers to "what does this
+   clinic pay" — and its plan list was hardcoded to the four original tiers, so
+   a template created afterwards could not be picked here at all.
+
+   It now shows the agreed terms and does the one thing nothing else does:
+   move the period forward. Plan, price and modules belong to the contract
+   panel; suspension belongs to the header. */
 export function SubscriptionCard({
   clinicId, plan, status, priceOmr, periodEnd,
 }: {
@@ -19,29 +29,19 @@ export function SubscriptionCard({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [form, setForm] = useState({ plan, status, price: String(priceOmr) });
   const [msg, setMsg] = useState<{ text: string; bad?: boolean } | null>(null);
 
   const daysLeft = periodEnd ? Math.ceil((new Date(periodEnd).getTime() - Date.now()) / 86_400_000) : null;
-
   const flash = (text: string, bad = false) => { setMsg({ text, bad }); setTimeout(() => setMsg(null), 4000); };
 
-  function save() {
-    start(async () => {
-      const r = await updateSubscription(clinicId, {
-        plan: form.plan as typeof PLANS[number],
-        status: form.status as "trial" | "active" | "suspended",
-        price_omr: parseFloat(form.price) || 0,
-      });
-      flash(r.ok ? "حُفظ الاشتراك ✓" : r.reason, !r.ok);
-      if (r.ok) router.refresh();
-    });
-  }
+  const STATUS_AR: Record<string, string> = {
+    trial: "تجريبي", active: "نشط", past_due: "متأخر السداد", paused: "موقوف", cancelled: "ملغى",
+  };
 
   function renew() {
     start(async () => {
       const r = await renewSubscriptionMonth(clinicId);
-      flash(r.ok ? `جُدّد حتى ${r.until} ✓` : r.reason, !r.ok);
+      flash(r.ok ? "جُدّد شهراً ✓" : r.reason, !r.ok);
       if (r.ok) router.refresh();
     });
   }
@@ -60,35 +60,28 @@ export function SubscriptionCard({
           </span>
         )}
       </div>
-      <p className="text-[11px] mb-4" style={{ color: "var(--text-3)" }}>الباقة والسعر وحالة التجديد</p>
 
-      <div className="grid grid-cols-3 gap-2">
-        <div>
-          <label className="text-[10px] font-semibold block mb-1" style={{ color: "var(--text-3)" }}>الباقة</label>
-          <select value={form.plan} onChange={(e) => setForm((p) => ({ ...p, plan: e.target.value }))} className="field" style={{ fontSize: 12 }}>
-            {PLANS.map((p) => <option key={p} value={p} style={{ background: "#131315" }}>{p}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="text-[10px] font-semibold block mb-1" style={{ color: "var(--text-3)" }}>السعر ر.ع/شهر</label>
-          <input type="text" inputMode="decimal" step="0.001" value={form.price} onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))} className="field ltr-nums" dir="ltr" style={{ fontSize: 12 }} />
-        </div>
-        <div>
-          <label className="text-[10px] font-semibold block mb-1" style={{ color: "var(--text-3)" }}>الحالة</label>
-          <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))} className="field" style={{ fontSize: 12 }}>
-            {["trial", "active", "suspended"].map((s) => <option key={s} value={s} style={{ background: "#131315" }}>{s === "trial" ? "تجريبي" : s === "active" ? "نشط" : "موقوف"}</option>)}
-          </select>
-        </div>
+      <div className="flex items-baseline gap-1.5 mt-2">
+        <span className="text-[22px] font-black ltr-nums text-white">{fmt(priceOmr)}</span>
+        <span className="text-[11px]" style={{ color: "var(--text-4)" }}>ر.ع/شهر</span>
       </div>
+      <p className="text-[11.5px] mt-0.5" style={{ color: "var(--text-3)" }}>
+        {plan} · {STATUS_AR[status] ?? status}
+      </p>
 
       {msg && <p className="text-[12px] font-semibold mt-3" style={{ color: msg.bad ? "#fda4b4" : "var(--accent-1)" }}>{msg.text}</p>}
 
-      <div className="flex gap-2 mt-4">
-        <button onClick={save} disabled={pending} className="btn-ghost flex-1">حفظ</button>
-        <button onClick={renew} disabled={pending} className="btn-primary flex-1">
-          <RefreshCcw className="w-3.5 h-3.5" /> تجديد شهر
-        </button>
-      </div>
+      <button onClick={renew} disabled={pending} className="btn-ghost w-full mt-4">
+        <RefreshCcw className="w-3.5 h-3.5" /> {pending ? "جارٍ…" : "تمديد الفترة شهراً"}
+      </button>
+      {/* Renewing moves the period; it is not a receipt. Calling it "تجديد"
+          with no payment behind it is how a clinic ends up looking paid up
+          because someone clicked a button. */}
+      <p className="text-[10.5px] mt-2 text-center leading-relaxed" style={{ color: "var(--text-4)" }}>
+        يمدّد الفترة فقط ولا يسجّل مبلغاً — الفواتير والدفعات في{" "}
+        <Link href="/platform-admin/billing" style={{ color: "var(--accent-1)" }}>التحصيل</Link>
+        <br />الباقة والسعر والخدمات من «الاتفاق والصلاحيات» أدناه
+      </p>
     </div>
   );
 }

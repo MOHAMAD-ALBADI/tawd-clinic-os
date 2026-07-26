@@ -15,8 +15,10 @@ export type SubRow = {
   periodEnd: string | null; daysLeft: number | null;
 };
 
-type Plan = "starter" | "growth" | "pro" | "enterprise";
-const PLANS: Plan[] = ["starter", "growth", "pro", "enterprise"];
+/* Plan codes come from the catalogue, not from a union in this file. They used
+   to be hardcoded to the four original tiers, so a template the founder created
+   after the fact could never be selected here. */
+export type PlanOption = { code: string; name_ar: string; price_omr: number };
 
 const SUB_STATUS: Record<string, { label: string; color: string }> = {
   trial:     { label: "تجريبي",  color: "#fbbf24" },
@@ -27,7 +29,7 @@ const SUB_STATUS: Record<string, { label: string; color: string }> = {
 };
 const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 
-export function SubscriptionsManager({ rows }: { rows: SubRow[] }) {
+export function SubscriptionsManager({ rows, plans }: { rows: SubRow[]; plans: PlanOption[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [err, setErr] = useState<string | null>(null);
@@ -145,7 +147,7 @@ export function SubscriptionsManager({ rows }: { rows: SubRow[] }) {
 
       {editing && (
         <PlanDialog
-          row={editing} pending={pending} err={err}
+          row={editing} plans={plans} pending={pending} err={err}
           onClose={() => setEditing(null)}
           onSave={(plan, price, status) =>
             run(() => updateSubscription(editing.clinicId, { plan, price_omr: price, status }),
@@ -191,12 +193,17 @@ function ErrLine({ err }: { err: string | null }) {
 }
 
 function PlanDialog({
-  row, pending, err, onClose, onSave,
+  row, plans, pending, err, onClose, onSave,
 }: {
-  row: SubRow; pending: boolean; err: string | null; onClose: () => void;
-  onSave: (plan: Plan, price: number, status: "trial" | "active" | "suspended") => void;
+  row: SubRow; plans: PlanOption[]; pending: boolean; err: string | null; onClose: () => void;
+  onSave: (plan: string, price: number, status: "trial" | "active" | "suspended") => void;
 }) {
-  const [plan, setPlan] = useState<Plan>(PLANS.includes(row.plan as Plan) ? (row.plan as Plan) : "starter");
+  /* Keep the clinic's current code even if that template was retired — showing
+     a different plan than the one they are on would misreport the contract. */
+  const options = plans.some((p) => p.code === row.plan)
+    ? plans
+    : [{ code: row.plan, name_ar: `${row.plan} (متوقّف)`, price_omr: row.priceOmr }, ...plans];
+  const [plan, setPlan] = useState<string>(row.plan);
   const [price, setPrice] = useState(String(row.priceOmr));
   /* "paused" and "past_due" are states the system arrives at, not ones an
      operator sets by hand — the three here are the real decisions. */
@@ -208,9 +215,22 @@ function PlanDialog({
     <Shell title={`اشتراك ${row.clinicName}`} onClose={onClose}>
       <div className="space-y-4">
         <F label="الباقة">
-          <select className="field" value={plan} onChange={(e) => setPlan(e.target.value as Plan)} style={{ cursor: "pointer" }}>
-            {PLANS.map((p) => <option key={p} value={p}>{p}</option>)}
+          <select className="field" value={plan} style={{ cursor: "pointer" }}
+            onChange={(e) => {
+              const next = e.target.value;
+              setPlan(next);
+              /* Switching template offers its price rather than silently keeping
+                 the old one — the operator can still overwrite it below. */
+              const t = options.find((o) => o.code === next);
+              if (t) setPrice(String(t.price_omr));
+            }}>
+            {options.map((p) => (
+              <option key={p.code} value={p.code}>{p.name_ar} — {p.price_omr.toFixed(3)} ر.ع</option>
+            ))}
           </select>
+          <span className="text-[10.5px] block mt-1" style={{ color: "var(--text-4)" }}>
+            للتفصيل الكامل (الخدمات والحدود وسعر الطبيب) افتح «الاتفاق والصلاحيات» في ملف العيادة
+          </span>
         </F>
         <F label="السعر الشهري (ر.ع)">
           <NumField value={price} onChange={setPrice} placeholder="0.000" />

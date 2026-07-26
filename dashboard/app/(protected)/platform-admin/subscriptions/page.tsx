@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
-import { SubscriptionsManager, type SubRow } from "@/components/platform/subscriptions-manager";
+import { SubscriptionsManager, type SubRow, type PlanOption } from "@/components/platform/subscriptions-manager";
 import { Coins, TrendingUp, AlertTriangle, Hourglass, Megaphone } from "lucide-react";
 
 export const metadata = { title: "الاشتراكات — طود" };
@@ -16,10 +16,14 @@ export default async function SubscriptionsPage() {
   if (!claims || !hasRole(claims, "platform_admin")) redirect("/login");
 
   const sb = await createServiceRoleClient();
-  const [{ data: subs }, { data: clinics }] = await Promise.all([
+  const [{ data: subs }, { data: clinics }, { data: planRows }] = await Promise.all([
     sb.from("tawd_subscriptions").select("clinic_id, plan, status, price_omr, trial_ends_at, current_period_end"),
     sb.from("tawd_clinics").select("id, name, name_ar"),
+    sb.from("platform_plans").select("code, name_ar, price_omr").eq("is_active", true).order("sort_order"),
   ]);
+  const plans: PlanOption[] = (planRows ?? []).map((p) => ({
+    code: p.code as string, name_ar: p.name_ar as string, price_omr: Number(p.price_omr ?? 0),
+  }));
 
   const byId = new Map((clinics ?? []).map((c) => [c.id, c.name_ar ?? c.name ?? "—"]));
 
@@ -90,7 +94,7 @@ export default async function SubscriptionsPage() {
         </div>
       )}
 
-      <SubscriptionsManager rows={rows} />
+      <SubscriptionsManager rows={rows} plans={plans} />
     </div>
   );
 }

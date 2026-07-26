@@ -6,7 +6,7 @@ import { hasRole } from "@/lib/auth/role-redirect";
 import { clinicToday, clinicDayRange } from "@/lib/clinic-time";
 import {
   Building2, Coins, TrendingDown, AlertTriangle, Hourglass, Bot,
-  ChevronLeft, Activity, MessageSquare, Users,
+  ChevronLeft, Activity, MessageSquare, Users, Banknote,
 } from "lucide-react";
 
 export const metadata = { title: "نظرة المنصة — طود" };
@@ -53,8 +53,11 @@ export default async function PlatformAdminPage() {
   ] = await Promise.all([
     sb.rpc("platform_clinic_overview"),
     sb.from("platform_costs").select("monthly_omr"),
+    /* clinic_id came back before but was never rendered, so the founder saw
+       "patient X has an emergency" across the whole platform with no way to
+       tell which clinic to call. */
     sb.from("sura_alerts")
-      .select("id, patient_name, message")
+      .select("id, patient_name, message, clinic_id, created_at")
       .eq("status", "open").order("created_at", { ascending: false }).limit(5),
     sb.from("ai_review_queue").select("id", { count: "exact", head: true }).eq("status", "pending"),
     sb.from("chat_messages").select("id", { count: "exact", head: true }).gte("created_at", startUtc),
@@ -62,6 +65,16 @@ export default async function PlatformAdminPage() {
     sb.from("appointments").select("id", { count: "exact", head: true })
       .eq("source_channel", "whatsapp").gte("created_at", monthStart).is("deleted_at", null),
   ]);
+
+  /* Unpaid invoices belong on the worklist. An overdue one is the most
+     actionable item on this page — it is money already earned and not received,
+     which outranks a renewal that has not happened yet. */
+  const [{ data: openInv }, { data: paidRows }] = await Promise.all([
+    sb.from("platform_invoices")
+      .select("id, clinic_id, number, total_omr, due_at").eq("status", "open"),
+    sb.from("platform_payments").select("amount_omr, paid_at").gte("paid_at", monthStart),
+  ]);
+  const collectedMonth = (paidRows ?? []).reduce((s, p) => s + Number(p.amount_omr ?? 0), 0);
 
   const clinics = (overview ?? []) as unknown as Row[];
   const live = clinics.filter((c) => c.status === "active");
@@ -105,11 +118,34 @@ export default async function PlatformAdminPage() {
       tasks.push({ id: c.id + "w", clinic: label, text: "واتساب غير مربوط — سُرى معطّلة عندها", bad: false, weight: 60 });
     }
   }
+  for (const inv of openInv ?? []) {
+    const c = clinics.find((x) => x.id === inv.clinic_id);
+    const label = c ? (c.name_ar ?? c.name) : "عيادة";
+    const amount = Number(inv.total_omr ?? 0);
+    const late = inv.due_at ? Math.floor((Date.now() - new Date(inv.due_at as string).getTime()) / 86_400_000) : null;
+    if (late !== null && late > 0) {
+      tasks.push({
+        id: `${inv.id}o`, clinic: label,
+        text: `فاتورة ${inv.number} متأخرة ${late} يوم — ${fmt(amount)} ر.ع`,
+        bad: true, weight: 98 + amount,
+      });
+    } else {
+      tasks.push({
+        id: `${inv.id}u`, clinic: label,
+        text: `فاتورة ${inv.number} لم تُسدَّد — ${fmt(amount)} ر.ع`,
+        bad: false, weight: 45 + amount,
+      });
+    }
+  }
   tasks.sort((a, b) => b.weight - a.weight);
 
+  /* "الدخل الشهري" is the contracted figure and "محصَّل" is what arrived. They
+     used to be the same number because nothing recorded a payment, which made
+     the first one look like the second. */
   const kpis = [
     { label: "عيادات نشطة", value: int(live.length), Icon: Building2, color: "var(--accent-1)", href: "/platform-admin/clinics" },
-    { label: "الدخل الشهري (ر.ع)", value: fmt(mrr), Icon: Coins, color: "var(--accent-1)", href: "/platform-admin/subscriptions" },
+    { label: "المتفق عليه/شهر (ر.ع)", value: fmt(mrr), Icon: Coins, color: "var(--accent-1)", href: "/platform-admin/subscriptions" },
+    { label: "محصَّل هذا الشهر (ر.ع)", value: fmt(collectedMonth), Icon: Banknote, color: collectedMonth > 0 ? "#34d399" : "var(--text-3)", href: "/platform-admin/billing" },
     { label: "التكاليف (ر.ع)", value: fmt(monthlyCost), Icon: TrendingDown, color: "#fbbf24", href: "/platform-admin/economy" },
     { label: "الصافي (ر.ع)", value: fmt(net), Icon: Activity, color: net >= 0 ? "#34d399" : "#fda4b4", href: "/platform-admin/economy" },
   ];
@@ -131,7 +167,7 @@ export default async function PlatformAdminPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {kpis.map((k) => (
           <Link key={k.label} href={k.href} className="panel panel-hover" style={{ padding: "1.1rem 1.2rem" }}>
             <div className="flex items-center justify-between mb-2.5">
@@ -152,15 +188,31 @@ export default async function PlatformAdminPage() {
             <h2>تنبيهات طوارئ مفتوحة في العيادات</h2>
           </div>
           <div className="space-y-1.5">
-            {(alerts ?? []).map((a) => (
-              <div key={a.id as string} className="px-3 py-2 rounded-xl"
-                style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.16)" }}>
-                <p className="text-[12.5px] font-bold text-white">{(a.patient_name as string) ?? "مريض"}</p>
-                <p className="text-[11px] mt-0.5" style={{ color: "var(--text-3)" }}>
-                  {String(a.message ?? "").slice(0, 110)}
-                </p>
-              </div>
-            ))}
+            {(alerts ?? []).map((a) => {
+              const cid = a.clinic_id as string | null;
+              const where = clinics.find((c) => c.id === cid);
+              const mins = Math.floor((Date.now() - new Date(a.created_at as string).getTime()) / 60_000);
+              return (
+                <Link key={a.id as string} href={cid ? `/platform-admin/clinics/${cid}` : "/platform-admin/clinics"}
+                  className="block px-3 py-2 rounded-xl"
+                  style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.16)" }}>
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="text-[12.5px] font-bold text-white">
+                      {(a.patient_name as string) ?? "مريض"}
+                      <span className="font-normal" style={{ color: "#fda4b4" }}>
+                        {" — "}{where ? (where.name_ar ?? where.name) : "عيادة غير معروفة"}
+                      </span>
+                    </p>
+                    <span className="text-[10.5px] ltr-nums shrink-0" style={{ color: "var(--text-4)" }}>
+                      {mins < 60 ? `منذ ${mins} د` : `منذ ${Math.floor(mins / 60)} س`}
+                    </span>
+                  </div>
+                  <p className="text-[11px] mt-0.5" style={{ color: "var(--text-3)" }}>
+                    {String(a.message ?? "").slice(0, 110)}
+                  </p>
+                </Link>
+              );
+            })}
           </div>
         </div>
       )}
@@ -220,6 +272,7 @@ export default async function PlatformAdminPage() {
       <div className="flex items-center gap-2 flex-wrap">
         {[
           ["إضافة عيادة", "/platform-admin/clinics/new"],
+          ["التحصيل", "/platform-admin/billing"],
           ["الأتمتة", "/platform-admin/automation"],
           ["الحملات", "/platform-admin/broadcast"],
           ["الإعدادات", "/platform-admin/settings"],

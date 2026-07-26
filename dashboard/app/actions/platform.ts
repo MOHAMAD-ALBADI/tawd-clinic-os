@@ -436,7 +436,11 @@ const SUB_STATUS: Record<"trial" | "active" | "suspended", string> = {
 
 export async function updateSubscription(
   clinicId: string,
-  input: { plan: "starter" | "growth" | "pro" | "enterprise"; price_omr: number; status: "trial" | "active" | "suspended" }
+  /* `plan` is a catalogue code, not one of four literals. It was a union until
+     plans became something the founder defines, at which point a template he
+     created himself could not be selected. The FK on both tables keeps it
+     honest — an unknown code is refused by Postgres, not by a type. */
+  input: { plan: string; price_omr: number; status: "trial" | "active" | "suspended" }
 ) {
   await requirePlatform();
   const sb = await createServiceRoleClient();

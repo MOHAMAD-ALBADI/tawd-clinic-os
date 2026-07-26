@@ -90,6 +90,7 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "نظرة المنصة",  href: "/platform-admin",               icon: LayoutDashboard, exact: true },
     { label: "العيادات",      href: "/platform-admin/clinics",       icon: Building2 },
     { label: "الاشتراكات",   href: "/platform-admin/subscriptions", icon: CreditCard },
+    { label: "التحصيل",       href: "/platform-admin/billing",       icon: Receipt },
     { label: "اقتصاد المنصة", href: "/platform-admin/economy",       icon: Wallet },
     { label: "الأتمتة",       href: "/platform-admin/automation",    icon: Workflow },
     { label: "حملات المنصة", href: "/platform-admin/broadcast",     icon: Megaphone },
