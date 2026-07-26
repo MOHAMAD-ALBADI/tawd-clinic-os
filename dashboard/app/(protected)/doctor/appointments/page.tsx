@@ -1,95 +1,86 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { AppointmentActions } from "@/components/doctor/appointment-actions";
-import { Calendar, ChevronLeft } from "lucide-react";
+import { AppointmentsBoard, type ApptRow } from "@/components/doctor/appointments-board";
 
 export const metadata = { title: "مواعيدي — طود" };
+export const dynamic = "force-dynamic";
 
-const STATUS: Record<string, { label: string; color: string }> = {
-  scheduled: { label: "مجدول", color: "#94A3B8" },
-  confirmed: { label: "مؤكد", color: "var(--accent-1)" },
-  checked_in: { label: "حضَر", color: "#38bdf8" },
-  in_progress: { label: "جارٍ الكشف", color: "#fbbf24" },
-  completed: { label: "مكتمل", color: "#34D399" },
-  cancelled: { label: "ملغي", color: "#94A3B8" },
-  no_show: { label: "لم يحضر", color: "#F87171" },
-};
-type J = { name: string } | null;
-
-function dayLabel(iso: string) {
-  return new Intl.DateTimeFormat("ar", { timeZone: "Asia/Muscat", weekday: "long", day: "numeric", month: "long" }).format(new Date(iso));
-}
-function fmtTime(iso: string) {
-  return new Intl.DateTimeFormat("ar", { timeZone: "Asia/Muscat", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(iso));
-}
-function dayKey(iso: string) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Muscat", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(iso));
-}
+type Joined = { name: string; phone: string | null } | null;
 
 export default async function DoctorAppointmentsPage() {
   const claims = await getUserClaims();
   if (!claims || claims.role !== "doctor") redirect("/login");
 
-  const supabase = await createServerSupabaseClient();
-  const now = new Date().toISOString();
+  const sb = await createServerSupabaseClient();
 
-  const { data } = await supabase
+  /* Ninety days back and ninety forward. The page used to start at today, so a
+     doctor could not re-read the visit from last Tuesday — the single most
+     common reason to open a diary at all. */
+  const from = new Date(Date.now() - 90 * 86_400_000).toISOString();
+  const to = new Date(Date.now() + 90 * 86_400_000).toISOString();
+  const todayKey = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Muscat", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+
+  const { data } = await sb
     .from("appointments")
-    .select("id, slot_time, status, patient_id, patients(name), services(name_ar)")
+    .select("id, slot_time, status, patient_id, duration_minutes, patients(name, phone), services(name_ar)")
     .eq("doctor_id", claims.sub)
     .is("deleted_at", null)
-    .gte("slot_time", now.split("T")[0] + "T00:00:00")
+    .gte("slot_time", from)
+    .lte("slot_time", to)
     .order("slot_time")
-    .limit(100);
+    .limit(1000);
 
-  const appts = data ?? [];
-  const groups = new Map<string, typeof appts>();
-  for (const a of appts) {
-    const k = dayKey(a.slot_time);
-    if (!groups.has(k)) groups.set(k, []);
-    groups.get(k)!.push(a);
+  const rows = data ?? [];
+  const patientIds = [...new Set(rows.map((r) => r.patient_id as string).filter(Boolean))];
+
+  /* Allergies and chronic conditions travel with the row. A doctor scanning
+     next week's list should see the flag there, not after opening the file. */
+  const { data: hist } = patientIds.length
+    ? await sb.from("medical_histories")
+        .select("patient_id, allergies, chronic_diseases").in("patient_id", patientIds)
+    : { data: [] as Record<string, unknown>[] };
+
+  const allergyOf = new Map<string, string[]>();
+  const chronicOf = new Map<string, string[]>();
+  for (const h of hist ?? []) {
+    const pid = h.patient_id as string;
+    const a = (h.allergies as string[] | null) ?? [];
+    const c = (h.chronic_diseases as string[] | null) ?? [];
+    if (a.length) allergyOf.set(pid, a);
+    if (c.length) chronicOf.set(pid, c);
   }
 
+  const appts: ApptRow[] = rows.map((r) => {
+    const p = r.patients as unknown as Joined;
+    const pid = r.patient_id as string;
+    return {
+      id: r.id as string,
+      slotTime: r.slot_time as string,
+      status: r.status as string,
+      patientId: pid,
+      patientName: p?.name ?? "مريض",
+      patientPhone: p?.phone ?? null,
+      service: (r.services as unknown as { name_ar: string } | null)?.name_ar ?? null,
+      durationMinutes: (r.duration_minutes as number | null) ?? null,
+      allergies: allergyOf.get(pid) ?? [],
+      chronic: chronicOf.get(pid) ?? [],
+    };
+  });
+
   return (
-    <div className="space-y-5 animate-fade-in">
+    <div className="space-y-5 animate-fade-in pb-20">
       <div>
-        <h1 className="text-2xl font-black text-white tracking-tight leading-none">مواعيدي القادمة</h1>
-        <p className="text-[12px] mt-1.5" style={{ color: "var(--text-4)" }}>{appts.length} موعد</p>
+        <p className="eyebrow">SCHEDULE</p>
+        <h1 className="text-2xl font-black text-white tracking-tight leading-none mt-1">مواعيدي</h1>
+        <p className="text-[12px] mt-1.5" style={{ color: "var(--text-4)" }}>
+          القادم والسابق — ابحث، صفِّ بالحالة أو الخدمة، وافتح ملف أي مريض
+        </p>
       </div>
 
-      {groups.size === 0 ? (
-        <div className="rounded-2xl p-12 text-center" style={{ background: "rgba(6,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)" }}>
-          <Calendar className="w-10 h-10 mx-auto mb-3" style={{ color: "var(--text-4)" }} />
-          <p className="text-sm" style={{ color: "var(--text-3)" }}>لا مواعيد قادمة</p>
-        </div>
-      ) : (
-        [...groups.entries()].map(([k, list]) => (
-          <div key={k}>
-            <h3 className="text-xs font-bold mb-2 px-1" style={{ color: "var(--accent-1)" }}>{dayLabel(list[0].slot_time)}</h3>
-            <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(6,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              {list.map((a, i) => {
-                const st = STATUS[a.status] ?? STATUS.scheduled;
-                const name = (a.patients as unknown as J)?.name ?? "مجهول";
-                const svc = (a.services as unknown as { name_ar: string } | null)?.name_ar ?? "";
-                return (
-                  <div key={a.id} className="flex items-center gap-4 px-4 py-3 flex-wrap" style={{ borderTop: i ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                    <span className="text-sm font-bold ltr-nums w-16 shrink-0" style={{ color: "var(--accent-1)" }}>{fmtTime(a.slot_time)}</span>
-                    <div className="flex-1 min-w-0">
-                      <Link href={`/doctor/patients/${a.patient_id}`} className="font-semibold text-sm text-white hover:underline truncate block">{name}</Link>
-                      <span className="text-xs" style={{ color: "var(--text-3)" }}>{svc}</span>
-                    </div>
-                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0" style={{ background: `${st.color}1a`, color: st.color }}>{st.label}</span>
-                    <AppointmentActions id={a.id} status={a.status} />
-                    <Link href={`/doctor/patients/${a.patient_id}`} className="text-[11px] flex items-center gap-0.5 shrink-0" style={{ color: "var(--text-3)" }}>الملف <ChevronLeft className="w-3 h-3" /></Link>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))
-      )}
+      <AppointmentsBoard rows={appts} todayKey={todayKey} />
     </div>
   );
 }
