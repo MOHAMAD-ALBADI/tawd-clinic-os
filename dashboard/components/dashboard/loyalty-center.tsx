@@ -1,14 +1,18 @@
 "use client";
 
-import { useState, useTransition, type ElementType } from "react";
-import { useRouter } from "next/navigation";
+import { useState, type ElementType } from "react";
 import { Star, Radio, MessageSquare, Settings2, ChevronLeft } from "lucide-react";
 import Link from "next/link";
-import { updateLoyaltySettings } from "@/app/actions/loyalty";
+
+/* Loyalty is summarised here, not edited here.
+
+   This card used to carry a second, divergent copy of the loyalty form — one
+   that listed a "نقاط لكل إحالة" rule no code reads while omitting settings the
+   engine depends on. Two editors for one row of settings is how they drift.
+   Editing lives at /clinic-admin/marketing/loyalty; this shows the rules in
+   force and links there. */
 
 export type LoyaltySettings = {
-  points_per_visit: number;
-  points_per_referral: number;
   redemption_rate: number;
   is_active: boolean;
   points_per_omr?: number;
@@ -47,17 +51,6 @@ const CAMPAIGN_STATUS: Record<string, { label: string; color: string }> = {
   cancelled: { label: "ملغي",     color: "#fda4b4" },
 };
 
-const INPUT: React.CSSProperties = {
-  background: "rgba(255,255,255,0.05)",
-  border: "1px solid rgba(255,255,255,0.1)",
-  color: "rgba(226,232,240,0.9)",
-  borderRadius: "0.625rem",
-  padding: "0.5rem 0.75rem",
-  fontSize: "13px",
-  outline: "none",
-  width: "100%",
-};
-
 export function LoyaltyCenter({
   loyaltySettings,
   campaigns,
@@ -67,44 +60,18 @@ export function LoyaltyCenter({
   campaigns: Campaign[];
   templates: NotifTemplate[];
 }) {
-  const router            = useRouter();
-  const [tab, setTab]     = useState<Tab>("loyalty");
-  const [editing, setEditing] = useState(false);
-  const [saveErr, setSaveErr] = useState<string | null>(null);
-  const [saving, startSave]   = useTransition();
-  const [form, setForm]   = useState({
-    points_per_visit:    loyaltySettings?.points_per_visit    ?? 10,
-    points_per_referral: loyaltySettings?.points_per_referral ?? 50,
-    redemption_rate:     loyaltySettings?.redemption_rate     ?? 0.03,
-    is_active:           loyaltySettings?.is_active           ?? true,
-    points_per_omr:      loyaltySettings?.points_per_omr      ?? 1,
-    min_redeem_points:   loyaltySettings?.min_redeem_points   ?? 100,
-    max_redeem_pct:      loyaltySettings?.max_redeem_pct      ?? 30,
-    expiry_months:       loyaltySettings?.expiry_months       ?? 6,
-  });
+  const [tab, setTab] = useState<Tab>("loyalty");
 
-  function handleSave() {
-    startSave(async () => {
-      try {
-        await updateLoyaltySettings({
-          points_per_visit:    Number(form.points_per_visit),
-          points_per_referral: Number(form.points_per_referral),
-          redemption_rate:     Number(form.redemption_rate),
-          is_active:           form.is_active,
-          points_per_omr:      Number(form.points_per_omr),
-          min_redeem_points:   Number(form.min_redeem_points),
-          max_redeem_pct:      Number(form.max_redeem_pct),
-          expiry_months:       Number(form.expiry_months),
-        });
-        setEditing(false);
-        setSaveErr(null);
-        router.refresh();
-      } catch (e) {
-        // in-app message — a browser alert() breaks out of the dark RTL UI
-        setSaveErr(e instanceof Error ? e.message : "تعذّر حفظ الإعدادات");
-      }
-    });
-  }
+  // the rules in force, with the engine's own fallbacks so an unconfigured
+  // clinic sees the behaviour it will actually get
+  const rules = {
+    is_active: loyaltySettings?.is_active ?? true,
+    points_per_omr: Number(loyaltySettings?.points_per_omr ?? 1),
+    redemption_rate: Number(loyaltySettings?.redemption_rate ?? 0.03),
+    min_redeem_points: Number(loyaltySettings?.min_redeem_points ?? 100),
+    max_redeem_pct: Number(loyaltySettings?.max_redeem_pct ?? 30),
+    expiry_months: Number(loyaltySettings?.expiry_months ?? 6),
+  };
 
   const runningCampaigns = campaigns.filter((c) => c.status === "running").length;
 
@@ -173,27 +140,21 @@ export function LoyaltyCenter({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold" style={{ color: "var(--text-2)" }}>
-                  نقاط الولاء والإحالة
+                  قواعد نقاط الولاء
                 </span>
                 <span
                   className="text-[10px] px-2 py-0.5 rounded-full font-bold"
                   style={{
-                    background: form.is_active
-                      ? "rgba(45,212,191,0.08)"
-                      : "rgba(107,114,128,0.08)",
-                    color: form.is_active ? "#5dd9cb" : "#6B7280",
-                    border: `1px solid ${
-                      form.is_active
-                        ? "rgba(45,212,191,0.18)"
-                        : "rgba(107,114,128,0.18)"
-                    }`,
+                    background: rules.is_active ? "rgba(45,212,191,0.08)" : "rgba(107,114,128,0.08)",
+                    color: rules.is_active ? "#5dd9cb" : "#6B7280",
+                    border: `1px solid ${rules.is_active ? "rgba(45,212,191,0.18)" : "rgba(107,114,128,0.18)"}`,
                   }}
                 >
-                  {form.is_active ? "نشط" : "معطّل"}
+                  {rules.is_active ? "نشط" : "معطّل"}
                 </span>
               </div>
-              <button
-                onClick={() => setEditing(!editing)}
+              <Link
+                href="/clinic-admin/marketing/loyalty"
                 className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg"
                 style={{
                   background: "rgba(20,184,166,0.08)",
@@ -201,108 +162,30 @@ export function LoyaltyCenter({
                   border: "1px solid rgba(20,184,166,0.18)",
                 }}
               >
-                <Settings2 className="w-3 h-3" />
-                {editing ? "إلغاء" : "تعديل"}
-              </button>
+                <Settings2 className="w-3 h-3" /> تعديل
+              </Link>
             </div>
 
-            {editing ? (
-              <div className="space-y-3">
-                {[
-                  { key: "points_per_omr",      label: "نقاط لكل 1 ر.ع مدفوع",      step: "0.5"   },
-                  { key: "redemption_rate",     label: "قيمة النقطة (ريال عُماني)", step: "0.001" },
-                  { key: "min_redeem_points",   label: "حد أدنى للاستبدال (نقاط)", step: "1"     },
-                  { key: "max_redeem_pct",      label: "سقف الخصم ٪ من الفاتورة",  step: "1"     },
-                  { key: "expiry_months",       label: "صلاحية النقاط (أشهر)",     step: "1"     },
-                  { key: "points_per_referral", label: "نقاط لكل إحالة",           step: "1"     },
-                ].map((f) => (
-                  <div key={f.key}>
-                    <label
-                      className="text-[11px] font-semibold block mb-1"
-                      style={{ color: "var(--text-3)" }}
-                    >
-                      {f.label}
-                    </label>
-                    <input
-                      type="text" inputMode="decimal"
-                      min="0"
-                      step={f.step}
-                      value={(form as unknown as Record<string, number>)[f.key]}
-                      onChange={(e) =>
-                        setForm((p) => ({
-                          ...p,
-                          [f.key]: parseFloat(e.target.value) || 0,
-                        }))
-                      }
-                      style={{ ...INPUT, direction: "ltr", textAlign: "left" }}
-                    />
-                  </div>
-                ))}
-
-                <button
-                  onClick={() => setForm((p) => ({ ...p, is_active: !p.is_active }))}
-                  className="text-[11px] font-semibold px-3 py-1.5 rounded-lg w-full"
+            <div className="space-y-2">
+              {[
+                { label: "الكسب", value: `${rules.points_per_omr} نقطة / 1 ر.ع` },
+                { label: "قيمة النقطة", value: `${rules.redemption_rate.toFixed(3)} ر.ع` },
+                { label: "الاستبدال", value: `من ${rules.min_redeem_points} نقطة · حتى ${rules.max_redeem_pct}٪ من الفاتورة` },
+                { label: "الصلاحية", value: `${rules.expiry_months} أشهر بلا نشاط` },
+              ].map((stat) => (
+                <div
+                  key={stat.label}
+                  className="flex items-center justify-between px-3 py-2.5 rounded-xl"
                   style={{
-                    background: form.is_active
-                      ? "rgba(45,212,191,0.06)"
-                      : "rgba(107,114,128,0.06)",
-                    color: form.is_active ? "#5dd9cb" : "#6B7280",
-                    border: `1px solid ${
-                      form.is_active
-                        ? "rgba(45,212,191,0.15)"
-                        : "rgba(107,114,128,0.15)"
-                    }`,
+                    background: "rgba(255,255,255,0.025)",
+                    border: "1px solid rgba(255,255,255,0.06)",
                   }}
                 >
-                  {form.is_active ? "✓ النظام نشط — انقر لتعطيله" : "○ النظام معطّل — انقر لتفعيله"}
-                </button>
-
-                {saveErr && (
-                  <p className="text-[12px] px-3 py-2 rounded-lg"
-                    style={{ background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.2)", color: "#fda4b4" }}>
-                    {saveErr}
-                  </p>
-                )}
-
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="w-full py-2.5 rounded-xl text-sm font-bold disabled:opacity-50"
-                  style={{
-                    background: "linear-gradient(135deg, #0d9488, #0f766e)",
-                    color: "white",
-                  }}
-                >
-                  {saving ? "جارٍ الحفظ…" : "حفظ الإعدادات"}
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {[
-                  { label: "الكسب", value: `${form.points_per_omr} نقطة / 1 ر.ع` },
-                  { label: "قيمة النقطة", value: `${Number(form.redemption_rate).toFixed(3)} ر.ع` },
-                  { label: "الاستبدال", value: `من ${form.min_redeem_points} نقطة · حتى ${form.max_redeem_pct}٪ من الفاتورة` },
-                  { label: "الصلاحية", value: `${form.expiry_months} أشهر بلا نشاط` },
-                  { label: "الإحالة", value: `${form.points_per_referral} نقطة` },
-                ].map((stat) => (
-                  <div
-                    key={stat.label}
-                    className="flex items-center justify-between px-3 py-2.5 rounded-xl"
-                    style={{
-                      background: "rgba(255,255,255,0.025)",
-                      border: "1px solid rgba(255,255,255,0.06)",
-                    }}
-                  >
-                    <span className="text-xs" style={{ color: "var(--text-3)" }}>
-                      {stat.label}
-                    </span>
-                    <span className="text-sm font-bold ltr-nums text-white">
-                      {stat.value}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+                  <span className="text-xs" style={{ color: "var(--text-3)" }}>{stat.label}</span>
+                  <span className="text-sm font-bold ltr-nums text-white">{stat.value}</span>
+                </div>
+              ))}
+            </div>
           </>
         )}
 

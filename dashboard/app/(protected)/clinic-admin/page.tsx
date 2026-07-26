@@ -71,7 +71,7 @@ export default async function ClinicAdminPage() {
       .eq("clinic_id", claims.clinic_id).order("created_at", { ascending: false }).limit(10),
 
     sb.from("loyalty_settings")
-      .select("points_per_visit, points_per_referral, redemption_rate, is_active, points_per_omr, min_redeem_points, max_redeem_pct, expiry_months")
+      .select("redemption_rate, is_active, points_per_omr, min_redeem_points, max_redeem_pct, expiry_months")
       .eq("clinic_id", claims.clinic_id).maybeSingle(),
 
     sb.from("notification_templates")
@@ -161,7 +161,19 @@ export default async function ClinicAdminPage() {
   const staff           = staffRes.data      ?? [];
   const doctors         = staff.filter((s) => s.role === "doctor");
   const campaigns       = (campaignsRes.data ?? []) as import("@/components/dashboard/loyalty-center").Campaign[];
-  const loyaltySettings = loyaltyRes.data    ?? null;
+  /* PostgREST hands NUMERIC back as a string, so coerce before the card does
+     arithmetic or calls toFixed on it. */
+  const ls = loyaltyRes.data;
+  const loyaltySettings: import("@/components/dashboard/loyalty-center").LoyaltySettings = ls
+    ? {
+        is_active: !!ls.is_active,
+        redemption_rate: Number(ls.redemption_rate ?? 0.03),
+        points_per_omr: Number(ls.points_per_omr ?? 1),
+        min_redeem_points: Number(ls.min_redeem_points ?? 100),
+        max_redeem_pct: Number(ls.max_redeem_pct ?? 30),
+        expiry_months: Number(ls.expiry_months ?? 6),
+      }
+    : null;
   const templates       = (templatesRes.data ?? []) as import("@/components/dashboard/loyalty-center").NotifTemplate[];
 
   const recovery        = recoveryRes.data ?? [];
