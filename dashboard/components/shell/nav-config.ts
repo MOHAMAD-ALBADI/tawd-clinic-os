@@ -89,5 +89,6 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "اقتصاد المنصة", href: "/platform-admin/economy",       icon: Wallet },
     { label: "الأتمتة",       href: "/platform-admin/automation",    icon: Workflow },
     { label: "حملات المنصة", href: "/platform-admin/broadcast",     icon: Megaphone },
+    { label: "الإعدادات",     href: "/platform-admin/settings",      icon: Settings },
   ],
 };
