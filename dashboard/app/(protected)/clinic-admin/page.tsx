@@ -47,9 +47,13 @@ export default async function ClinicAdminPage() {
       .eq("clinic_id", claims.clinic_id)
       .gte("created_at", todayStart).lte("created_at", todayEnd),
 
-    sb.from("invoices").select("total")
-      .eq("clinic_id", claims.clinic_id).eq("status", "paid")
-      .gte("created_at", todayStart).lte("created_at", todayEnd),
+    /* Money received today, not invoices flagged paid. The two disagree on a
+       partially paid invoice and on anything collected on a later day than it
+       was raised, and every other screen — the finance hub, the ledger, the
+       day-close — measures payments. The headline has to match them. */
+    sb.from("payments").select("amount")
+      .eq("clinic_id", claims.clinic_id).eq("status", "completed")
+      .gte("paid_at", todayStart).lte("paid_at", todayEnd),
 
     sb.from("invoices").select("total")
       .eq("clinic_id", claims.clinic_id).in("status", ["sent", "partially_paid", "overdue"]).is("deleted_at", null),
@@ -78,10 +82,11 @@ export default async function ClinicAdminPage() {
       .select("id, name, template_type, channel, is_active")
       .eq("clinic_id", claims.clinic_id).eq("is_active", true).limit(20),
 
-    sb.from("invoices").select("total")
-      .eq("clinic_id", claims.clinic_id).eq("status", "paid")
-      .gte("created_at", new Date(Date.now() - 86_400_000).toISOString().split("T")[0] + "T00:00:00")
-      .lte("created_at", new Date(Date.now() - 86_400_000).toISOString().split("T")[0] + "T23:59:59"),
+    // yesterday's takings, on the same basis as today's so the % is comparable
+    sb.from("payments").select("amount")
+      .eq("clinic_id", claims.clinic_id).eq("status", "completed")
+      .gte("paid_at", new Date(Date.now() - 86_400_000).toISOString().split("T")[0] + "T00:00:00")
+      .lte("paid_at", new Date(Date.now() - 86_400_000).toISOString().split("T")[0] + "T23:59:59"),
 
     sb.from("automation_recovery_ledger").select("amount")
       .eq("clinic_id", claims.clinic_id)
@@ -153,8 +158,8 @@ export default async function ClinicAdminPage() {
   const clinic          = clinicRes.data;
   const clinicName      = clinic?.name_ar    ?? clinic?.name ?? "عيادتك";
   const newToday        = patientsNewRes.count ?? 0;
-  const todayRevenue    = (todayRevenueRes.data ?? []).reduce((s, i) => s + Number((i as any).total ?? 0), 0);
-  const yesterdayRev    = (yesterdayRevenueRes.data ?? []).reduce((s, i) => s + Number((i as any).total ?? 0), 0);
+  const todayRevenue    = (todayRevenueRes.data ?? []).reduce((s, p) => s + Number((p as { amount?: number }).amount ?? 0), 0);
+  const yesterdayRev    = (yesterdayRevenueRes.data ?? []).reduce((s, p) => s + Number((p as { amount?: number }).amount ?? 0), 0);
   const pendingTotal    = (pendingInvoicesRes.data ?? []).reduce((s, i) => s + Number((i as any).total ?? 0), 0);
   const hitlItems       = hitlRes.data       ?? [];
   const hitlCount       = hitlRes.count      ?? 0;
