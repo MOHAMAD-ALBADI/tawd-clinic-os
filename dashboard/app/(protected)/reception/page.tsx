@@ -48,7 +48,13 @@ export default async function ReceptionPage() {
       .eq("clinic_id", claims.clinic_id)
       .in("status", ["waiting", "called", "in_room"])
       .gte("check_in_at", `${today}T00:00:00`)
-      .order("queue_position"),
+      /* queue_position is assigned read-max-then-increment with no lock, so two
+         receptionists checking patients in at the same moment can land on the
+         same number. Rather than add locking for a clinic that mostly runs one
+         front desk, arrival time breaks the tie — whoever actually got here
+         first is ahead, which is what the waiting room already believes. */
+      .order("queue_position")
+      .order("check_in_at"),
     sb.from("sura_alerts")
       .select("id, kind, phone, patient_name, message, created_at")
       .eq("clinic_id", claims.clinic_id).in("kind", ["emergency", "complaint"]).eq("status", "open")
