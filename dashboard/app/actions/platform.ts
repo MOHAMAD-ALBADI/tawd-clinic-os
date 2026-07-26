@@ -64,17 +64,30 @@ const SERVICE_TEMPLATES: Record<string, { name: string; name_ar: string; price: 
   ],
 };
 
+export type NewClinicStaff = {
+  name: string;
+  email: string;
+  password: string;
+  /** one or more; the first is the primary role whose dashboard opens on login */
+  roles: string[];
+  specialty?: string;
+};
+
 export type NewClinicInput = {
   name: string;        // EN
   nameAr: string;      // AR
   clinicType: string;  // dental | cosmetic | ...
   phone?: string;
+  /** plan code from platform_plans — its price is copied onto the subscription
+      so a later repricing of the catalogue never moves an existing customer */
+  plan?: string;
+  /** days of trial; 0 starts the clinic active and billing immediately */
+  trialDays?: number;
   adminName: string;
   adminEmail: string;
   adminPassword: string;
-  /* flexible team: any number of doctors, optional front-desk account */
-  doctors?: { name: string; email: string; password: string }[];
-  frontdesk?: { email: string; password: string } | null;
+  /** the rest of the team, each with their own role set */
+  staff?: NewClinicStaff[];
 };
 
 /** Full clinic onboarding: clinic + settings + loyalty + trial subscription
@@ -97,6 +110,16 @@ export async function createClinic(input: NewClinicInput) {
   const { data: clash } = await sb.from("tawd_clinics").select("id").eq("slug", slug).limit(1);
   if (clash?.length) slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
 
+  /* Resolve the plan first: the clinic row itself carries plan and status, so
+     looking this up afterwards would have left every new clinic on "starter /
+     trial" no matter what was chosen. */
+  const planCode = (input.plan ?? "starter").trim();
+  const { data: planRow } = await sb
+    .from("platform_plans").select("code, price_omr").eq("code", planCode).maybeSingle();
+  const planPrice = Number(planRow?.price_omr ?? 0);
+  const resolvedPlan = (planRow?.code as string) ?? "starter";
+  const trialDays = Math.max(0, Math.min(90, Math.floor(Number(input.trialDays ?? 14))));
+
   /* 1 — the clinic */
   const { data: clinic, error: cerr } = await sb
     .from("tawd_clinics")
@@ -107,15 +130,21 @@ export async function createClinic(input: NewClinicInput) {
       clinic_type: SERVICE_TEMPLATES[input.clinicType] ? input.clinicType : "general",
       phone: input.phone?.trim() || null,
       vat_enabled: true,
-      status: "trial",
+      plan: resolvedPlan,
+      status: trialDays > 0 ? "trial" : "active",
     })
     .select("id")
     .single();
   if (cerr || !clinic) return { ok: false as const, reason: `تعذّر إنشاء العيادة: ${cerr?.message ?? ""}` };
   const clinicId = clinic.id as string;
 
-  /* 2 — defaults: settings + smart loyalty + 14-day trial subscription */
-  const trialEnd = new Date(Date.now() + 14 * 86_400_000).toISOString();
+  /* 2 — defaults: settings + smart loyalty + the chosen plan.
+
+     The price is COPIED from the catalogue onto this subscription rather than
+     referenced. Repricing "pro" next quarter must not silently re-bill every
+     clinic already on it — what a customer agreed to is a fact about them, not
+     a lookup. */
+  const trialEnd = new Date(Date.now() + Math.max(trialDays, 1) * 86_400_000).toISOString();
   const [s1, s2, s3] = await Promise.all([
     sb.from("tawd_clinic_settings").insert({ clinic_id: clinicId, working_hours: WH_DEFAULT }),
     sb.from("loyalty_settings").insert({
@@ -129,7 +158,17 @@ export async function createClinic(input: NewClinicInput) {
       max_redeem_pct: 30,
       expiry_months: 6,
     }),
-    sb.from("tawd_subscriptions").insert({ clinic_id: clinicId, trial_ends_at: trialEnd, current_period_end: trialEnd }),
+    sb.from("tawd_subscriptions").insert({
+      clinic_id: clinicId,
+      plan: resolvedPlan,
+      price_omr: planPrice,
+      // trialDays = 0 means the clinic starts paying today
+      status: trialDays > 0 ? "trial" : "active",
+      trial_ends_at: trialEnd,
+      current_period_end: trialDays > 0
+        ? trialEnd
+        : new Date(Date.now() + 30 * 86_400_000).toISOString(),
+    }),
   ]);
   const seedErr = s1.error ?? s2.error ?? s3.error;
 
@@ -166,66 +205,60 @@ export async function createClinic(input: NewClinicInput) {
     is_active: true,
   });
 
-  /* 5 — flexible team: N doctors + optional front-desk (استقبال+محاسبة) */
+  /* 5 — the team, as the clinic actually has it.
+
+     This used to be "N doctors, plus optionally ONE account hardwired to
+     receptionist+accountant". That covers one clinic shape. A clinic with a
+     separate receptionist and a separate accountant could not be set up here at
+     all, and neither could a manager who also treats patients. Every account is
+     now just a person with a name, a login, and one or more roles — the same
+     model the staff screen uses, so what is created here is exactly what the
+     manager can edit afterwards. */
   const teamWarnings: string[] = [];
-  let doctorsCreated = 0;
-  for (const d of (input.doctors ?? []).slice(0, 30)) {
-    const dEmail = d.email.trim().toLowerCase();
-    if (!d.name.trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(dEmail) || d.password.length < 8) {
-      teamWarnings.push(`طبيب متجاهل (بيانات ناقصة): ${d.name || dEmail || "?"}`);
+  const roleCounts = { doctor: 0, receptionist: 0, accountant: 0, clinic_admin: 0 };
+
+  for (const m of (input.staff ?? []).slice(0, 40)) {
+    const mEmail = m.email.trim().toLowerCase();
+    const mName = m.name.trim();
+    const roles = (m.roles ?? []).filter((r) => STAFF_ROLE_MAP[r]);
+
+    if (!mName || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mEmail) || m.password.length < 8 || !roles.length) {
+      teamWarnings.push(`حساب متجاهل (بيانات ناقصة): ${mName || mEmail || "?"}`);
       continue;
     }
-    const dc = await sb.auth.admin.createUser({
-      email: dEmail,
-      password: d.password,
+
+    const primary = roles[0];
+    const mc = await sb.auth.admin.createUser({
+      email: mEmail,
+      password: m.password,
       email_confirm: true,
-      app_metadata: { role: "doctor", all_roles: ["doctor"], clinic_id: clinicId },
+      app_metadata: {
+        role: primary,
+        all_roles: roles,
+        is_multi_role: roles.length > 1,
+        clinic_id: clinicId,
+      },
     });
-    if (dc.error) { teamWarnings.push(`${dEmail}: ${dc.error.message}`); continue; }
-    const { error: dse } = await sb.from("tawd_staff_users").insert({
-      id: dc.data.user.id,
+    if (mc.error) { teamWarnings.push(`${mEmail}: ${mc.error.message}`); continue; }
+
+    const { error: mse } = await sb.from("tawd_staff_users").insert({
+      id: mc.data.user.id,
       clinic_id: clinicId,
-      name: d.name.trim(),
-      name_ar: d.name.trim(),
-      email: dEmail,
-      role: "doctor",
-      all_roles: ["doctor"],
+      name: mName,
+      name_ar: mName,
+      email: mEmail,
+      role: STAFF_ROLE_MAP[primary],
+      all_roles: roles.map((r) => STAFF_ROLE_MAP[r]),
+      specialty: m.specialty?.trim() || null,
       is_active: true,
     });
-    if (dse) teamWarnings.push(`${dEmail}: ${dse.message}`);
-    else doctorsCreated++;
+    if (mse) { teamWarnings.push(`${mEmail}: ${mse.message}`); continue; }
+
+    for (const r of roles) roleCounts[r as keyof typeof roleCounts] += 1;
   }
 
-  let frontdeskCreated = false;
-  if (input.frontdesk?.email) {
-    const fEmail = input.frontdesk.email.trim().toLowerCase();
-    if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(fEmail) && input.frontdesk.password.length >= 8) {
-      const fc = await sb.auth.admin.createUser({
-        email: fEmail,
-        password: input.frontdesk.password,
-        email_confirm: true,
-        app_metadata: {
-          role: "receptionist",
-          all_roles: ["receptionist", "accountant"],
-          is_multi_role: true,
-          clinic_id: clinicId,
-        },
-      });
-      if (!fc.error) {
-        await sb.from("tawd_staff_users").insert({
-          id: fc.data.user.id,
-          clinic_id: clinicId,
-          name: "Front Desk",
-          name_ar: "الاستقبال والمحاسبة",
-          email: fEmail,
-          role: "receptionist",
-          all_roles: ["receptionist", "accountant"],
-          is_active: true,
-        });
-        frontdeskCreated = true;
-      } else teamWarnings.push(`${fEmail}: ${fc.error.message}`);
-    }
-  }
+  const doctorsCreated = roleCounts.doctor;
+  const frontdeskCreated = roleCounts.receptionist > 0 || roleCounts.accountant > 0;
 
   revalidatePath("/platform-admin");
   revalidatePath("/platform-admin/clinics");

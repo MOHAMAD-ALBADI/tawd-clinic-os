@@ -21,7 +21,25 @@ function genPassword() {
   return "Tw@" + p;
 }
 
-export function NewClinicForm() {
+type StaffDraft = { name: string; email: string; password: string; roles: string[]; specialty: string };
+
+const ROLE_CHOICES: { key: string; label: string }[] = [
+  { key: "doctor",       label: "طبيب" },
+  { key: "receptionist", label: "استقبال" },
+  { key: "accountant",   label: "محاسبة" },
+  { key: "clinic_admin", label: "إدارة" },
+];
+
+/* The shapes a clinic actually comes in. Each is just a starting role set —
+   every one stays editable after it is added. */
+const PRESETS: { label: string; roles: string[]; hint: string }[] = [
+  { label: "طبيب",              roles: ["doctor"],                      hint: "" },
+  { label: "استقبال",           roles: ["receptionist"],                hint: "" },
+  { label: "محاسب",             roles: ["accountant"],                  hint: "" },
+  { label: "استقبال + محاسبة",  roles: ["receptionist", "accountant"],  hint: "حساب واحد لجهاز واحد" },
+];
+
+export function NewClinicForm({ plans }: { plans: { code: string; name_ar: string; price_omr: number }[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [err, setErr] = useState<string | null>(null);
@@ -36,9 +54,15 @@ export function NewClinicForm() {
     adminEmail: "",
     adminPassword: genPassword(),
   });
-  const [doctors, setDoctors] = useState<{ name: string; email: string; password: string }[]>([]);
-  const [withFrontdesk, setWithFrontdesk] = useState(false);
-  const [frontdesk, setFrontdesk] = useState({ email: "", password: genPassword() });
+  const [plan, setPlan] = useState(plans[0]?.code ?? "starter");
+  const [trialDays, setTrialDays] = useState("14");
+  /* One list, any shape of clinic. The old form offered "N doctors" plus a
+     single account hardwired to receptionist+accountant, which fit exactly one
+     kind of clinic. A practice with a separate receptionist AND a separate
+     accountant could not be set up at all, and neither could a manager who also
+     treats patients. Every member is now a person with a role set — the same
+     model the clinic's own staff screen uses. */
+  const [staff, setStaff] = useState<StaffDraft[]>([]);
   const [teamInfo, setTeamInfo] = useState<{ doctors: number; frontdesk: boolean }>({ doctors: 0, frontdesk: false });
   /* createClinic seeds eight tables and returns a `warnings` list for the parts
      that failed — a doctor account rejected for a duplicate email, a service
@@ -48,10 +72,19 @@ export function NewClinicForm() {
      an outright failure, because nobody goes looking. */
   const [warnings, setWarnings] = useState<string[]>([]);
 
-  const addDoctor = () => setDoctors((d) => [...d, { name: "", email: "", password: genPassword() }]);
-  const patchDoctor = (i: number, p: Partial<{ name: string; email: string; password: string }>) =>
-    setDoctors((d) => d.map((x, j) => (j === i ? { ...x, ...p } : x)));
-  const removeDoctor = (i: number) => setDoctors((d) => d.filter((_, j) => j !== i));
+  const addStaff = (roles: string[]) =>
+    setStaff((d) => [...d, { name: "", email: "", password: genPassword(), roles, specialty: "" }]);
+  const patchStaff = (i: number, p: Partial<StaffDraft>) =>
+    setStaff((d) => d.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  const removeStaff = (i: number) => setStaff((d) => d.filter((_, j) => j !== i));
+  const toggleRole = (i: number, role: string) =>
+    setStaff((d) => d.map((x, j) => {
+      if (j !== i) return x;
+      const has = x.roles.includes(role);
+      // never leave a member with no role at all
+      const roles = has ? x.roles.filter((r) => r !== role) : [...x.roles, role];
+      return { ...x, roles: roles.length ? roles : x.roles };
+    }));
 
   function submit() {
     setErr(null);
@@ -59,8 +92,9 @@ export function NewClinicForm() {
       try {
         const r = await createClinic({
           ...form,
-          doctors: doctors.filter((d) => d.name.trim() && d.email.trim()),
-          frontdesk: withFrontdesk && frontdesk.email.trim() ? frontdesk : null,
+          plan,
+          trialDays: Number(trialDays) || 0,
+          staff: staff.filter((m) => m.name.trim() && m.email.trim()),
         });
         if (!r.ok) { setErr(r.reason); return; }
         setTeamInfo({ doctors: r.doctorsCreated ?? 0, frontdesk: !!r.frontdeskCreated });
@@ -91,10 +125,13 @@ export function NewClinicForm() {
           {warnings.length ? `عيادة «${form.nameAr}» أُنشئت — مع ملاحظات` : `عيادة «${form.nameAr}» جاهزة 🎉`}
         </p>
         <p className="text-sm mb-5" style={{ color: "var(--text-2)" }}>
-          الإعدادات، دوام افتراضي، نظام الولاء الذكي، اشتراك تجريبي 14 يوماً،
+          {/* The trial length and the team shape are choices now, so this line
+              has to report what was actually created rather than a fixed script. */}
+          الإعدادات، دوام افتراضي، نظام الولاء الذكي،
+          {Number(trialDays) > 0 ? ` تجربة ${trialDays} يوماً، ` : " اشتراك نشط من اليوم، "}
           {done.services} خدمات حسب التخصص
           {teamInfo.doctors > 0 && `، ${teamInfo.doctors} حساب طبيب`}
-          {teamInfo.frontdesk && "، وحساب استقبال+محاسبة"}
+          {teamInfo.frontdesk && "، وحسابات الاستقبال/المحاسبة"}
         </p>
 
         {warnings.length > 0 && (
@@ -201,38 +238,97 @@ export function NewClinicForm() {
             </div>
           </div>
         </div>
-
-        {/* الفريق — مرن: أي عدد أطباء + استقبال اختياري */}
+        {/* الباقة */}
         <div className="pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-          <div className="flex items-center justify-between mb-3">
-            <p className="eyebrow flex items-center gap-1.5">
-              <Stethoscope className="w-3 h-3" /> فريق العيادة (اختياري — أضف بأي عدد)
-            </p>
-            <button onClick={addDoctor} className="btn-ghost" style={{ padding: "0.3rem 0.75rem", fontSize: 11 }}>
-              <Plus className="w-3.5 h-3.5" /> طبيب
-            </button>
+          <p className="eyebrow mb-2">الباقة والتجربة</p>
+          <div className="grid grid-cols-[1fr_auto] gap-2">
+            <select className="field" value={plan} onChange={(e) => setPlan(e.target.value)} style={{ cursor: "pointer" }}>
+              {plans.map((p) => (
+                <option key={p.code} value={p.code}>
+                  {p.name_ar} — {p.price_omr.toFixed(3)} ر.ع/شهر
+                </option>
+              ))}
+            </select>
+            <div className="flex items-center gap-1.5">
+              {["0", "14", "30"].map((d) => (
+                <button key={d} type="button" onClick={() => setTrialDays(d)}
+                  className="text-[11.5px] font-bold px-2.5 py-2 rounded-xl transition-colors"
+                  style={{
+                    background: trialDays === d ? "rgb(var(--accent-1-rgb) / 0.14)" : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${trialDays === d ? "rgb(var(--accent-1-rgb) / 0.35)" : "var(--hairline)"}`,
+                    color: trialDays === d ? "var(--accent-1)" : "var(--text-3)",
+                  }}>
+                  {d === "0" ? "بلا تجربة" : `${d} يوم`}
+                </button>
+              ))}
+            </div>
+          </div>
+          <p className="text-[10px] mt-1.5" style={{ color: "var(--text-4)" }}>
+            سعر الباقة يُنسخ على اشتراك هذه العيادة — تغييره لاحقاً في الكتالوج لا يحرّكها
+            {trialDays === "0" && " · بلا تجربة يعني أنها تبدأ نشطة ومحسوبة في دخلك من اليوم"}
+          </p>
+        </div>
+
+        {/* الفريق — أي تركيبة */}
+        <div className="pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+          <p className="eyebrow flex items-center gap-1.5 mb-1">
+            <Stethoscope className="w-3 h-3" /> فريق العيادة
+          </p>
+          <p className="text-[10.5px] mb-3" style={{ color: "var(--text-4)" }}>
+            المدير أعلاه يُنشأ دائماً — أضف هنا بقية الفريق بأي تركيبة
+          </p>
+
+          <div className="flex items-center gap-1.5 flex-wrap mb-3">
+            {PRESETS.map((p) => (
+              <button key={p.label} type="button" onClick={() => addStaff(p.roles)}
+                className="btn-ghost" style={{ padding: "0.3rem 0.7rem", fontSize: 11 }}
+                title={p.hint || undefined}>
+                <Plus className="w-3 h-3" /> {p.label}
+              </button>
+            ))}
           </div>
 
-          {doctors.map((d, i) => (
-            <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 mb-2">
-              <input value={d.name} onChange={(e) => patchDoctor(i, { name: e.target.value })} className="field" placeholder={`اسم الطبيب ${i + 1}`} style={{ fontSize: 12 }} />
-              <input value={d.email} onChange={(e) => patchDoctor(i, { email: e.target.value })} className="field ltr-nums" dir="ltr" placeholder="doctor@clinic.om" style={{ fontSize: 12 }} />
-              <button onClick={() => removeDoctor(i)} className="w-9 rounded-lg flex items-center justify-center" style={{ background: "rgba(244,63,94,0.07)", color: "#fda4b4" }} aria-label="حذف الطبيب">
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
+          {staff.map((m, i) => (
+            <div key={i} className="rounded-xl p-2.5 mb-2"
+              style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--hairline)" }}>
+              <div className="grid grid-cols-[1fr_1fr_auto] gap-2 mb-2">
+                <input value={m.name} onChange={(e) => patchStaff(i, { name: e.target.value })}
+                  className="field" placeholder="الاسم" style={{ fontSize: 12 }} />
+                <input value={m.email} onChange={(e) => patchStaff(i, { email: e.target.value })}
+                  className="field ltr-nums" dir="ltr" placeholder="name@clinic.om" style={{ fontSize: 12 }} />
+                <button onClick={() => removeStaff(i)} className="w-9 rounded-lg flex items-center justify-center"
+                  style={{ background: "rgba(244,63,94,0.07)", color: "#fda4b4" }} aria-label="حذف">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {ROLE_CHOICES.map((r) => {
+                  const on = m.roles.includes(r.key);
+                  return (
+                    <button key={r.key} type="button" onClick={() => toggleRole(i, r.key)}
+                      className="text-[11px] font-bold px-2.5 py-1 rounded-lg transition-colors"
+                      style={{
+                        background: on ? "rgb(var(--accent-1-rgb) / 0.14)" : "rgba(255,255,255,0.03)",
+                        border: `1px solid ${on ? "rgb(var(--accent-1-rgb) / 0.35)" : "var(--hairline)"}`,
+                        color: on ? "var(--accent-1)" : "var(--text-4)",
+                      }}>
+                      {r.label}
+                    </button>
+                  );
+                })}
+                {m.roles.includes("doctor") && (
+                  <input value={m.specialty} onChange={(e) => patchStaff(i, { specialty: e.target.value })}
+                    className="field" placeholder="التخصص" style={{ fontSize: 11, width: 120, padding: "0.3rem 0.6rem" }} />
+                )}
+              </div>
             </div>
           ))}
-          {doctors.length > 0 && (
-            <p className="text-[10px] mb-2" style={{ color: "var(--text-4)" }}>كلمات مرور الأطباء تتولّد تلقائياً وتظهر في ملف العيادة</p>
-          )}
 
-          <label className="flex items-center gap-2 text-[12px] cursor-pointer mt-2" style={{ color: "var(--text-2)" }}>
-            <input type="checkbox" checked={withFrontdesk} onChange={(e) => setWithFrontdesk(e.target.checked)} className="accent-teal-500" />
-            إنشاء حساب استقبال + محاسبة (لعيادة بكمبيوتر واحد)
-          </label>
-          {withFrontdesk && (
-            <input value={frontdesk.email} onChange={(e) => setFrontdesk((p) => ({ ...p, email: e.target.value }))}
-              className="field mt-2 ltr-nums" dir="ltr" placeholder="frontdesk@clinic.om" style={{ fontSize: 12 }} />
+          {staff.length > 0 && (
+            <p className="text-[10px]" style={{ color: "var(--text-4)" }}>
+              كلمات المرور تتولّد تلقائياً وتظهر في ملف العيادة · الدور الأول هو اللوحة التي تُفتح عند الدخول
+            </p>
           )}
         </div>
 
@@ -248,7 +344,7 @@ export function NewClinicForm() {
           {pending ? "جارٍ تجهيز العيادة…" : "إنشاء العيادة كاملة"}
         </button>
         <p className="text-[10px] text-center" style={{ color: "var(--text-4)" }}>
-          ينشئ تلقائياً: الإعدادات + الدوام + نظام الولاء + اشتراك تجريبي 14 يوم + خدمات التخصص + حساب المدير
+          ينشئ تلقائياً: الإعدادات + الدوام + نظام الولاء + الاشتراك على الباقة المختارة + خدمات التخصص + كل الحسابات
         </p>
       </div>
     </div>
