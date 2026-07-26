@@ -35,8 +35,8 @@ export default async function SubscriptionsPage() {
     <div className="space-y-4 animate-fade-in pb-20">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-bold text-white">الاشتراكات</h2>
-          <p className="text-sm mt-0.5" style={{ color: "var(--text-3)" }}>
+          <h1 className="text-2xl font-black text-white tracking-tight leading-none">الاشتراكات</h1>
+          <p className="text-[12px] mt-1.5" style={{ color: "var(--text-4)" }}>
             MRR: <span className="font-bold ltr-nums text-white">{fmt(mrr)} ر.ع</span>
             {" · "}منتهية: <span className="font-bold ltr-nums" style={{ color: overdue > 0 ? "#fda4b4" : "var(--accent-1)" }}>{overdue}</span>
           </p>

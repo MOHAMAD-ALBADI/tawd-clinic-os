@@ -60,8 +60,8 @@ export default async function CheckoutPage({ params }: { params: Promise<{ apptI
       </Link>
 
       <div>
-        <h2 className="text-xl font-bold text-white">الكاشير</h2>
-        <p className="text-sm mt-0.5" style={{ color: "var(--text-3)" }}>فوترة وتحصيل الزيارة</p>
+        <h1 className="text-2xl font-black text-white tracking-tight leading-none">الكاشير</h1>
+        <p className="text-[12px] mt-1.5" style={{ color: "var(--text-4)" }}>فوترة وتحصيل الزيارة</p>
       </div>
 
       {/* visit summary */}

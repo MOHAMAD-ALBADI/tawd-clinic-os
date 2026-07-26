@@ -45,8 +45,8 @@ export default async function BroadcastPage() {
       </Link>
 
       <div>
-        <h2 className="text-xl font-bold text-white">حملات المنصة</h2>
-        <p className="text-sm mt-0.5" style={{ color: "var(--text-3)" }}>
+        <h1 className="text-2xl font-black text-white tracking-tight leading-none">حملات المنصة</h1>
+        <p className="text-[12px] mt-1.5" style={{ color: "var(--text-4)" }}>
           رسائل واتساب لأصحاب العيادات — تذكير تجديد، إعلانات ميزات، عروض
         </p>
       </div>

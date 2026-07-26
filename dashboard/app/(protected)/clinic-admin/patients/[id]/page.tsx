@@ -145,7 +145,7 @@ export default async function PatientProfilePage({
             {displayName.charAt(0)}
           </div>
           <div>
-            <h2 className="text-xl font-bold text-white">{displayName}</h2>
+            <h1 className="text-2xl font-black text-white tracking-tight leading-none">{displayName}</h1>
             {patient.name_ar && patient.name !== patient.name_ar && (
               <p className="text-sm" style={{ color: "var(--text-3)" }}>{patient.name}</p>
             )}

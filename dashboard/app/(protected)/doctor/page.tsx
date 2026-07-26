@@ -98,21 +98,30 @@ export default async function DoctorTodayPage() {
   return (
     <div className="space-y-4 animate-fade-in pb-20">
       {/* header strip */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-bold text-white">جدولي اليوم</h2>
-          <p className="text-sm mt-0.5" style={{ color: "var(--text-3)" }}>{todayAr}</p>
+          <p className="eyebrow">TODAY</p>
+          <h1 className="text-2xl font-black text-white tracking-tight leading-none mt-1">جدولي اليوم</h1>
+          <p className="text-[12px] mt-1.5" style={{ color: "var(--text-4)" }}>{todayAr}</p>
         </div>
-        <div className="flex items-center gap-4">
+
+        {/* Four bare numbers side by side read as one undifferentiated row.
+            The only one a doctor mid-clinic actually scans for is "متبقٍ" — how
+            much is left — so that one carries the accent and the rest stay
+            quiet. Same data, one clear priority. */}
+        <div className="flex items-center gap-2 flex-wrap">
           {[
-            { l: "اليوم", v: appts.length },
-            { l: "مكتمل", v: completed },
-            { l: "متبقٍ", v: remaining },
-            { l: "هذا الشهر", v: monthDone },
+            { l: "اليوم", v: appts.length, lead: false },
+            { l: "مكتمل", v: completed, lead: false },
+            { l: "متبقٍ", v: remaining, lead: true },
+            { l: "هذا الشهر", v: monthDone, lead: false },
           ].map((s) => (
-            <div key={s.l} className="text-center">
-              <p className="text-lg font-bold ltr-nums text-white leading-none">{s.v}</p>
-              <p className="text-[10px] mt-0.5" style={{ color: "var(--text-4)" }}>{s.l}</p>
+            <div key={s.l} className="pill">
+              <span className="text-[11px]" style={{ color: "var(--text-3)" }}>{s.l}</span>
+              <span className="text-[14px] font-black ltr-nums"
+                style={{ color: s.lead ? "var(--accent-1)" : "#ffffff" }}>
+                {s.v}
+              </span>
             </div>
           ))}
         </div>

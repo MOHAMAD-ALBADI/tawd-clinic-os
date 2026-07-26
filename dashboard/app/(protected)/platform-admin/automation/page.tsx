@@ -55,8 +55,8 @@ export default async function AutomationPage() {
   return (
     <div className="space-y-4 animate-fade-in pb-20">
       <div>
-        <h2 className="text-xl font-bold text-white">الأتمتة — محرك سُرى</h2>
-        <p className="text-sm mt-0.5" style={{ color: "var(--text-3)" }}>
+        <h1 className="text-2xl font-black text-white tracking-tight leading-none">الأتمتة — محرك سُرى</h1>
+        <p className="text-[12px] mt-1.5" style={{ color: "var(--text-4)" }}>
           حالة كل ووركفلو حياً + تشغيلاته وأخطاؤه آخر 24 ساعة
         </p>
       </div>

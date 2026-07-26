@@ -55,8 +55,8 @@ export default async function DoctorAppointmentsPage() {
   return (
     <div className="space-y-5 animate-fade-in">
       <div>
-        <h2 className="text-xl font-bold text-white">مواعيدي القادمة</h2>
-        <p className="text-sm mt-0.5" style={{ color: "var(--text-3)" }}>{appts.length} موعد</p>
+        <h1 className="text-2xl font-black text-white tracking-tight leading-none">مواعيدي القادمة</h1>
+        <p className="text-[12px] mt-1.5" style={{ color: "var(--text-4)" }}>{appts.length} موعد</p>
       </div>
 
       {groups.size === 0 ? (

@@ -43,8 +43,8 @@ export default async function DayClosePage() {
       </Link>
 
       <div>
-        <h2 className="text-xl font-bold text-white">إغلاق اليوم</h2>
-        <p className="text-sm mt-0.5" style={{ color: "var(--text-3)" }}>تصفية الصندوق ومطابقة النظام</p>
+        <h1 className="text-2xl font-black text-white tracking-tight leading-none">إغلاق اليوم</h1>
+        <p className="text-[12px] mt-1.5" style={{ color: "var(--text-4)" }}>تصفية الصندوق ومطابقة النظام</p>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4 items-start">

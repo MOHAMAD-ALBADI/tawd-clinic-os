@@ -28,8 +28,8 @@ export default async function BookPage() {
       </Link>
 
       <div>
-        <h2 className="text-xl font-bold text-white">حجز موعد</h2>
-        <p className="text-sm mt-0.5" style={{ color: "var(--text-3)" }}>
+        <h1 className="text-2xl font-black text-white tracking-tight leading-none">حجز موعد</h1>
+        <p className="text-[12px] mt-1.5" style={{ color: "var(--text-4)" }}>
           نفس قواعد سُرى: تعارض المواعيد + دوام الطبيب + إجازاته
         </p>
       </div>
