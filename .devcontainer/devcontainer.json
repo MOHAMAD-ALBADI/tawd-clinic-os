@@ -1,0 +1,43 @@
+{
+  "name": "TAWD Clinic OS",
+
+  // Node 24 to match the local toolchain (Next 16 / React 19).
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-24-bookworm",
+
+  // The founder's laptop has 3.8GB of RAM, which is below what `tsc` on this
+  // project needs — it dies in native zone allocation before finishing. A
+  // 4-core Codespace has 16GB, so typecheck and build run normally here.
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "16gb",
+    "storage": "32gb"
+  },
+
+  "workspaceFolder": "/workspaces/tawd-clinic-os",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss",
+        "esbenp.prettier-vscode"
+      ],
+      "settings": {
+        "typescript.tsdk": "dashboard/node_modules/typescript/lib",
+        "editor.formatOnSave": false,
+        "files.eol": "\n"
+      }
+    }
+  },
+
+  // Next's dev server. Kept private — this dashboard reaches a live clinic
+  // database, so the port must not be published to the internet.
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": { "label": "dashboard", "onAutoForward": "notify", "visibility": "private" }
+  },
+
+  "postCreateCommand": "cd dashboard && npm install",
+
+  "remoteUser": "node"
+}

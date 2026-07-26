@@ -7,7 +7,8 @@
     "dev:webpack": "node --max-old-space-size=8192 node_modules/next/dist/bin/next dev --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
