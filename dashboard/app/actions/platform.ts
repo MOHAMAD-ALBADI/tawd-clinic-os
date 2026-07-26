@@ -299,6 +299,20 @@ export async function createStaffAccount(clinicId: string, input: NewStaffInput)
 }
 
 /** Update a clinic's subscription (plan / price / status). */
+/* The two tables use DIFFERENT enums for what looks like the same word:
+     clinic_status       = trial | active | suspended | cancelled
+     subscription_status = trial | active | past_due  | cancelled | paused
+   There is no 'suspended' subscription. This function used to write the caller's
+   status into both, so choosing "suspended" failed the subscription UPDATE on an
+   invalid enum, returned early, and left the clinic un-suspended too — the one
+   action that is supposed to cut off a non-paying tenant did nothing at all.
+   A suspended clinic is a paused subscription; the mapping is explicit now. */
+const SUB_STATUS: Record<"trial" | "active" | "suspended", string> = {
+  trial: "trial",
+  active: "active",
+  suspended: "paused",
+};
+
 export async function updateSubscription(
   clinicId: string,
   input: { plan: "starter" | "growth" | "pro" | "enterprise"; price_omr: number; status: "trial" | "active" | "suspended" }
@@ -310,14 +324,21 @@ export async function updateSubscription(
     .update({
       plan: input.plan,
       price_omr: Math.max(0, Number(input.price_omr) || 0),
-      status: input.status,
+      status: SUB_STATUS[input.status],
       updated_at: new Date().toISOString(),
     })
     .eq("clinic_id", clinicId);
   if (error) return { ok: false as const, reason: error.message };
-  /* keep clinic plan/status in sync */
-  await sb.from("tawd_clinics").update({ plan: input.plan, status: input.status }).eq("id", clinicId);
+  /* keep clinic plan/status in sync — this side keeps the word "suspended" */
+  const { error: cerr } = await sb
+    .from("tawd_clinics")
+    .update({ plan: input.plan, status: input.status })
+    .eq("id", clinicId);
+  if (cerr) return { ok: false as const, reason: cerr.message };
+
   revalidatePath(`/platform-admin/clinics/${clinicId}`);
+  revalidatePath("/platform-admin/clinics");
+  revalidatePath("/platform-admin/subscriptions");
   revalidatePath("/platform-admin");
   return { ok: true as const };
 }
@@ -471,16 +492,31 @@ export async function impersonateClinic(clinicId: string) {
   return { ok: true as const, link: data.properties.action_link, email: admin.email };
 }
 
-/** Activate / suspend a clinic. */
+/** Activate / suspend a clinic — the operator's kill switch.
+
+    Suspending moves the subscription too. It used to change only the clinic row,
+    so a suspended tenant kept an `active` subscription and went on being counted
+    in MRR: the dashboard reported revenue from a clinic that had been cut off.
+    Suspension and billing are the same decision and now move together. */
 export async function setClinicStatus(clinicId: string, status: "trial" | "active" | "suspended") {
   await requirePlatform();
   const sb = await createServiceRoleClient();
+
   const { error } = await sb
     .from("tawd_clinics")
     .update({ status, updated_at: new Date().toISOString() })
     .eq("id", clinicId);
   if (error) return { ok: false as const, reason: error.message };
+
+  const { error: serr } = await sb
+    .from("tawd_subscriptions")
+    .update({ status: SUB_STATUS[status], updated_at: new Date().toISOString() })
+    .eq("clinic_id", clinicId);
+  if (serr) return { ok: false as const, reason: `عُلّقت العيادة لكن تعذّر تحديث اشتراكها: ${serr.message}` };
+
   revalidatePath("/platform-admin");
+  revalidatePath("/platform-admin/clinics");
+  revalidatePath("/platform-admin/subscriptions");
   revalidatePath(`/platform-admin/clinics/${clinicId}`);
   return { ok: true as const };
 }
