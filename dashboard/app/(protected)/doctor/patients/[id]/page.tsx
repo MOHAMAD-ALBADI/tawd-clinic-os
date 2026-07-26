@@ -5,6 +5,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { AddNoteForm } from "@/components/doctor/add-note-form";
 import { RecordVitalsForm } from "@/components/doctor/record-vitals-form";
 import { MedicalHistoryForm, type MedicalHistory } from "@/components/doctor/medical-history-form";
+import { DentalChart } from "@/components/doctor/dental-chart";
+import type { ChartEntry } from "@/lib/dental";
 import { PatientAttachments, type Attachment } from "@/components/patients/patient-attachments";
 import { ArrowRight, Phone, Cake, NotebookPen, Activity, Lock, CalendarDays, AlertTriangle } from "lucide-react";
 
@@ -42,6 +44,29 @@ export default async function PatientFilePage({ params }: { params: Promise<{ id
     supabase.from("appointments").select("id, slot_time, status, services(name_ar)").eq("patient_id", id).is("deleted_at", null).order("slot_time", { ascending: false }).limit(15),
     supabase.from("medical_histories").select("blood_type, allergies, chronic_diseases, current_medications, notes").eq("patient_id", id).maybeSingle(),
   ]);
+
+  /* The tooth chart. A dentist's primary clinical view — every system this was
+     measured against opens on one — and TAWD had nowhere to draw it. */
+  const { data: chartRows } = await supabase
+    .from("dental_chart_entries")
+    .select("id, tooth, surfaces, kind, code, note, status, created_at, tawd_staff_users!doctor_id(name_ar, name)")
+    .eq("patient_id", id)
+    .order("created_at", { ascending: false });
+
+  const chart: ChartEntry[] = (chartRows ?? []).map((r) => {
+    const doc = r.tawd_staff_users as unknown as { name_ar: string | null; name: string | null } | null;
+    return {
+      id: r.id as string,
+      tooth: Number(r.tooth),
+      surfaces: (r.surfaces as string[] | null) ?? [],
+      kind: r.kind as "finding" | "treatment",
+      code: r.code as string,
+      note: (r.note as string | null) ?? null,
+      status: r.status as "active" | "resolved" | "planned",
+      createdAt: r.created_at as string,
+      doctorName: doc?.name_ar ?? doc?.name ?? null,
+    };
+  });
 
   const { data: attachments } = await supabase
     .from("patient_attachments")
@@ -123,6 +148,8 @@ export default async function PatientFilePage({ params }: { params: Promise<{ id
       )}
 
       {/* Action forms */}
+      <DentalChart patientId={id} entries={chart} canEdit />
+
       <div className="grid lg:grid-cols-2 gap-4">
         <AddNoteForm patientId={id} />
         <RecordVitalsForm patientId={id} />
