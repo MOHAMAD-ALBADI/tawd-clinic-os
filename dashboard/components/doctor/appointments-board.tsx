@@ -7,6 +7,7 @@ import {
   Timer, X,
 } from "lucide-react";
 import { AppointmentActions } from "@/components/doctor/appointment-actions";
+import { arTime as AR_TIME, arDayDate as AR_DAY } from "@/lib/ar-format";
 
 export type ApptRow = {
   id: string;
@@ -31,8 +32,6 @@ const STATUS: Record<string, { label: string; color: string }> = {
   no_show:     { label: "لم يحضر",    color: "#fda4b4" },
 };
 
-const AR_TIME = new Intl.DateTimeFormat("ar", { timeZone: "Asia/Muscat", hour: "numeric", minute: "2-digit", hour12: true });
-const AR_DAY = new Intl.DateTimeFormat("ar", { timeZone: "Asia/Muscat", weekday: "long", day: "numeric", month: "long" });
 const KEY = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Muscat", year: "numeric", month: "2-digit", day: "2-digit" });
 
 type Range = "today" | "upcoming" | "past" | "all";

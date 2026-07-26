@@ -1,5 +1,6 @@
 import "server-only";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { arTime, arDayDate } from "@/lib/ar-format";
 
 /* Everything the doctor's day screen needs, in one place.
 
@@ -54,14 +55,8 @@ export type DoctorDay = {
   bookedMinutes: number;
 };
 
-const AR_TIME = new Intl.DateTimeFormat("ar", {
-  timeZone: "Asia/Muscat", hour: "numeric", minute: "2-digit", hour12: true,
-});
-const AR_DAY = new Intl.DateTimeFormat("ar", {
-  timeZone: "Asia/Muscat", weekday: "long", day: "numeric", month: "long",
-});
-export const fmtTime = (iso: string) => AR_TIME.format(new Date(iso));
-export const fmtDay = (iso: string) => AR_DAY.format(new Date(iso));
+export const fmtTime = (iso: string) => arTime.format(new Date(iso));
+export const fmtDay = (iso: string) => arDayDate.format(new Date(iso));
 
 /** Muscat is UTC+4 with no DST, so the clinic's day is a fixed offset window.
     toISOString().slice(0,10) would give the UTC day and lose 00:00–04:00. */

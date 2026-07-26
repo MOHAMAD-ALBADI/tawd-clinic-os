@@ -11,7 +11,7 @@ import {
 } from "@/lib/dental";
 import { addChartEntry, resolveChartEntry, deleteChartEntry } from "@/app/actions/dental-chart";
 
-const AR_DATE = new Intl.DateTimeFormat("ar", { day: "numeric", month: "short", year: "numeric" });
+import { arDateShort as AR_DATE } from "@/lib/ar-format";
 
 /** The odontogram.
 

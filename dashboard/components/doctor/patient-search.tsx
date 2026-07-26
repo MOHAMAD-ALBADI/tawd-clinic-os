@@ -6,6 +6,7 @@ import {
   Search, ChevronLeft, Phone, AlertTriangle, HeartPulse, ClipboardList,
   CalendarClock, UserPlus, Users, X,
 } from "lucide-react";
+import { arDateShort as AR_DATE } from "@/lib/ar-format";
 
 export type DocPatient = {
   id: string;
@@ -25,7 +26,6 @@ export type DocPatient = {
 
 type Scope = "mine" | "attention" | "all";
 
-const AR_DATE = new Intl.DateTimeFormat("ar", { timeZone: "Asia/Muscat", day: "numeric", month: "short", year: "numeric" });
 const fmt = (iso: string | null) => (iso ? AR_DATE.format(new Date(iso)) : "—");
 const daysSince = (iso: string | null) =>
   iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000) : null;
