@@ -8,19 +8,15 @@ import { ReviewLinkForm } from "@/components/settings/review-link-form";
 import { VatNumberForm } from "@/components/settings/vat-number-form";
 import { BookingLink } from "@/components/platform/booking-link";
 import { SettingsTabs } from "@/components/settings/settings-tabs";
-import { Shield, CreditCard } from "lucide-react";
+import { MySubscription, type MyInvoice } from "@/components/settings/my-subscription";
+import { getEntitlements } from "@/lib/entitlements";
+import { Shield } from "lucide-react";
 
 export const metadata = { title: "الإعدادات — طود" };
 export const dynamic = "force-dynamic";
 
 const PLAN_NAMES: Record<string, string> = {
   starter: "Starter", growth: "Growth", pro: "Pro", enterprise: "Enterprise",
-};
-const PLAN_COLORS: Record<string, string> = {
-  starter: "#a8a29b", growth: "#5b93ff", pro: "#2e6bf0", enterprise: "#1e52d6",
-};
-const STATUS_LABELS: Record<string, string> = {
-  trial: "تجريبي", active: "نشط", past_due: "متأخر", cancelled: "ملغي", paused: "موقوف",
 };
 
 export default async function SettingsPage() {
@@ -63,6 +59,37 @@ export default async function SettingsPage() {
         .order("holiday_date"),
     ]);
 
+  /* The clinic's own copy of what the platform agreed and billed. Read from the
+     same rows the operator edits — there is no second copy to drift. */
+  const [entitlements, { data: myInvoices }, { data: myPayments }, { count: doctorCount }, { count: patientCount }] =
+    await Promise.all([
+      getEntitlements(claims.clinic_id),
+      supabase.from("platform_invoices")
+        .select("id, number, period_start, period_end, total_omr, status, due_at")
+        .order("issued_at", { ascending: false }).limit(24),
+      supabase.from("platform_payments").select("invoice_id, amount_omr"),
+      supabase.from("tawd_staff_users").select("id", { count: "exact", head: true })
+        .eq("clinic_id", claims.clinic_id).eq("role", "doctor").eq("is_active", true).is("deleted_at", null),
+      supabase.from("patients").select("id", { count: "exact", head: true })
+        .eq("clinic_id", claims.clinic_id).is("deleted_at", null),
+    ]);
+
+  const paidByInvoice = new Map<string, number>();
+  for (const p of myPayments ?? []) {
+    const k = p.invoice_id as string;
+    paidByInvoice.set(k, (paidByInvoice.get(k) ?? 0) + Number(p.amount_omr ?? 0));
+  }
+  const invoiceRows: MyInvoice[] = (myInvoices ?? []).map((i) => ({
+    id: i.id as string,
+    number: i.number as string,
+    periodStart: i.period_start as string,
+    periodEnd: i.period_end as string,
+    total: Number(i.total_omr ?? 0),
+    paid: paidByInvoice.get(i.id as string) ?? 0,
+    status: i.status as string,
+    dueAt: (i.due_at as string | null) ?? null,
+  }));
+
   const defaultHours: Record<string, { open: string; close: string }> = {
     sun: { open: "08:00", close: "22:00" },
     mon: { open: "08:00", close: "22:00" },
@@ -73,53 +100,9 @@ export default async function SettingsPage() {
   };
 
   const workingHours = (settings?.working_hours as Record<string, { open: string; close: string } | null>) ?? defaultHours;
-  const channels = (settings?.channel_toggles ?? {}) as Record<string, boolean>;
 
   const sub = subscription ?? { plan: clinic?.plan ?? "starter", status: "trial", renews_at: null };
-  const planColor = PLAN_COLORS[sub.plan] ?? "#94A3B8";
 
-  const subscriptionBanner = (
-      <div
-        className="rounded-2xl p-5 flex items-center gap-4"
-        style={{
-          background: `linear-gradient(135deg, ${planColor}12 0%, var(--surface-1) 60%)`,
-          border: `1px solid ${planColor}25`,
-        }}
-      >
-        <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: `${planColor}18`, border: `1px solid ${planColor}30` }}>
-          <CreditCard className="w-5 h-5" style={{ color: planColor }} />
-        </div>
-        <div className="flex-1">
-          <p className="font-bold text-white">باقة {PLAN_NAMES[sub.plan] ?? sub.plan}</p>
-          <p className="text-xs mt-0.5" style={{ color: "var(--text-3)" }}>
-            الحالة: {STATUS_LABELS[sub.status] ?? sub.status}
-            {sub.renews_at ? ` · تتجدد ${new Date(sub.renews_at).toLocaleDateString("ar-SA")}` : ""}
-          </p>
-        </div>
-
-        <div className="hidden md:flex items-center gap-4 text-center">
-          <div>
-            <p className="text-xl font-black" style={{ color: planColor }}>{staffCount ?? "—"}</p>
-            <p className="text-[11px]" style={{ color: "var(--text-3)" }}>موظف نشط</p>
-          </div>
-          <div className="w-px h-8" style={{ background: "rgba(255,255,255,0.08)" }} />
-          <div>
-            <div className="flex gap-1.5">
-              {Object.entries(channels).map(([ch, active]) => (
-                <span key={ch} className="text-[10px] px-2 py-0.5 rounded-full"
-                  style={active
-                    ? { background: "rgb(var(--accent-2-rgb) / 0.15)", color: "var(--accent-1)", border: "1px solid rgb(var(--accent-2-rgb) / 0.2)" }
-                    : { background: "rgba(255,255,255,0.04)", color: "var(--text-4)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                  {ch === "whatsapp" ? "واتساب" : ch === "instagram" ? "انستغرام" : ch === "web_chat" ? "ويب" : ch}
-                </span>
-              ))}
-            </div>
-            <p className="text-[11px] mt-1" style={{ color: "var(--text-3)" }}>القنوات</p>
-          </div>
-        </div>
-      </div>
-  );
 
   return (
     <div className="space-y-5 animate-fade-in pb-20">
@@ -155,7 +138,22 @@ export default async function SettingsPage() {
         }
         billing={
           <>
-            {subscriptionBanner}
+            {/* Was a decorative strip showing the plan name and a staff count.
+                It is the real contract now: price, renewal, limits against live
+                usage, what is included, and every invoice with what has been
+                paid on it. */}
+            <MySubscription
+              entitlements={entitlements}
+              invoices={invoiceRows}
+              usage={{
+                doctors: doctorCount ?? 0,
+                staff: staffCount ?? 0,
+                patients: patientCount ?? 0,
+              }}
+              planName={PLAN_NAMES[sub.plan] ?? sub.plan}
+              status={sub.status}
+              renewsAt={(sub.renews_at as string | null) ?? null}
+            />
             {/* VAT number sits with billing, not with clinic details: it exists
                 because it is printed on every tax invoice. */}
             <VatNumberForm current={(clinic?.vat_number as string | null) ?? null} />

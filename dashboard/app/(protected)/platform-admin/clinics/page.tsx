@@ -4,7 +4,7 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { ClinicsManager, type ClinicRow } from "@/components/platform/clinics-manager";
-import { Plus, Building2, Coins, AlertTriangle } from "lucide-react";
+import { Plus, Building2, Coins, AlertTriangle, ShieldCheck } from "lucide-react";
 
 export const metadata = { title: "إدارة العيادات — طود" };
 export const dynamic = "force-dynamic";
@@ -18,7 +18,16 @@ export default async function ClinicsPage() {
   /* One aggregate instead of five queries plus a JavaScript reduction that
      silently mis-reported activity once more than a few clinics existed. */
   const sb = await createServiceRoleClient();
-  const { data } = await sb.rpc("platform_clinic_overview");
+  /* Live support approvals. A clinic grants access for one hour and there was
+     nowhere to see that it had — the founder asked, the manager approved, and
+     the window closed unnoticed while he was still reading the reply. */
+  const [{ data }, { data: grants }] = await Promise.all([
+    sb.rpc("platform_clinic_overview"),
+    sb.from("support_access_requests")
+      .select("id, clinic_id, expires_at")
+      .eq("status", "approved").gt("expires_at", new Date().toISOString())
+      .order("expires_at"),
+  ]);
 
   const clinics: ClinicRow[] = (data ?? []).map((c: Record<string, unknown>) => ({
     id: c.id as string,
@@ -79,6 +88,29 @@ export default async function ClinicsPage() {
           </div>
         ))}
       </div>
+
+      {(grants ?? []).length > 0 && (
+        <div className="panel" style={{ padding: "1rem 1.2rem", borderColor: "rgb(var(--accent-1-rgb) / 0.28)" }}>
+          <div className="section-title mb-2">
+            <ShieldCheck className="w-3.5 h-3.5" style={{ color: "var(--accent-1)" }} />
+            <h2>إذن دخول ساري الآن</h2>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {(grants ?? []).map((g) => {
+              const c = clinics.find((x) => x.id === g.clinic_id);
+              const mins = Math.max(0, Math.floor((new Date(g.expires_at as string).getTime() - Date.now()) / 60_000));
+              return (
+                <Link key={g.id as string} href={`/platform-admin/clinics/${g.clinic_id}`}
+                  className="flex items-center gap-2 text-[12px] font-bold px-3 py-2 rounded-xl"
+                  style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", border: "1px solid rgb(var(--accent-1-rgb) / 0.28)", color: "var(--accent-1)" }}>
+                  {c ? (c.name_ar ?? c.name) : "عيادة"}
+                  <span className="ltr-nums opacity-75">{mins} د متبقية</span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <ClinicsManager clinics={clinics} />
     </div>
