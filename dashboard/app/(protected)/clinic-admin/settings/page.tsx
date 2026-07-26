@@ -6,9 +6,11 @@ import { WorkingHoursForm } from "@/components/settings/working-hours-form";
 import { ReviewLinkForm } from "@/components/settings/review-link-form";
 import { VatNumberForm } from "@/components/settings/vat-number-form";
 import { BookingLink } from "@/components/platform/booking-link";
-import { Shield, CreditCard, Users, Activity } from "lucide-react";
+import { SettingsTabs } from "@/components/settings/settings-tabs";
+import { Shield, CreditCard } from "lucide-react";
 
 export const metadata = { title: "الإعدادات — طود" };
+export const dynamic = "force-dynamic";
 
 const PLAN_NAMES: Record<string, string> = {
   starter: "Starter", growth: "Growth", pro: "Pro", enterprise: "Enterprise",
@@ -65,20 +67,11 @@ export default async function SettingsPage() {
   const sub = subscription ?? { plan: clinic?.plan ?? "starter", status: "trial", renews_at: null };
   const planColor = PLAN_COLORS[sub.plan] ?? "#94A3B8";
 
-  return (
-    <div className="space-y-5 animate-fade-in">
-      <div>
-        <h2 className="text-xl font-bold text-white">الإعدادات</h2>
-        <p className="text-sm mt-0.5" style={{ color: "var(--text-3)" }}>
-          تخصيص بيانات وإعدادات عيادتك
-        </p>
-      </div>
-
-      {/* Subscription banner */}
+  const subscriptionBanner = (
       <div
         className="rounded-2xl p-5 flex items-center gap-4"
         style={{
-          background: `linear-gradient(135deg, ${planColor}12 0%, rgba(6,14,30,0.92) 60%)`,
+          background: `linear-gradient(135deg, ${planColor}12 0%, var(--surface-1) 60%)`,
           border: `1px solid ${planColor}25`,
         }}
       >
@@ -115,55 +108,103 @@ export default async function SettingsPage() {
           </div>
         </div>
       </div>
+  );
 
-      {/* Clinic info — editable */}
-      {clinic && (
-        <ClinicInfoForm
-          name={clinic.name}
-          name_ar={clinic.name_ar ?? null}
-          country_code={clinic.country_code ?? "OM"}
-          timezone={clinic.timezone ?? "Asia/Muscat"}
-          currency={clinic.currency ?? "OMR"}
-          vat_enabled={clinic.vat_enabled ?? false}
-          is_active={!["cancelled", "paused"].includes(clinic.status ?? "")}
-          plan={clinic.plan ?? "starter"}
-        />
-      )}
-
-      {/* Working hours — editable */}
-      <WorkingHoursForm hours={workingHours} />
-
-      {/* Google review link — editable (used by Sura post-visit follow-up) */}
-      <ReviewLinkForm currentUrl={(settings?.google_review_url as string | null) ?? null} />
-
-      {/* VAT registration number — printed on tax invoices */}
-      <VatNumberForm current={(clinic?.vat_number as string | null) ?? null} />
-
-      {/* Public booking link — the clinic shares this with patients */}
-      {clinic?.slug && <BookingLink slug={clinic.slug as string} />}
-
-      {/* Security info */}
-      <div
-        className="rounded-2xl p-5 flex items-center gap-4"
-        style={{ background: "rgba(6,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)" }}
-      >
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.2)" }}>
-          <Shield className="w-4 h-4" style={{ color: "#38bdf8" }} />
-        </div>
-        <div className="flex-1">
-          <p className="font-semibold text-white text-sm">الأمان والمصادقة</p>
-          <p className="text-xs mt-0.5" style={{ color: "var(--text-3)" }}>
-            المصادقة الثنائية (MFA): {settings?.mfa_enforced ? "مفعّلة لجميع الموظفين" : "غير مفعّلة"} · لتفعيلها تواصل مع فريق طود
-          </p>
-        </div>
-        <div className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl"
-          style={{ background: "rgba(56,189,248,0.08)", border: "1px solid rgba(56,189,248,0.15)", color: "#38bdf8" }}>
-          <Activity className="w-3.5 h-3.5" />
-          <Users className="w-3.5 h-3.5" />
-          متقدم
-        </div>
+  return (
+    <div className="space-y-5 animate-fade-in pb-20">
+      <div>
+        <p className="eyebrow">SETTINGS</p>
+        <h1 className="text-2xl font-black text-white tracking-tight leading-none mt-1">الإعدادات</h1>
+        <p className="text-[12px] mt-1" style={{ color: "var(--text-4)" }}>
+          بيانات عيادتك وأوقات عملها وفوترتها والروابط التي تشاركها مع المرضى
+        </p>
       </div>
+
+      <SettingsTabs
+        clinic={
+          <>
+            {clinic && (
+              <ClinicInfoForm
+                name={clinic.name}
+                name_ar={clinic.name_ar ?? null}
+                country_code={clinic.country_code ?? "OM"}
+                timezone={clinic.timezone ?? "Asia/Muscat"}
+                currency={clinic.currency ?? "OMR"}
+                vat_enabled={clinic.vat_enabled ?? false}
+                is_active={!["cancelled", "paused"].includes(clinic.status ?? "")}
+                plan={clinic.plan ?? "starter"}
+              />
+            )}
+            <WorkingHoursForm hours={workingHours} />
+          </>
+        }
+        billing={
+          <>
+            {subscriptionBanner}
+            {/* VAT number sits with billing, not with clinic details: it exists
+                because it is printed on every tax invoice. */}
+            <VatNumberForm current={(clinic?.vat_number as string | null) ?? null} />
+          </>
+        }
+        channels={
+          <>
+            {/* Both of these are links the clinic hands to patients, which is
+                why they belong together rather than beside the opening hours. */}
+            {clinic?.slug && <BookingLink slug={clinic.slug as string} />}
+            <ReviewLinkForm currentUrl={(settings?.google_review_url as string | null) ?? null} />
+          </>
+        }
+        security={
+          <div className="panel" style={{ padding: "1.5rem" }}>
+            <div className="section-title mb-1">
+              <Shield className="w-3.5 h-3.5" style={{ color: "var(--accent-1)" }} />
+              <h2>الأمان</h2>
+            </div>
+            <p className="text-[11.5px] mb-4" style={{ color: "var(--text-4)" }}>
+              كل حساب في هذه العيادة يفتح ملفات مرضى — راجع الفريق دورياً واحذف من غادر
+            </p>
+
+            <div className="space-y-2.5">
+              <SecurityRow
+                label="حسابات نشطة"
+                value={`${staffCount ?? 0} حساب`}
+                note="تعطيل الحساب من صفحة الكادر الطبي يمنع الدخول فوراً"
+              />
+              <SecurityRow
+                label="كلمات المرور"
+                value="يديرها كل موظف"
+                note="من «ملفي الشخصي» — والمدير يستطيع إعادة تعيينها من صفحة الكادر"
+              />
+              {/* This used to read "لتفعيلها تواصل مع فريق طود", which was not a
+                  thing anyone could do. Saying it is not built is more useful
+                  than pointing at a support channel that cannot enable it. */}
+              <SecurityRow
+                label="المصادقة الثنائية"
+                value={settings?.mfa_enforced ? "مفعّلة" : "غير مفعّلة"}
+                note="غير متاحة في هذه النسخة"
+                muted={!settings?.mfa_enforced}
+              />
+            </div>
+          </div>
+        }
+      />
+    </div>
+  );
+}
+
+function SecurityRow({
+  label, value, note, muted,
+}: { label: string; value: string; note: string; muted?: boolean }) {
+  return (
+    <div className="flex items-start justify-between gap-4 px-4 py-3 rounded-xl"
+      style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--hairline)" }}>
+      <div className="min-w-0">
+        <p className="text-[13px] font-bold text-white">{label}</p>
+        <p className="text-[11px] mt-0.5" style={{ color: "var(--text-4)" }}>{note}</p>
+      </div>
+      <span className="text-[12px] font-bold shrink-0" style={{ color: muted ? "var(--text-4)" : "var(--accent-1)" }}>
+        {value}
+      </span>
     </div>
   );
 }
