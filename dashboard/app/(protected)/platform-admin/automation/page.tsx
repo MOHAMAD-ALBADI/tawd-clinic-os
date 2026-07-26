@@ -4,7 +4,8 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { AppErrorsPanel, type AppErrorRow } from "@/components/platform/app-errors-panel";
 import { n8nGet, n8nErrorMessage } from "@/lib/n8n";
-import { Workflow } from "lucide-react";
+import { WorkflowBoard, type WorkflowRow } from "@/components/platform/workflow-board";
+import { Workflow, AlertTriangle } from "lucide-react";
 
 export const metadata = { title: "الأتمتة — طود" };
 export const dynamic = "force-dynamic";
@@ -55,37 +56,29 @@ export default async function AutomationPage() {
   return (
     <div className="space-y-4 animate-fade-in pb-20">
       <div>
-        <h1 className="text-2xl font-black text-white tracking-tight leading-none">الأتمتة — محرك سُرى</h1>
+        <p className="eyebrow">AUTOMATION</p>
+        <h1 className="text-2xl font-black text-white tracking-tight leading-none mt-1">الأتمتة — محرك سُرى</h1>
         <p className="text-[12px] mt-1.5" style={{ color: "var(--text-4)" }}>
-          حالة كل ووركفلو حياً + تشغيلاته وأخطاؤه آخر 24 ساعة
+          كل ووركفلو وتشغيلاته وأخطاؤه آخر ٢٤ ساعة — وتشغيله وإيقافه من هنا مباشرة
         </p>
       </div>
 
-      <div className="panel" style={{ padding: "1.25rem" }}>
-        {"error" in wfs ? (
-          <p className="text-sm py-6 text-center" style={{ color: "var(--text-4)" }}>
-            {wfs.error}
-          </p>
-        ) : (
-          <div className="space-y-1">
-            {wfs.rows.map((w) => (
-              <div key={w.id} className="flex items-center gap-3 px-3 py-2 rounded-lg flex-wrap"
-                style={{ background: "rgba(255,255,255,0.018)", border: "1px solid rgba(255,255,255,0.045)" }}>
-                <span className="w-1.5 h-1.5 rounded-full shrink-0"
-                  style={{ background: w.active ? "var(--accent-1)" : "rgba(255,255,255,0.15)" }} />
-                <span className="text-[12px] flex-1 truncate" style={{ color: w.active ? "var(--text-1)" : "var(--text-4)" }}>
-                  {w.name.replace("TAWD - ", "").replace("TAWD — ", "")}
-                </span>
-                <span className="text-[11px] ltr-nums" style={{ color: "var(--text-4)" }}>{w.runs} تشغيلة</span>
-                <span className="text-[11px] font-bold ltr-nums w-14 text-end"
-                  style={{ color: w.errors > 0 ? "#fda4b4" : "var(--text-4)" }}>
-                  {w.errors > 0 ? `${w.errors} خطأ` : "—"}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {"error" in wfs ? (
+        <div className="panel flex items-start gap-3" style={{ padding: "1.1rem 1.2rem", borderColor: "rgba(251,191,36,0.28)" }}>
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: "#fbbf24" }} />
+          <p className="text-[12.5px]" style={{ color: "var(--text-2)" }}>{wfs.error}</p>
+        </div>
+      ) : (
+        <WorkflowBoard
+          workflows={wfs.rows.map((w): WorkflowRow => ({
+            id: w.id,
+            name: w.name.replace("TAWD - ", "").replace("TAWD — ", ""),
+            active: w.active,
+            runs: w.runs,
+            errors: w.errors,
+          }))}
+        />
+      )}
 
       <div className="panel" style={{ padding: "1.25rem" }}>
         <h3 className="font-bold text-white flex items-center gap-2 text-sm mb-3">

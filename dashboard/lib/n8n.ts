@@ -44,6 +44,33 @@ export async function n8nGet<T>(path: string, timeoutMs = 5000): Promise<N8nFetc
   }
 }
 
+/** POST an n8n REST path — used to activate/deactivate a workflow.
+
+    Same failure taxonomy as n8nGet, including the content-type guard: n8n
+    answers an unknown path with the editor's HTML and a 200, so "it worked"
+    cannot be inferred from the status code alone. */
+export async function n8nPost<T>(path: string, timeoutMs = 8000): Promise<N8nFetchResult<T>> {
+  const key = process.env.N8N_API_KEY;
+  if (!key) return { ok: false, reason: "no_key" };
+
+  try {
+    const res = await fetch(`${n8nApiBase()}/${path.replace(/^\/+/, "")}`, {
+      method: "POST",
+      headers: { "X-N8N-API-KEY": key, Accept: "application/json" },
+      signal: AbortSignal.timeout(timeoutMs),
+      cache: "no-store",
+    });
+    if (res.status === 401 || res.status === 403) return { ok: false, reason: "unauthorized" };
+    if (!res.ok) return { ok: false, reason: "bad_response" };
+    if (!(res.headers.get("content-type") ?? "").includes("application/json")) {
+      return { ok: false, reason: "bad_response" };
+    }
+    return { ok: true, data: (await res.json()) as T };
+  } catch {
+    return { ok: false, reason: "unreachable" };
+  }
+}
+
 /** Arabic message for each failure mode — so the founder sees the real cause. */
 export function n8nErrorMessage(reason: "no_key" | "unreachable" | "unauthorized" | "bad_response"): string {
   switch (reason) {
