@@ -34,3 +34,6 @@ Thumbs.db
 # ── Vercel ──
 .vercel
 
+
+# local low-memory typecheck scratch config
+dashboard/tsconfig.scoped.json

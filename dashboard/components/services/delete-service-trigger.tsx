@@ -16,11 +16,13 @@ export function DeleteServiceTrigger({ id, name }: { id: string; name: string })
     setError(null);
     startTransition(async () => {
       try {
-        await deleteService(id);
+        // the action returns its refusal (e.g. "مرتبطة بمواعيد") instead of throwing
+        const r = await deleteService(id);
+        if (!r.ok) { setError(r.reason); return; }
         router.refresh();
         setOpen(false);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "حدث خطأ");
+      } catch {
+        setError("تعذّر الاتصال");
       }
     });
   }
