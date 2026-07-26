@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ClipboardCheck, Stethoscope } from "lucide-react";
+import { ClipboardCheck, Stethoscope, AlertTriangle } from "lucide-react";
 import { saveExamNote } from "@/app/actions/doctor";
 
 const FIELDS = [
@@ -24,11 +24,16 @@ export function ExamForm({
   const [saving, startSave] = useTransition();
   const [form, setForm] = useState({ complaint: "", findings: "", diagnosis: "", plan: "" });
   const [isPrivate, setIsPrivate] = useState(false);
+  /* In-page, not alert(). A browser dialog throws an LTR system box over an
+     Arabic dark UI, and it blocks the tab until dismissed — during a
+     consultation that is the wrong thing to do to a doctor. */
+  const [err, setErr] = useState<string | null>(null);
 
   const filled = Object.values(form).some((v) => v.trim());
 
   function save(complete: boolean) {
-    if (!filled) { alert("اكتب شيئاً واحداً على الأقل"); return; }
+    if (!filled) { setErr("اكتب شيئاً واحداً على الأقل قبل الحفظ"); return; }
+    setErr(null);
     startSave(async () => {
       try {
         await saveExamNote(patientId, appointmentId, {
@@ -39,7 +44,7 @@ export function ExamForm({
         if (complete) router.push("/doctor");
         else router.refresh();
       } catch (e) {
-        alert(e instanceof Error ? e.message : "حدث خطأ");
+        setErr(e instanceof Error ? e.message : "تعذّر حفظ الملاحظة");
       }
     });
   }
@@ -50,6 +55,13 @@ export function ExamForm({
         <Stethoscope className="w-4 h-4" style={{ color: "var(--accent-1)" }} />
         توثيق الكشف
       </h3>
+
+      {err && (
+        <div className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-xl mb-3"
+          style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.25)", color: "#fda4b4" }}>
+          <AlertTriangle className="w-4 h-4 shrink-0" /> {err}
+        </div>
+      )}
 
       <div className="space-y-3">
         {FIELDS.map((f) => (

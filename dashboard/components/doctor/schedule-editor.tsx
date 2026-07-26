@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarClock, Plane, Save, Trash2, CheckCircle2 } from "lucide-react";
+import { CalendarClock, Plane, Save, Trash2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { saveWeeklySchedule, requestLeave, cancelLeave, type WeekDayInput } from "@/app/actions/doctor";
 
 const DAYS: { key: WeekDayInput["day"]; label: string }[] = [
@@ -42,10 +42,16 @@ export function ScheduleEditor({
   const [leaveReason, setLeaveReason] = useState("");
   const [saved, setSaved] = useState(false);
 
+  /* This schedule is what Sura books against, so a silent failure here means
+     patients get offered hours the doctor is not working. The error has to be
+     on the page next to the schedule, not in a dialog that disappears. */
+  const [err, setErr] = useState<string | null>(null);
+
   const patch = (i: number, p: Partial<WeekDayInput>) =>
     setDays((prev) => prev.map((d, j) => (j === i ? { ...d, ...p } : d)));
 
   function saveSchedule() {
+    setErr(null);
     startSave(async () => {
       try {
         await saveWeeklySchedule(days);
@@ -53,28 +59,30 @@ export function ScheduleEditor({
         setTimeout(() => setSaved(false), 3000);
         router.refresh();
       } catch (e) {
-        alert(e instanceof Error ? e.message : "حدث خطأ");
+        setErr(e instanceof Error ? e.message : "تعذّر حفظ الدوام");
       }
     });
   }
 
   function addLeave() {
-    if (!leaveDate) { alert("اختر التاريخ"); return; }
+    if (!leaveDate) { setErr("اختر تاريخ الإجازة أولاً"); return; }
+    setErr(null);
     startSave(async () => {
       try {
         await requestLeave(leaveDate, leaveReason);
         setLeaveDate(""); setLeaveReason("");
         router.refresh();
       } catch (e) {
-        alert(e instanceof Error ? e.message : "حدث خطأ");
+        setErr(e instanceof Error ? e.message : "تعذّر تسجيل الإجازة");
       }
     });
   }
 
   function removeLeave(id: string) {
+    setErr(null);
     startSave(async () => {
       try { await cancelLeave(id); router.refresh(); }
-      catch (e) { alert(e instanceof Error ? e.message : "حدث خطأ"); }
+      catch (e) { setErr(e instanceof Error ? e.message : "تعذّر إلغاء الإجازة"); }
     });
   }
 
@@ -83,6 +91,13 @@ export function ScheduleEditor({
 
   return (
     <div className="grid lg:grid-cols-2 gap-4 items-start">
+      {err && (
+        <div className="lg:col-span-2 flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-xl"
+          style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.25)", color: "#fda4b4" }}>
+          <AlertTriangle className="w-4 h-4 shrink-0" /> {err}
+        </div>
+      )}
+
       {/* weekly hours */}
       <div className="panel" style={{ padding: "1.25rem" }}>
         <h3 className="font-bold text-white flex items-center gap-2 text-sm mb-1">

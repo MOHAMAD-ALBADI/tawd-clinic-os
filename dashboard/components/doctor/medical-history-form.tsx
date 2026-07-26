@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { HeartPulse, Save } from "lucide-react";
+import { HeartPulse, Save, AlertTriangle } from "lucide-react";
 import { saveMedicalHistory } from "@/app/actions/doctor";
 
 const BLOOD_TYPES = ["unknown", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
@@ -34,9 +34,15 @@ export function MedicalHistoryForm({
     notes: history?.notes ?? "",
   });
 
+  /* In-page rather than alert(): this form holds allergies, which drive the
+     red-flag badge on the patient file. A failure has to be visible next to the
+     field, not in a system dialog the doctor dismisses reflexively. */
+  const [err, setErr] = useState<string | null>(null);
+
   const split = (s: string) => s.split(/[،,\n]/).map((x) => x.trim()).filter(Boolean);
 
   function save() {
+    setErr(null);
     startSave(async () => {
       try {
         await saveMedicalHistory(patientId, {
@@ -49,10 +55,17 @@ export function MedicalHistoryForm({
         setEditing(false);
         router.refresh();
       } catch (e) {
-        alert(e instanceof Error ? e.message : "حدث خطأ");
+        setErr(e instanceof Error ? e.message : "تعذّر حفظ التاريخ المرضي");
       }
     });
   }
+
+  const errorBanner = err ? (
+    <div className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-xl mb-3"
+      style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.25)", color: "#fda4b4" }}>
+      <AlertTriangle className="w-4 h-4 shrink-0" /> {err}
+    </div>
+  ) : null;
 
   const chips = (items: string[] | null | undefined, danger = false) =>
     (items ?? []).length === 0 ? (
@@ -86,6 +99,8 @@ export function MedicalHistoryForm({
           {editing ? "إلغاء" : history ? "تعديل" : "إنشاء الملف"}
         </button>
       </div>
+
+      {errorBanner}
 
       {!editing ? (
         <div className="grid sm:grid-cols-2 gap-4">

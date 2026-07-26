@@ -1,35 +1,11 @@
 import { redirect } from "next/navigation";
-import { getUserClaims } from "@/lib/auth/get-user-claims";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { DoctorSettingsForm } from "@/components/doctor/doctor-settings-form";
 
-export const metadata = { title: "إعداداتي — طود" };
+/* The doctor had a private settings page that edited two of the six fields the
+   shared profile edits, and changed a password without asking for the current
+   one. Two screens doing one job drift apart, and this pair had already drifted
+   into a security hole. There is one profile now, at /profile, for every role.
 
-export default async function DoctorSettingsPage() {
-  const claims = await getUserClaims();
-  if (!claims || claims.role !== "doctor") redirect("/login");
-
-  const supabase = await createServerSupabaseClient();
-  const { data: me } = await supabase
-    .from("tawd_staff_users")
-    .select("name, name_ar, email")
-    .eq("id", claims.sub)
-    .single();
-
-  return (
-    <div className="space-y-4 animate-fade-in pb-20">
-      <div>
-        <h2 className="text-xl font-bold text-white">إعداداتي</h2>
-        <p className="text-sm mt-0.5" style={{ color: "var(--text-3)" }}>
-          بياناتك الشخصية وأمان حسابك
-        </p>
-      </div>
-
-      <DoctorSettingsForm
-        nameAr={me?.name_ar ?? ""}
-        nameEn={me?.name ?? ""}
-        email={me?.email ?? claims.email}
-      />
-    </div>
-  );
+   Kept as a redirect so existing links and bookmarks still land somewhere. */
+export default function DoctorSettingsMoved() {
+  redirect("/profile");
 }
