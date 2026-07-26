@@ -2,9 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ArrowLeft, AlertTriangle, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { ROLE_HOME } from "@/lib/auth/role-redirect";
 import type { Role } from "@/types/tawd";
+
+/* No card here. The page provides one; this used to add a second inside it,
+   which is why the form looked boxed-in and cramped. */
 
 export function LoginForm() {
   const [email, setEmail] = useState("");
@@ -19,12 +23,11 @@ export function LoginForm() {
     setLoading(true);
     setError(null);
 
-    const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
 
     if (authError || !data.user) {
+      /* Deliberately does not say which of the two was wrong: telling an
+         attacker that an email exists is how you hand them half the answer. */
       setError("البريد الإلكتروني أو كلمة المرور غير صحيحة");
       setLoading(false);
       return;
@@ -36,88 +39,62 @@ export function LoginForm() {
   }
 
   return (
-    <div
-      className="rounded-2xl border p-8 shadow-2xl backdrop-blur-sm"
-      style={{
-        background: "rgba(255,255,255,0.06)",
-        borderColor: "rgba(255,255,255,0.12)",
-      }}
-    >
-      <h2 className="text-white text-xl font-semibold text-center mb-6">
-        تسجيل الدخول
-      </h2>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <label className="block">
+        <span className="text-[12px] font-semibold block mb-1.5" style={{ color: "var(--text-2)" }}>
+          البريد الإلكتروني
+        </span>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="name@clinic.om"
+          required
+          dir="ltr"
+          autoComplete="email"
+          className="field ltr-nums"
+          style={{ height: 44 }}
+        />
+      </label>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-1.5">
-          <label className="block text-[13px] font-medium text-teal-100">
-            البريد الإلكتروني
-          </label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="example@clinic.com"
-            required
-            dir="ltr"
-            className="w-full h-10 px-3 rounded-lg text-sm text-white placeholder:text-white/30 outline-none transition-colors"
-            style={{
-              background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.15)",
-            }}
-            onFocus={(e) =>
-              (e.currentTarget.style.borderColor = "var(--color-tawd-500)")
-            }
-            onBlur={(e) =>
-              (e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)")
-            }
-          />
-        </div>
+      <label className="block">
+        <span className="text-[12px] font-semibold block mb-1.5" style={{ color: "var(--text-2)" }}>
+          كلمة المرور
+        </span>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="••••••••"
+          required
+          dir="ltr"
+          autoComplete="current-password"
+          className="field"
+          style={{ height: 44 }}
+        />
+      </label>
 
-        <div className="space-y-1.5">
-          <label className="block text-[13px] font-medium text-teal-100">
-            كلمة المرور
-          </label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            required
-            className="w-full h-10 px-3 rounded-lg text-sm text-white placeholder:text-white/30 outline-none transition-colors"
-            style={{
-              background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.15)",
-            }}
-            onFocus={(e) =>
-              (e.currentTarget.style.borderColor = "var(--color-tawd-500)")
-            }
-            onBlur={(e) =>
-              (e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)")
-            }
-          />
-        </div>
-
-        {error && (
-          <p className="text-red-400 text-xs text-center bg-red-500/10 py-2 px-3 rounded-lg border border-red-500/20">
-            {error}
-          </p>
-        )}
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full h-11 rounded-xl text-white font-semibold text-sm transition-all mt-2 disabled:opacity-60"
-          style={{ background: "var(--color-tawd-600)" }}
-          onMouseEnter={(e) =>
-            !loading && (e.currentTarget.style.background = "var(--color-tawd-700)")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.background = "var(--color-tawd-600)")
-          }
+      {error && (
+        <div
+          className="flex items-center gap-2 text-[12.5px] px-3.5 py-2.5 rounded-xl"
+          role="alert"
+          style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.25)", color: "#fda4b4" }}
         >
-          {loading ? "جاري التحقق..." : "دخول →"}
-        </button>
-      </form>
-    </div>
+          <AlertTriangle className="w-4 h-4 shrink-0" /> {error}
+        </div>
+      )}
+
+      {/* .btn-primary rather than an inline background. The old inline style
+          referenced var(--color-tawd-600) — a token from a naming scheme that
+          no longer exists, so it resolved to nothing and the most important
+          button in the product rendered with no fill at all. */}
+      <button type="submit" disabled={loading} className="btn-primary w-full" style={{ height: 46 }}>
+        {loading ? (
+          <><Loader2 className="w-4 h-4 animate-spin" /> جارٍ التحقق…</>
+        ) : (
+          <>دخول <ArrowLeft className="w-4 h-4" /></>
+        )}
+      </button>
+    </form>
   );
 }
