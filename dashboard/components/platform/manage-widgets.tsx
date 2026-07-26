@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Wallet, RefreshCcw, Send, Trash2, Plus, CheckCircle2 } from "lucide-react";
+import { Wallet, RefreshCcw, Send, Trash2, Plus } from "lucide-react";
 import {
   updateSubscription, renewSubscriptionMonth, sendClinicWhatsApp,
   addPlatformCost, deletePlatformCost, impersonateClinic, requestClinicAccess,
@@ -300,89 +300,6 @@ export function SupportAccessBanner({ requestId }: { requestId: string }) {
       </p>
       <button onClick={() => answer(true)} disabled={pending} className="btn-primary" style={{ padding: "0.4rem 1rem", fontSize: 12 }}>أوافق</button>
       <button onClick={() => answer(false)} disabled={pending} className="btn-danger">أرفض</button>
-    </div>
-  );
-}
-
-/* ─── bulk WhatsApp broadcast to clinic owners ─── */
-export function PlatformBroadcast({
-  clinics,
-}: {
-  clinics: { id: string; label: string; phone: boolean; group: "expiring" | "overdue" | "ok" }[];
-}) {
-  const [pending, start] = useTransition();
-  const [audience, setAudience] = useState<"all" | "expiring" | "overdue">("all");
-  const [text, setText] = useState("");
-  const [result, setResult] = useState<{ sent: number; total: number; fails: string[] } | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  const targets = clinics.filter((c) => c.phone && (audience === "all" || c.group === audience));
-
-  function send() {
-    setErr(null); setResult(null);
-    start(async () => {
-      const r = await sendClinicWhatsApp(targets.map((t) => t.id), text);
-      if (!r.ok) { setErr(r.reason); return; }
-      setResult({
-        sent: r.sentCount,
-        total: r.results.length,
-        fails: r.results.filter((x) => !x.sent).map((x) => `${x.clinic} (${x.reason})`),
-      });
-      if (r.sentCount > 0) setText("");
-    });
-  }
-
-  return (
-    <div className="panel" style={{ padding: "1.5rem", maxWidth: 640 }}>
-      <h3 className="font-bold text-white flex items-center gap-2 text-sm mb-4">
-        <Send className="w-4 h-4" style={{ color: "var(--accent-1)" }} />
-        رسالة جماعية لأصحاب العيادات
-      </h3>
-
-      <div className="flex gap-1.5 mb-3 flex-wrap">
-        {([["all", "كل العيادات"], ["expiring", "تجارب تنتهي ≤7 أيام"], ["overdue", "منتهي اشتراكهم"]] as const).map(([k, label]) => (
-          <button key={k} onClick={() => setAudience(k)}
-            className="text-[12px] font-bold px-3 py-1.5 rounded-lg"
-            style={{
-              background: audience === k ? "rgb(var(--accent-1-rgb) / 0.12)" : "rgba(255,255,255,0.03)",
-              border: `1px solid ${audience === k ? "rgb(var(--accent-1-rgb) / 0.35)" : "rgba(255,255,255,0.08)"}`,
-              color: audience === k ? "var(--accent-1)" : "var(--text-3)",
-            }}>
-            {label}
-          </button>
-        ))}
-      </div>
-      <p className="text-[11px] mb-3" style={{ color: "var(--text-3)" }}>
-        سيستقبلها <span className="font-bold ltr-nums text-white">{targets.length}</span> عيادة
-        {(() => {
-          const noPhone = clinics.filter((c) => !c.phone && (audience === "all" || c.group === audience)).length;
-          return noPhone > 0 ? (
-            <span style={{ color: "#fcd34d" }}> — {noPhone} مستبعدة بلا رقم هاتف (أضف الرقم من ملف العيادة)</span>
-          ) : null;
-        })()}
-      </p>
-
-      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4} className="field" style={{ resize: "vertical" }}
-        placeholder="مثال: تحديث جديد في طود 🎉 — غرفة انتظار بمناداة واتساب ونظام ولاء ذكي. جرّبوها اليوم!" />
-
-      {err && <p className="text-[12px] font-semibold mt-3" style={{ color: "#fda4b4" }}>{err}</p>}
-      {result && (
-        <div className="rounded-xl px-3 py-2.5 mt-3" style={{ background: "rgb(var(--accent-1-rgb) / 0.06)", border: "1px solid rgb(var(--accent-1-rgb) / 0.2)" }}>
-          <p className="text-[12px] font-semibold flex items-center gap-1.5" style={{ color: "var(--accent-1)" }}>
-            <CheckCircle2 className="w-3.5 h-3.5" /> أُرسلت لـ {result.sent} من {result.total}
-          </p>
-          {result.fails.length > 0 && (
-            <p className="text-[11px] mt-1" style={{ color: "#fcd34d" }}>لم تصل: {result.fails.join("، ")}</p>
-          )}
-        </div>
-      )}
-
-      <button onClick={send} disabled={pending || !text.trim() || targets.length === 0} className="btn-primary w-full mt-4">
-        <Send className="w-4 h-4" /> {pending ? "جارٍ الإرسال…" : `إرسال لـ ${targets.length} عيادة`}
-      </button>
-      <p className="text-[10px] mt-2 text-center" style={{ color: "var(--text-4)" }}>
-        ملاحظة واتساب: خارج نافذة 24 ساعة قد تتطلب Meta قالباً معتمداً — النتائج تُعرض بصدق لكل رقم
-      </p>
     </div>
   );
 }

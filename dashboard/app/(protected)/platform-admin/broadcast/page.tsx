@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
-import { PlatformBroadcast } from "@/components/platform/manage-widgets";
+import { BroadcastStudio, type PastBroadcast } from "@/components/platform/broadcast-studio";
 import { ArrowRight } from "lucide-react";
 
 export const metadata = { title: "حملات المنصة — طود" };
@@ -14,29 +14,13 @@ export default async function BroadcastPage() {
   if (!claims || !hasRole(claims, "platform_admin")) redirect("/login");
 
   const sb = await createServiceRoleClient();
-  const [{ data: clinics }, { data: subs }] = await Promise.all([
-    sb.from("tawd_clinics").select("id, name, name_ar, phone"),
-    sb.from("tawd_subscriptions").select("clinic_id, status, trial_ends_at, current_period_end"),
+  const [{ data: history }, { data: plans }, { data: me }] = await Promise.all([
+    sb.from("platform_broadcasts")
+      .select("id, title, body, audience_label, total, sent_count, failed_count, created_at")
+      .order("created_at", { ascending: false }).limit(30),
+    sb.from("platform_plans").select("code").eq("is_active", true).order("price_omr"),
+    sb.from("tawd_staff_users").select("phone").eq("id", claims.sub).maybeSingle(),
   ]);
-
-  const now = Date.now();
-  const groupOf = (clinicId: string): "expiring" | "overdue" | "ok" => {
-    const s = (subs ?? []).find((x) => x.clinic_id === clinicId);
-    if (!s) return "ok";
-    const end = s.status === "trial" ? s.trial_ends_at : s.current_period_end;
-    if (!end) return "ok";
-    const days = (new Date(end).getTime() - now) / 86_400_000;
-    if (days < 0) return "overdue";
-    if (days <= 7) return "expiring";
-    return "ok";
-  };
-
-  const list = (clinics ?? []).map((c) => ({
-    id: c.id,
-    label: (c.name_ar ?? c.name) as string,
-    phone: !!c.phone,
-    group: groupOf(c.id),
-  }));
 
   return (
     <div className="space-y-4 animate-fade-in pb-20">
@@ -45,13 +29,18 @@ export default async function BroadcastPage() {
       </Link>
 
       <div>
-        <h1 className="text-2xl font-black text-white tracking-tight leading-none">حملات المنصة</h1>
+        <p className="eyebrow">BROADCAST</p>
+        <h1 className="text-2xl font-black text-white tracking-tight leading-none mt-1">حملات المنصة</h1>
         <p className="text-[12px] mt-1.5" style={{ color: "var(--text-4)" }}>
-          رسائل واتساب لأصحاب العيادات — تذكير تجديد، إعلانات ميزات، عروض
+          رسائل واتساب لأصحاب العيادات — اختر شريحة، اكتب الرسالة، جرّبها على رقمك، ثم أرسل
         </p>
       </div>
 
-      <PlatformBroadcast clinics={list} />
+      <BroadcastStudio
+        history={(history ?? []) as PastBroadcast[]}
+        plans={(plans ?? []).map((p) => p.code as string)}
+        myPhone={((me?.phone as string | null) ?? null)}
+      />
     </div>
   );
 }
