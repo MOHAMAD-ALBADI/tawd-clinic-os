@@ -3,6 +3,7 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { ClinicInfoForm } from "@/components/settings/clinic-info-form";
 import { WorkingHoursForm } from "@/components/settings/working-hours-form";
+import { ClinicHolidays, type Holiday } from "@/components/settings/clinic-holidays";
 import { ReviewLinkForm } from "@/components/settings/review-link-form";
 import { VatNumberForm } from "@/components/settings/vat-number-form";
 import { BookingLink } from "@/components/platform/booking-link";
@@ -28,11 +29,12 @@ export default async function SettingsPage() {
 
   const supabase = await createServerSupabaseClient();
 
-  const [{ data: clinic }, { data: settings }, { data: subscription }, { count: staffCount }] =
+  const today = new Date().toISOString().slice(0, 10);
+  const [{ data: clinic }, { data: settings }, { data: subscription }, { count: staffCount }, { data: holidays }] =
     await Promise.all([
       supabase
         .from("tawd_clinics")
-        .select("id, name, name_ar, timezone, country_code, currency, vat_enabled, vat_number, plan, status, slug")
+        .select("id, name, name_ar, timezone, country_code, currency, vat_enabled, vat_number, plan, status, slug, phone, address, logo_url")
         .eq("id", claims.clinic_id)
         .single(),
       supabase
@@ -50,6 +52,15 @@ export default async function SettingsPage() {
         .select("*", { count: "exact", head: true })
         .eq("clinic_id", claims.clinic_id)
         .eq("is_active", true),
+      /* Clinic-wide closures only. A doctor's personal leave belongs to their
+         own schedule page and is not the manager's to cancel from here. */
+      supabase
+        .from("clinic_holidays")
+        .select("id, holiday_date, name, name_ar")
+        .eq("clinic_id", claims.clinic_id)
+        .eq("applies_to_all_doctors", true)
+        .gte("holiday_date", today)
+        .order("holiday_date"),
     ]);
 
   const defaultHours: Record<string, { open: string; close: string }> = {
@@ -133,9 +144,13 @@ export default async function SettingsPage() {
                 vat_enabled={clinic.vat_enabled ?? false}
                 is_active={!["cancelled", "paused"].includes(clinic.status ?? "")}
                 plan={clinic.plan ?? "starter"}
+                phone={(clinic.phone as string | null) ?? null}
+                address={(clinic.address as string | null) ?? null}
+                logo_url={(clinic.logo_url as string | null) ?? null}
               />
             )}
             <WorkingHoursForm hours={workingHours} />
+            <ClinicHolidays holidays={(holidays ?? []) as Holiday[]} />
           </>
         }
         billing={
