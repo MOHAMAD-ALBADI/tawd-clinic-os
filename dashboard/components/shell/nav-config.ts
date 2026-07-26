@@ -73,8 +73,13 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "خطط علاجي",      href: "/doctor/treatment-plans", icon: ClipboardList, module: "treatment_plans" },
     { label: "دوامي وإجازاتي", href: "/doctor/schedule",      icon: ClipboardList },
     { label: "إحصائياتي",      href: "/doctor/stats",         icon: BarChart3 },
+
+    /* A gear labelled "ملفي الشخصي" reads as Settings and sent doctors looking
+       for settings into a profile form. They are two things and now look like
+       two things. */
+    { label: "إعداداتي",        href: "/doctor/settings",      icon: Settings },
     // the shared profile — every role edits itself in the same place
-    { label: "ملفي الشخصي",    href: "/profile",              icon: Settings },
+    { label: "ملفي الشخصي",    href: "/profile",              icon: UserCircle },
   ],
   receptionist: [
     { label: "لوحة الاستقبال", href: "/reception",       icon: ClipboardList, exact: true },
