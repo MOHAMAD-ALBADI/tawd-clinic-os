@@ -3,10 +3,15 @@
 import { useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Plus, Edit2, X, Stethoscope, Banknote, Clock, FileText, CheckCircle2 } from "lucide-react";
+import { Plus, Edit2, X, Stethoscope, Banknote, Clock, FileText, CheckCircle2, FolderTree, Receipt } from "lucide-react";
 import { createService, updateService } from "@/app/actions/services";
+import { NumField } from "@/components/ui/num-field";
 
-type Service = { id: string; name: string; price: number; duration_minutes?: number | null; description?: string | null };
+export type Service = {
+  id: string; name: string; name_ar?: string | null; price: number;
+  duration_minutes?: number | null; description?: string | null;
+  category?: string | null; vat_applicable?: boolean | null;
+};
 
 const inputStyle = {
   background: "rgba(255,255,255,0.04)",
@@ -33,19 +38,23 @@ function FieldLabel({ icon: Icon, label, hint }: { icon: React.ElementType; labe
 
 interface ServiceFormProps {
   service?: Service;
+  categories: string[];
   onClose: () => void;
 }
 
-function ServiceForm({ service, onClose }: ServiceFormProps) {
+function ServiceForm({ service, categories, onClose }: ServiceFormProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [vat, setVat] = useState(!!service?.vat_applicable);
   const [form, setForm] = useState({
     name:             service?.name ?? "",
+    name_ar:          service?.name_ar ?? "",
     price:            service?.price?.toString() ?? "",
     duration_minutes: service?.duration_minutes?.toString() ?? "",
     description:      service?.description ?? "",
+    category:         service?.category ?? "",
   });
 
   function field(k: keyof typeof form, v: string) { setForm((f) => ({ ...f, [k]: v })); }
@@ -59,17 +68,20 @@ function ServiceForm({ service, onClose }: ServiceFormProps) {
       try {
         const data = {
           name: form.name.trim(),
+          name_ar: form.name_ar.trim() || undefined,
           price,
           duration_minutes: form.duration_minutes ? parseInt(form.duration_minutes) : undefined,
           description: form.description.trim() || undefined,
+          category: form.category.trim() || undefined,
+          vat_applicable: vat,
         };
-        if (service) await updateService(service.id, data);
-        else await createService(data);
+        const r = service ? await updateService(service.id, data) : await createService(data);
+        if (!r.ok) { setError(r.reason); return; }
         router.refresh();
         setDone(true);
         setTimeout(onClose, 1000);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "حدث خطأ");
+      } catch {
+        setError("تعذّر الاتصال");
       }
     });
   }
@@ -87,19 +99,40 @@ function ServiceForm({ service, onClose }: ServiceFormProps) {
 
   return (
     <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <FieldLabel icon={Stethoscope} label="الاسم بالعربية *" />
+          <input value={form.name_ar} onChange={(e) => field("name_ar", e.target.value)} placeholder="مثال: تنظيف أسنان" style={inputStyle}
+            onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
+            onBlur={(e)  => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")} />
+        </div>
+        <div>
+          <FieldLabel icon={Stethoscope} label="الاسم بالإنجليزية *" />
+          <input value={form.name} onChange={(e) => field("name", e.target.value)} placeholder="Scaling & Polishing" style={inputStyle}
+            onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
+            onBlur={(e)  => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")} />
+        </div>
+      </div>
+
       <div>
-        <FieldLabel icon={Stethoscope} label="اسم الخدمة *" />
-        <input value={form.name} onChange={(e) => field("name", e.target.value)} placeholder="مثال: كشف عام، تنظيف أسنان..." style={inputStyle}
+        <FieldLabel icon={FolderTree} label="التصنيف" hint="تُجمَّع الخدمات تحته في القوائم — مثل تقويم، جراحة، أشعة" />
+        {/* Free text with the clinic's existing categories offered, so a
+            hierarchy grows from what they actually type instead of a fixed list
+            imposed on every specialty. */}
+        <input list="service-categories" value={form.category} onChange={(e) => field("category", e.target.value)}
+          placeholder="مثال: تقويم" style={inputStyle}
           onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
           onBlur={(e)  => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")} />
+        <datalist id="service-categories">
+          {categories.map((c) => <option key={c} value={c} />)}
+        </datalist>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
           <FieldLabel icon={Banknote} label="السعر (ر.ع) *" />
-          <input type="text" inputMode="decimal" min="0" step="0.01" value={form.price} onChange={(e) => field("price", e.target.value)} placeholder="0.00" style={inputStyle}
-            onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
-            onBlur={(e)  => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")} />
+          <NumField value={form.price} onChange={(v) => field("price", v)} placeholder="0.000"
+            className="" style={inputStyle} />
         </div>
         <div>
           <FieldLabel
@@ -107,10 +140,26 @@ function ServiceForm({ service, onClose }: ServiceFormProps) {
             label="مدة الجلسة (دقيقة)"
             hint="كم دقيقة تأخذ هذه الخدمة؟ يساعد في تنظيم المواعيد"
           />
-          <input type="text" inputMode="decimal" min="5" step="5" value={form.duration_minutes} onChange={(e) => field("duration_minutes", e.target.value)} placeholder="مثال: 30" style={inputStyle}
-            onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
-            onBlur={(e)  => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")} />
+          <NumField value={form.duration_minutes} allowDecimal={false}
+            onChange={(v) => field("duration_minutes", v)} placeholder="مثال: 30"
+            className="" style={inputStyle} />
         </div>
+      </div>
+
+      <div>
+        <FieldLabel icon={Receipt} label="ضريبة القيمة المضافة" hint="أكثر الخدمات الطبية في عُمان معفاة — فعّلها للخاضع فقط" />
+        {/* Set here once, so the invoice defaults correctly instead of relying on
+            whoever raises it to remember which services are taxable. */}
+        <button type="button" onClick={() => setVat((v) => !v)}
+          className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-[13px] font-semibold transition-colors"
+          style={{
+            background: vat ? "rgba(45,212,191,0.1)" : "rgba(255,255,255,0.04)",
+            border: `1px solid ${vat ? "rgba(45,212,191,0.35)" : "rgba(255,255,255,0.1)"}`,
+            color: vat ? "#5dd9cb" : "rgba(148,163,184,0.7)",
+          }}>
+          <span>{vat ? "خاضعة لضريبة ٥٪" : "معفاة من الضريبة"}</span>
+          <span className="text-[11px]">{vat ? "انقر للإعفاء" : "انقر للإخضاع"}</span>
+        </button>
       </div>
 
       <div>
@@ -141,7 +190,7 @@ function ServiceForm({ service, onClose }: ServiceFormProps) {
 }
 
 /* ── Modal shell ── */
-function ServiceModal({ service, onClose }: { service?: Service; onClose: () => void }) {
+function ServiceModal({ service, categories, onClose }: { service?: Service; categories: string[]; onClose: () => void }) {
   const content = (
     <div
       className="fixed inset-0 flex items-center justify-center p-4"
@@ -155,7 +204,7 @@ function ServiceModal({ service, onClose }: { service?: Service; onClose: () => 
           <div>
             <h2 className="text-white font-bold text-lg">{service ? "تعديل الخدمة" : "إضافة خدمة جديدة"}</h2>
             <p className="text-xs mt-0.5" style={{ color: "rgba(148,163,184,0.5)" }}>
-              {service ? `تعديل: ${service.name}` : "الخدمات تظهر فوراً في نموذج الحجز"}
+              {service ? `تعديل: ${service.name_ar || service.name}` : "الخدمات تظهر فوراً في نموذج الحجز"}
             </p>
           </div>
           <button
@@ -166,7 +215,7 @@ function ServiceModal({ service, onClose }: { service?: Service; onClose: () => 
             <X className="w-4 h-4" />
           </button>
         </div>
-        <ServiceForm service={service} onClose={onClose} />
+        <ServiceForm service={service} categories={categories} onClose={onClose} />
       </div>
     </div>
   );
@@ -176,7 +225,7 @@ function ServiceModal({ service, onClose }: { service?: Service; onClose: () => 
 }
 
 /* ── Add Trigger ── */
-export function AddServiceTrigger() {
+export function AddServiceTrigger({ categories = [] }: { categories?: string[] }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -190,13 +239,13 @@ export function AddServiceTrigger() {
         <Plus className="w-4 h-4" />
         إضافة خدمة
       </button>
-      {open && <ServiceModal onClose={() => setOpen(false)} />}
+      {open && <ServiceModal categories={categories} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
 /* ── Edit Trigger ── */
-export function EditServiceTrigger({ service }: { service: Service }) {
+export function EditServiceTrigger({ service, categories = [] }: { service: Service; categories?: string[] }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -210,7 +259,7 @@ export function EditServiceTrigger({ service }: { service: Service }) {
         <Edit2 className="w-3 h-3" />
         تعديل
       </button>
-      {open && <ServiceModal service={service} onClose={() => setOpen(false)} />}
+      {open && <ServiceModal service={service} categories={categories} onClose={() => setOpen(false)} />}
     </>
   );
 }

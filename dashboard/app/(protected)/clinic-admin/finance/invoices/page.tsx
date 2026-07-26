@@ -30,13 +30,13 @@ export default async function InvoicesPage() {
       .eq("status", "completed").gte("paid_at", monthStart),
     supabase.from("invoices").select("total,status").eq("clinic_id", claims.clinic_id).is("deleted_at", null).gte("created_at", monthStart),
     supabase.from("patients").select("id,name,phone").eq("clinic_id", claims.clinic_id).is("deleted_at", null).eq("is_archived", false).order("name"),
-    supabase.from("services").select("id,name,price").eq("clinic_id", claims.clinic_id).is("deleted_at", null).eq("is_active", true).order("name"),
+    supabase.from("services").select("id,name,price,vat_applicable").eq("clinic_id", claims.clinic_id).is("deleted_at", null).eq("is_active", true).order("name"),
   ]);
 
   const invoices  = (data ?? []) as unknown as Invoice[];
   const monthInvs = monthData ?? [];
   const patients  = (patientsData ?? []) as { id: string; name: string; phone: string | null }[];
-  const services  = (servicesData ?? []) as { id: string; name: string; price: number }[];
+  const services  = (servicesData ?? []) as { id: string; name: string; price: number; vat_applicable: boolean | null }[];
 
   /* Per-invoice settled amount, so the row menu knows what is still owed and can
      stop a clinic collecting more than the invoice is worth. */

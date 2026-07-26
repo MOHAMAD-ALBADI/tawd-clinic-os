@@ -4,14 +4,17 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { AddServiceTrigger, EditServiceTrigger } from "@/components/services/service-form-trigger";
 import { ToggleServiceTrigger } from "@/components/services/toggle-service-trigger";
 import { DeleteServiceTrigger } from "@/components/services/delete-service-trigger";
-import { Stethoscope, Clock } from "lucide-react";
+import { Stethoscope, Clock, FolderTree, Receipt } from "lucide-react";
+import type { Service } from "@/components/services/service-form-trigger";
 
 export const metadata = { title: "الخدمات — طود" };
+export const dynamic = "force-dynamic";
 
-type Service = {
-  id: string; name: string; price: number;
-  duration_minutes: number | null; description: string | null; is_active: boolean;
-};
+type ServiceRow = Service & { is_active: boolean };
+
+/** Uncategorised services group together rather than disappearing — one is
+    still a service the clinic sells. */
+const UNFILED = "غير مصنّفة";
 
 const PALETTE = ["#14b8a6", "#38bdf8", "#34D399", "#38bdf8", "#38bdf8", "#5dd9cb", "#5dd9cb"];
 const colorFor = (name: string) => PALETTE[name.charCodeAt(0) % PALETTE.length];
@@ -23,11 +26,24 @@ export default async function ServicesPage() {
   const supabase = await createServerSupabaseClient();
   const { data, count } = await supabase
     .from("services")
-    .select("id,name,price,duration_minutes,description,is_active", { count: "exact" })
+    .select("id,name,name_ar,price,duration_minutes,description,is_active,category,vat_applicable", { count: "exact" })
     .eq("clinic_id", claims.clinic_id)
     .order("name");
 
-  const services = (data ?? []) as Service[];
+  const services = (data ?? []) as ServiceRow[];
+
+  /* Group into the clinic's own hierarchy: categories are whatever they have
+     typed, so the headings match how this clinic thinks about its work. */
+  const grouped = new Map<string, ServiceRow[]>();
+  for (const s of services) {
+    const key = s.category?.trim() || UNFILED;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key)!.push(s);
+  }
+  const groups = [...grouped.entries()].sort(([a], [b]) =>
+    a === UNFILED ? 1 : b === UNFILED ? -1 : a.localeCompare(b, "ar")
+  );
+  const categories = groups.map(([c]) => c).filter((c) => c !== UNFILED);
   const active   = services.filter((s) => s.is_active).length;
   const inactive  = (count ?? 0) - active;
 
@@ -44,7 +60,7 @@ export default async function ServicesPage() {
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1" style={{ color: "rgba(20,184,166,0.5)" }}>SERVICES</p>
           <h2 className="text-2xl font-black text-white tracking-tight leading-none">الخدمات</h2>
         </div>
-        <AddServiceTrigger />
+        <AddServiceTrigger categories={categories} />
       </div>
 
       {/* ── STAT PILLS ── */}
@@ -75,9 +91,25 @@ export default async function ServicesPage() {
           <p className="text-sm font-medium" style={{ color: "rgba(148,163,184,0.35)" }}>لا توجد خدمات — أضف أول خدمة</p>
         </div>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {services.map((s) => {
-            const col = colorFor(s.name);
+        <div className="space-y-6">
+          {groups.map(([category, list]) => (
+            <div key={category}>
+              {/* Category heading with its count and combined list price — the
+                  clinic's own hierarchy, not an imposed taxonomy. */}
+              <div className="flex items-center gap-2.5 mb-3">
+                <FolderTree className="w-3.5 h-3.5" style={{ color: "var(--accent-1)" }} />
+                <h3 className="text-[13px] font-black text-white">{category}</h3>
+                <span className="text-[11px] ltr-nums px-2 py-0.5 rounded-full"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid var(--hairline)", color: "var(--text-4)" }}>
+                  {list.length}
+                </span>
+                <span className="flex-1" style={{ height: 1, background: "var(--hairline-2)" }} />
+              </div>
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {list.map((s) => {
+            const label = s.name_ar || s.name;
+            const col = colorFor(label);
             return (
               <div
                 key={s.id}
@@ -107,7 +139,7 @@ export default async function ServicesPage() {
                         <Stethoscope className="w-4 h-4" style={{ color: col }} />
                       </div>
                       <div className="min-w-0">
-                        <p className="font-bold text-white text-[13.5px] truncate">{s.name}</p>
+                        <p className="font-bold text-white text-[13.5px] truncate">{label}</p>
                         {s.description && (
                           <p className="text-[11px] truncate mt-0.5" style={{ color: "rgba(148,163,184,0.4)" }}>
                             {s.description}
@@ -133,7 +165,7 @@ export default async function ServicesPage() {
                         style={{ color: "rgba(148,163,184,0.3)" }}>السعر</p>
                       <p className="text-[18px] font-black ltr-nums leading-none"
                         style={{ color: col, letterSpacing: "-0.02em" }}>
-                        {s.price.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                        {Number(s.price).toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                         <span className="text-[10px] font-bold ms-1" style={{ color: `${col}60` }}>ر.ع</span>
                       </p>
                     </div>
@@ -146,19 +178,30 @@ export default async function ServicesPage() {
                         </span>
                       </div>
                     )}
+                    {s.vat_applicable && (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl"
+                        title="تُضاف ٥٪ ضريبة على هذه الخدمة في الفاتورة"
+                        style={{ background: "rgba(45,212,191,0.08)", border: "1px solid rgba(45,212,191,0.2)" }}>
+                        <Receipt className="w-3 h-3" style={{ color: "var(--accent-1)" }} />
+                        <span className="text-[11px] font-medium" style={{ color: "var(--accent-1)" }}>ض ٥٪</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 pt-3"
                     style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
-                    <EditServiceTrigger service={s} />
+                    <EditServiceTrigger service={s} categories={categories} />
                     <ToggleServiceTrigger id={s.id} isActive={s.is_active} />
-                    <DeleteServiceTrigger id={s.id} name={s.name} />
+                    <DeleteServiceTrigger id={s.id} name={label} />
                   </div>
                 </div>
               </div>
             );
           })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

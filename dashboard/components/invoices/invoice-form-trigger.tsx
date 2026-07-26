@@ -8,7 +8,7 @@ import { OMAN_VAT_RATE, fmt3, type InvoiceStatus } from "@/lib/invoice-meta";
 import { NumField } from "@/components/ui/num-field";
 
 type PatientOpt = { id: string; name: string; phone?: string | null };
-type ServiceOpt = { id: string; name: string; price: number };
+type ServiceOpt = { id: string; name: string; price: number; vat_applicable?: boolean | null };
 
 /* Quantities and prices are strings while being typed: an Arabic keyboard
    produces ٠١٢٣ and a half-typed "1." is not yet a number. They are parsed once,
@@ -48,6 +48,10 @@ function InvoiceModal({ patients, services, onClose }: { patients: PatientOpt[];
       service_id: serviceId,
       description: svc?.name ?? l.description,
       unit_price: svc ? String(svc.price) : l.unit_price,
+      /* The service already records whether it is taxable, so the line inherits
+         that instead of asking whoever raises the invoice to remember. Still
+         overridable per line. */
+      vat: svc ? !!svc.vat_applicable : l.vat,
     }));
   }
   const addLine = () => setLines((p) => [...p, emptyLine()]);
