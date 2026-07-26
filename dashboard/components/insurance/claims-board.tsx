@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Plus, X, Send, CheckCircle2, XCircle, Ban, AlertTriangle, FileText } from "lucide-react";
 import { F } from "@/components/ui/num-field";
 import { createClaim, submitClaim, resolveClaim, cancelClaim } from "@/app/actions/insurance";
@@ -12,7 +13,16 @@ export type ClaimRow = {
   id: string; status: "pending" | "submitted" | "approved" | "rejected" | "cancelled";
   submitted_amount: number; approved_amount: number; claim_ref: string; rejection_reason: string;
   patient_name: string; provider_name: string;
+  /** The invoice this claim settles. A claim without one can be approved but will
+      move no money, so the board says so rather than looking healthy. */
+  invoice_id: string | null; invoice_number: string;
+  /** Days since the claim was raised — insurers are slow, and an unchased claim
+      is an uncollected one. */
+  age_days: number;
 };
+
+/** Past this, an open claim needs a phone call rather than more patience. */
+const STALE_DAYS = 30;
 
 const STATUS: Record<ClaimRow["status"], { label: string; color: string }> = {
   pending: { label: "قيد الانتظار", color: "#fbbf24" },
@@ -58,7 +68,7 @@ export function ClaimsBoard({ claims, providers, patients }: {
           <table className="w-full text-[13px]">
             <thead>
               <tr style={{ borderBottom: "1px solid var(--hairline)" }}>
-                {["المريض", "المزوّد", "المبلغ", "المعتمد", "الحالة", ""].map((h) => (
+                {["المريض", "المزوّد", "الفاتورة", "المبلغ", "المعتمد", "العمر", "الحالة", ""].map((h) => (
                   <th key={h} className="text-start px-2.5 py-2.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-4)" }}>{h}</th>
                 ))}
               </tr>
@@ -66,12 +76,32 @@ export function ClaimsBoard({ claims, providers, patients }: {
             <tbody>
               {claims.map((c) => {
                 const st = STATUS[c.status];
+                const open = c.status === "pending" || c.status === "submitted";
+                const stale = open && c.age_days >= STALE_DAYS;
                 return (
                   <tr key={c.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
                     <td className="px-2.5 py-2.5 font-bold text-white">{c.patient_name}</td>
                     <td className="px-2.5 py-2.5" style={{ color: "var(--text-3)" }}>{c.provider_name}</td>
+                    <td className="px-2.5 py-2.5">
+                      {c.invoice_id ? (
+                        <Link href={`/clinic-admin/finance/invoices/${c.invoice_id}`}
+                          className="font-mono text-[11.5px] ltr-nums" style={{ color: "var(--accent-1)" }}>
+                          {c.invoice_number}
+                        </Link>
+                      ) : (
+                        <span className="text-[11px]" style={{ color: "#fbbf24" }}
+                          title="مطالبة غير مرتبطة بفاتورة — اعتمادها لن يسدّد شيئاً">بلا فاتورة</span>
+                      )}
+                    </td>
                     <td className="px-2.5 py-2.5 ltr-nums text-white">{fmt(c.submitted_amount)}</td>
                     <td className="px-2.5 py-2.5 ltr-nums" style={{ color: c.approved_amount > 0 ? "#5dd9cb" : "var(--text-4)" }}>{c.status === "approved" ? fmt(c.approved_amount) : "—"}</td>
+                    <td className="px-2.5 py-2.5">
+                      {open ? (
+                        <span className="text-[11.5px] ltr-nums font-bold" style={{ color: stale ? "#fda4b4" : "var(--text-3)" }}>
+                          {c.age_days} يوم
+                        </span>
+                      ) : <span style={{ color: "var(--text-4)" }}>—</span>}
+                    </td>
                     <td className="px-2.5 py-2.5">
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: `${st.color}1a`, color: st.color, border: `1px solid ${st.color}44` }}>
                         <span className="w-1 h-1 rounded-full" style={{ background: st.color }} />{st.label}

@@ -5,6 +5,7 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { revalidatePath } from "next/cache";
 import { MANUAL_STATUSES, type InvoiceStatus } from "@/lib/invoice-meta";
+import { logClaimForInvoice } from "@/app/actions/insurance";
 
 export type InvoiceLineInput = {
   description: string;
@@ -111,6 +112,17 @@ export async function createInvoice(data: {
     await supabase.from("invoices").delete().eq("id", inv.id).eq("clinic_id", claims.clinic_id);
     throw new Error(itemsError.message);
   }
+
+  /* Only the cashier's appointment-billing path used to open claims, so an
+     insured patient billed from here was simply never claimed for. Best-effort:
+     the insurance side must not be able to fail a bill. */
+  await logClaimForInvoice({
+    clinicId: claims.clinic_id,
+    patientId: data.patient_id,
+    apptId: data.appt_id || null,
+    invoiceId: inv.id,
+    invoiceTotal: total,
+  });
 
   revalidateInvoices();
   return { success: true, invoice: inv };

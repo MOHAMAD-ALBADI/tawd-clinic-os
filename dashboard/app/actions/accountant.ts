@@ -211,7 +211,10 @@ export async function createInvoiceForAppointment(appointmentId: string) {
     await consumeServiceMaterials(appt.service_id, "invoice", inv.id);
   }
   // Auto-open an insurance claim if this patient has active coverage (best-effort).
-  await logClaimForInvoice({ clinicId: claims.clinic_id, patientId: appt.patient_id, apptId: appointmentId, invoiceTotal: total });
+  await logClaimForInvoice({
+    clinicId: claims.clinic_id, patientId: appt.patient_id,
+    apptId: appointmentId, invoiceId: inv.id, invoiceTotal: total,
+  });
   // Accrue the treating doctor's commission if their HR profile sets a rate (best-effort).
   await logCommissionForInvoice({ clinicId: claims.clinic_id, doctorId: appt.doctor_id ?? null, invoiceId: inv.id, invoiceTotal: total });
 
