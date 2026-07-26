@@ -90,13 +90,105 @@ const EMBEDS: Record<string, string> = {
   no_show_log: "patients!patient_id(name,phone)",
 };
 
+/* ── the platform owner's own catalogue ──────────────────────────────────────
+
+   The platform owner used to get every clinic table with clinic scoping turned
+   OFF. That is two separate problems.
+
+   It answered the wrong questions: his are about clinics, subscriptions, debt
+   and cost, and none of those tables were reachable — so Sura offered to count
+   patients and could not tell him who had not paid.
+
+   And it read other people's patients. Names, phones, emails and the actual
+   text of WhatsApp conversations between a patient and their clinic, across
+   every tenant, through a chat box with no purpose and no audit trail. Entering
+   a clinic's dashboard already requires that clinic's explicit approval and is
+   logged; this walked straight past that.
+
+   So: platform mode gets the platform's own tables in full, and clinic tables
+   only as counts. aggregateOnly refuses to return rows, and the column list has
+   no identifying field in it, so "how many patients across all clinics" works
+   and "show me their names" cannot. */
+const PLATFORM_TABLES: Record<string, { cols: string[]; clinicCol: boolean; desc: string; aggregateOnly?: boolean }> = {
+  tawd_clinics: {
+    cols: ["id", "name", "name_ar", "clinic_type", "status", "plan", "phone", "created_at"],
+    clinicCol: false,
+    desc: "العيادات المشتركة (status: trial|active|suspended|cancelled)",
+  },
+  tawd_subscriptions: {
+    cols: ["clinic_id", "plan", "status", "price_omr", "billing_cycle", "trial_ends_at", "current_period_end", "created_at"],
+    clinicCol: false,
+    desc: "اشتراكات العيادات — price_omr هو المتفق عليه شهرياً (status: trial|active|past_due|paused|cancelled)",
+  },
+  clinic_entitlements: {
+    cols: ["clinic_id", "source_plan", "modules", "max_doctors", "max_staff", "max_patients", "base_price_omr", "per_doctor_omr", "contracted_doctors", "discount_pct"],
+    clinicCol: false,
+    desc: "اتفاق كل عيادة: الخدمات المشمولة (modules) وحدودها وسعرها",
+  },
+  platform_invoices: {
+    cols: ["id", "number", "clinic_id", "period_start", "period_end", "total_omr", "status", "issued_at", "due_at"],
+    clinicCol: false,
+    desc: "فواتير المنصة على العيادات (status: open|paid|void) — open يعني لم تُسدَّد",
+  },
+  platform_payments: {
+    cols: ["id", "invoice_id", "clinic_id", "amount_omr", "method", "paid_at"],
+    clinicCol: false,
+    desc: "الدفعات التي وصلت فعلاً من العيادات (بالريال العماني)",
+  },
+  platform_plans: {
+    cols: ["code", "name_ar", "price_omr", "per_doctor_omr", "modules", "max_doctors", "max_staff", "max_patients", "is_active"],
+    clinicCol: false,
+    desc: "قوالب الباقات",
+  },
+  platform_costs: {
+    cols: ["id", "name", "monthly_omr"],
+    clinicCol: false,
+    desc: "تكاليف المنصة الشهرية الثابتة",
+  },
+  tawd_staff_users: {
+    cols: ["id", "clinic_id", "name", "name_ar", "role", "is_active", "created_at"],
+    clinicCol: false,
+    desc: "حسابات موظفي العيادات (role: doctor|receptionist|accountant|admin)",
+  },
+  sura_errors: {
+    cols: ["id", "clinic_id", "workflow_name", "node_name", "error_message", "created_at"],
+    clinicCol: false,
+    desc: "أخطاء محرك سُرى في العيادات",
+  },
+  ai_usage_metrics: {
+    cols: ["id", "clinic_id", "workflow_id", "model", "tokens_total", "created_at"],
+    clinicCol: false,
+    desc: "استهلاك التوكنز لكل عيادة",
+  },
+  /* counts only — no name, no phone, no message text */
+  patients: {
+    cols: ["id", "clinic_id", "created_at", "source_channel"],
+    clinicCol: false, aggregateOnly: true,
+    desc: "أعداد المرضى فقط (لا أسماء ولا أرقام — بيانات مرضى العيادات ليست بيانات المنصة)",
+  },
+  appointments: {
+    cols: ["id", "clinic_id", "status", "source_channel", "created_at", "slot_time"],
+    clinicCol: false, aggregateOnly: true,
+    desc: "أعداد المواعيد فقط (للاستخدام والنشاط، لا تفاصيل مرضى)",
+  },
+  chat_messages: {
+    cols: ["id", "clinic_id", "sender_type", "created_at"],
+    clinicCol: false, aggregateOnly: true,
+    desc: "أعداد رسائل سُرى فقط (المحتوى خاص بالعيادة ومرضاها)",
+  },
+};
+
 const ROLE_TABLES: Record<Role, string[]> = {
   clinic_admin: Object.keys(TABLES),
   accountant: Object.keys(TABLES),
-  platform_admin: Object.keys(TABLES),
+  platform_admin: Object.keys(PLATFORM_TABLES),
   doctor: ["appointments", "patients", "services", "tawd_staff_users", "appointment_waitlist", "no_show_log"],
   receptionist: ["appointments", "patients", "services", "tawd_staff_users", "appointment_waitlist", "sura_alerts", "no_show_log", "chat_sessions"],
 };
+
+/** The catalogue this role reads from. The platform owner's is a different set
+    of tables entirely, not a wider slice of the same one. */
+const tablesFor = (role: Role) => (role === "platform_admin" ? PLATFORM_TABLES : TABLES);
 
 const OPS = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "ilike", "in", "is"]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -112,6 +204,10 @@ async function runAction(
   sub: string
 ) {
   if (role === "accountant") throw new Error("هذا الدور لا يملك صلاحية تنفيذ إجراءات على المواعيد");
+  /* Refused at the server too, not only left out of the prompt. */
+  if (role === "platform_admin") {
+    throw new Error("تعديل مواعيد عيادة لا يتم من لوحة المنصة — استخدم إذن الدخول من ملف العيادة");
+  }
   const id = String(action.appointment_id ?? "");
   if (!UUID_RE.test(id)) throw new Error("appointment_id يجب أن يكون UUID حقيقياً من نتيجة استعلام");
 
@@ -168,21 +264,40 @@ type Plan = {
 };
 
 function catalogFor(role: Role): string {
+  const map = tablesFor(role);
   return ROLE_TABLES[role]
-    .map((t) => `- ${t}: [${TABLES[t].cols.join(", ")}] — ${TABLES[t].desc}${EMBEDS[t] ? " (يدعم embed=true لجلب أسماء المريض/الخدمة/الطبيب)" : ""}`)
+    .map((t) => {
+      const def = map[t];
+      const only = "aggregateOnly" in def && def.aggregateOnly ? " ⚠ للعدّ والتجميع فقط (aggregate إلزامي)" : "";
+      const embed = role !== "platform_admin" && EMBEDS[t] ? " (يدعم embed=true لجلب أسماء المريض/الخدمة/الطبيب)" : "";
+      return `- ${t}: [${def.cols.join(", ")}] — ${def.desc}${only}${embed}`;
+    })
     .join("\n");
 }
 
 async function runPlan(sb: Awaited<ReturnType<typeof createServiceRoleClient>>, plan: Plan, cid: string, role: Role, sub: string) {
-  const t = TABLES[plan.table];
+  const map = tablesFor(role);
+  const t = map[plan.table];
   if (!t || !ROLE_TABLES[role].includes(plan.table)) throw new Error(`جدول غير مسموح: ${plan.table}`);
 
   const agg = plan.aggregate;
+
+  /* Enforced here rather than trusted to the prompt. A model that decides to
+     "just look at a few rows" of another clinic's patients must be refused by
+     the server, not asked nicely. */
+  if ("aggregateOnly" in t && t.aggregateOnly && !agg) {
+    throw new Error(
+      `جدول ${plan.table} متاح للعدّ والتجميع فقط على مستوى المنصة — استخدمي aggregate (مثل {"op":"count","group_by":"clinic_id"}). بيانات المرضى وتفاصيل المحادثات ملك العيادة ولا تُقرأ من هنا.`
+    );
+  }
   const wantCols = (plan.select ?? []).filter((c) => t.cols.includes(c));
   const baseCols = wantCols.length ? wantCols : t.cols.slice(0, 8);
   const selectStr =
     (agg ? Array.from(new Set([...(agg.col ? [agg.col] : []), ...(agg.group_by ? [agg.group_by] : []), ...baseCols])) : baseCols).join(",") +
-    (plan.embed && EMBEDS[plan.table] ? `, ${EMBEDS[plan.table]}` : "");
+    /* Embeds pull patient and staff names onto a row. They belong to a clinic
+       reading its own data; at platform level they would reintroduce exactly
+       the identifiers the column lists above leave out. */
+    (plan.embed && role !== "platform_admin" && EMBEDS[plan.table] ? `, ${EMBEDS[plan.table]}` : "");
 
   let q = sb.from(plan.table).select(selectStr);
   if (t.clinicCol && cid) q = q.eq("clinic_id", cid); // platform owner (cid='') = cross-clinic
@@ -361,7 +476,10 @@ export async function POST(req: Request) {
     role === "accountant" ? "المحاسب" : `مدير العيادة ${userName}`;
   const header =
     (isPlatform
-      ? `أنتِ "سُرى"، العقل الذكي لمنصة طود كاملة. تتحدثين مع ${roleLabel} — صلاحياته شاملة: استعلاماتك تغطي كل العيادات (أضيفي clinic_id في select للتمييز بينها عند الحاجة).\n`
+      ? `أنتِ "سُرى"، العقل الذكي لمنصة طود كشركة. تتحدثين مع ${roleLabel}.\n` +
+        `مجال عملك هنا هو المنصة نفسها: العيادات المشتركة، اشتراكاتها وأسعارها، فواتير المنصة عليها وما سُدِّد منها، الباقات والصلاحيات، التكاليف، وأخطاء المحرك.\n` +
+        `أضيفي clinic_id في select للتمييز بين العيادات، واربطي الاسم من tawd_clinics.\n` +
+        `[حدّ لا يُتجاوز] بيانات مرضى العيادات ومحادثاتهم ليست بيانات المنصة. جداول patients و appointments و chat_messages متاحة لك بالعدّ والتجميع فقط — للإجابة عن حجم الاستخدام، لا لعرض اسم مريض أو رقمه أو نص رسالة. إن طُلب منك ذلك فاعتذري بوضوح واشرحي أن الدخول لبيانات عيادة يتم بإذنها من ملف العيادة، وهو مسجَّل.\n`
       : `أنتِ "سُرى"، العقل الذكي لعيادة ${clinicName}. تتحدثين مع ${roleLabel}.\n`) +
     `هوية المتحدث معروفة ومؤكدة تلقائياً من تسجيل دخوله — لا تسأليه أبداً عن اسمه أو معرفه أو هويته.\n` +
     (role === "doctor"
@@ -380,7 +498,10 @@ export async function POST(req: Request) {
     `- أعمدة *_id تقبل UUID حقيقياً فقط (من نتيجة استعلام سابق) — للبحث بالاسم استخدمي ilike على name.\n` +
     `- فلاتر التاريخ/الوقت على slot_time أو created_at بصيغة ISO مثل "2026-07-04T00:00:00+04:00" أو "2026-07-04".\n` +
     `- بحد أقصى 3 استعلامات بالجولة، وضمّني "id" في select دائماً.\n\n` +
-    (role === "accountant"
+    /* The platform owner writes nothing into a clinic from here. Cancelling a
+       patient's appointment is the clinic's act; the operator's route into that
+       is the support-approval flow on the clinic file, which is logged. */
+    (role === "accountant" || isPlatform
       ? ""
       : `[الإجراءات المتاحة — عند طلب المستخدم الصريح فقط]\n` +
         `{"action":{"type":"cancel_appointment","appointment_id":"<uuid>","reason":"اختياري"}} — إلغاء موعد\n` +
@@ -408,7 +529,7 @@ export async function POST(req: Request) {
       (final
         ? ``
         : `\n2) {"queries":[...]} — إذا كنت تحتاجين بيانات (أو تصحيح استعلام خاطئ).\n` +
-          (role === "accountant" || actionsDone >= 2
+          (role === "accountant" || isPlatform || actionsDone >= 2
             ? ``
             : `3) {"action":{...}} — لتنفيذ إجراء طلبه المستخدم صراحة (بعد حصولك على id من استعلام).`));
 
@@ -420,7 +541,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ answer: String(resp.answer) });
       }
 
-      if (resp.action && typeof resp.action === "object" && role !== "accountant" && actionsDone < 2) {
+      if (resp.action && typeof resp.action === "object" && role !== "accountant" && !isPlatform && actionsDone < 2) {
         actionsDone++;
         try {
           const res = await runAction(sb, resp.action as AgentAction, cid, role, claims.sub);

@@ -15,7 +15,7 @@ const WELCOME: Record<Role, string> = {
   doctor:         "مرحباً دكتور! أنا سُرى 🏔️ اسألني عن جدولك، مرضاك، أو مواعيدك القادمة.",
   receptionist:   "مرحباً! أنا سُرى 🏔️ اسألني عن مواعيد اليوم، قائمة الانتظار، أو أي مريض.",
   accountant:     "مرحباً! أنا سُرى 🏔️ اسألني عن الفواتير، الإيرادات، والمبالغ المعلقة.",
-  platform_admin: "مرحباً! أنا سُرى 🏔️ مساعدتك في إدارة منصة طود شرف لي.",
+  platform_admin: "مرحباً! أنا سُرى 🏔️ هنا أتابع معك المنصة: العيادات، الاشتراكات، التحصيل، والتكاليف. بيانات مرضى العيادات ليست عندي — تلك ملك عياداتهم.",
 };
 
 const QUICK: Record<Role, string[]> = {
@@ -23,7 +23,12 @@ const QUICK: Record<Role, string[]> = {
   doctor:         ["كم موعد عندي اليوم؟", "مين مرضاي بكرة؟"],
   receptionist:   ["كم موعد اليوم؟", "مين في قائمة الانتظار؟"],
   accountant:     ["كم الفواتير غير المدفوعة؟", "كم إيراد هذا الشهر؟"],
-  platform_admin: ["كم عدد المرضى الكلي؟"],
+  platform_admin: [
+    "مين العيادات الي ما دفعت؟",
+    "كم حصّلت هذا الشهر؟",
+    "أي عيادة خاملة؟",
+    "كم عيادة على كل باقة؟",
+  ],
 };
 
 export function SuraWidget({ userRole }: { userRole: Role }) {
@@ -124,7 +129,9 @@ export function SuraWidget({ userRole }: { userRole: Role }) {
                     style={{ background: "var(--accent-1)", animation: "pulse 2s infinite" }}
                   />
                   <span className="text-[10px]" style={{ color: "var(--accent-1)" }}>
-                    {streaming ? "تحلّل بياناتك…" : "متصلة ببيانات عيادتك"}
+                    {streaming
+                      ? "تحلّل بياناتك…"
+                      : userRole === "platform_admin" ? "متصلة ببيانات المنصة" : "متصلة ببيانات عيادتك"}
                   </span>
                 </div>
               </div>
