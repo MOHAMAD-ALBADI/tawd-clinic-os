@@ -25,14 +25,18 @@ export default function LoginPage() {
       <div className="w-full" style={{ maxWidth: 400 }}>
         {/* Brand, above the card — the card is for the task, not the identity */}
         <div className="flex flex-col items-center mb-7">
+          {/* Neutral tile, matching the sidebar. The mark is three WHITE bars;
+              tinting the plate behind it blue made the logo read as a blue
+              badge rather than as itself. The accent belongs to the interface,
+              not to the identity. */}
           <div
             className="flex items-center justify-center mb-4"
             style={{
               width: 62,
               height: 62,
               borderRadius: 18,
-              background: "rgb(var(--accent-2-rgb) / 0.1)",
-              border: "1px solid rgb(var(--accent-1-rgb) / 0.24)",
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.09)",
             }}
           >
             <TawdLogoMark className="w-9 h-9" />
@@ -45,7 +49,8 @@ export default function LoginPage() {
             طود
           </h1>
 
-          {/* The mark's three bars, rising. The only ornament on the page. */}
+          {/* The mark's three bars, rising — white like the mark itself, not
+              accent-coloured. It echoes the logo, so it follows the logo. */}
           <div className="flex items-end gap-[3px] mt-3" aria-hidden>
             {[7, 12, 17].map((h, i) => (
               <span
@@ -54,8 +59,8 @@ export default function LoginPage() {
                   width: 3,
                   height: h,
                   borderRadius: 2,
-                  background: "var(--accent-1)",
-                  opacity: 0.3 + i * 0.28,
+                  background: "#ffffff",
+                  opacity: 0.28 + i * 0.24,
                 }}
               />
             ))}
