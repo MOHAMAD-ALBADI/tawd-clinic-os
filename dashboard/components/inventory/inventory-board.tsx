@@ -63,7 +63,7 @@ export function InventoryBoard({ items, suppliers }: { items: InvItem[]; supplie
     <div className="space-y-4">
       {flash && (
         <div className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-xl"
-          style={{ background: "rgba(45,212,191,0.1)", border: "1px solid rgba(45,212,191,0.25)", color: "#5dd9cb" }}>
+          style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", border: "1px solid rgb(var(--accent-1-rgb) / 0.25)", color: "var(--accent-1)" }}>
           <CheckCircle2 className="w-4 h-4" /> {flash}
         </div>
       )}
@@ -171,7 +171,7 @@ function IconBtn({ children, title, onClick }: { children: React.ReactNode; titl
 function Overlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }} onClick={onClose}>
+      style={{ background: "rgba(0,0,0,0.9)" }} onClick={onClose}>
       <div className="w-full max-w-md panel-feature" style={{ padding: "1.5rem" }} onClick={(e) => e.stopPropagation()}>
         <button onClick={onClose} className="float-start mb-1" style={{ color: "var(--text-4)" }}><X className="w-4 h-4" /></button>
         {children}

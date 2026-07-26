@@ -22,9 +22,9 @@ type Doctor = { id: string; name: string; name_ar: string | null };
 const STATUS_MAP: Record<string, { label: string; color: string; bar: string; bg: string }> = {
   scheduled:   { label: "مجدول",  color: "#a1a1aa", bar: "rgba(255,255,255,0.25)", bg: "rgba(255,255,255,0.03)" },
   confirmed:   { label: "مؤكد",   color: "#e4e4e7", bar: "rgba(255,255,255,0.45)", bg: "rgba(255,255,255,0.04)" },
-  checked_in:  { label: "حضر",    color: "#5dd9cb", bar: "rgba(45,212,191,0.55)", bg: "rgba(45,212,191,0.05)" },
-  in_progress: { label: "جارٍ",   color: "#2dd4bf", bar: "#2dd4bf", bg: "rgba(45,212,191,0.07)" },
-  completed:   { label: "مكتمل",  color: "#5dd9cb", bar: "rgba(45,212,191,0.35)", bg: "rgba(45,212,191,0.04)" },
+  checked_in:  { label: "حضر",    color: "var(--accent-1)", bar: "rgb(var(--accent-1-rgb) / 0.55)", bg: "rgb(var(--accent-1-rgb) / 0.05)" },
+  in_progress: { label: "جارٍ",   color: "var(--accent-1)", bar: "var(--accent-1)", bg: "rgb(var(--accent-1-rgb) / 0.07)" },
+  completed:   { label: "مكتمل",  color: "var(--accent-1)", bar: "rgb(var(--accent-1-rgb) / 0.35)", bg: "rgb(var(--accent-1-rgb) / 0.04)" },
   cancelled:   { label: "ملغي",   color: "#71717a", bar: "rgba(255,255,255,0.12)", bg: "rgba(255,255,255,0.015)" },
   no_show:     { label: "غياب",   color: "#fda4b4", bar: "rgba(244,63,94,0.55)", bg: "rgba(244,63,94,0.04)" },
 };
@@ -33,22 +33,22 @@ const LATE = { label: "تأخّر", color: "#fcd34d", bar: "#fbbf24", bg: "rgba(
 
 const NEXT_ACTIONS: Record<string, Array<{ label: string; status: string; color: string }>> = {
   scheduled: [
-    { label: "سجّل حضوره", status: "checked_in",  color: "#5dd9cb" },
+    { label: "سجّل حضوره", status: "checked_in",  color: "var(--accent-1)" },
     { label: "تأكيد",       status: "confirmed",   color: "#e4e4e7" },
     { label: "إلغاء",       status: "cancelled",   color: "#71717a" },
     { label: "غياب",        status: "no_show",     color: "#fda4b4" },
   ],
   confirmed: [
-    { label: "سجّل حضوره", status: "checked_in",  color: "#5dd9cb" },
+    { label: "سجّل حضوره", status: "checked_in",  color: "var(--accent-1)" },
     { label: "إلغاء",       status: "cancelled",   color: "#71717a" },
     { label: "غياب",        status: "no_show",     color: "#fda4b4" },
   ],
   checked_in: [
-    { label: "ابدأ الجلسة", status: "in_progress", color: "#2dd4bf" },
+    { label: "ابدأ الجلسة", status: "in_progress", color: "var(--accent-1)" },
     { label: "إلغاء",       status: "cancelled",   color: "#71717a" },
   ],
   in_progress: [
-    { label: "اكتمل",       status: "completed",   color: "#5dd9cb" },
+    { label: "اكتمل",       status: "completed",   color: "var(--accent-1)" },
   ],
 };
 
@@ -106,8 +106,8 @@ export function AppointmentTimeline({
       <div className="flex flex-wrap gap-1.5">
         {[
           { label: "انتظار", value: pending,    color: "#a1a1aa" },
-          { label: "جارٍ",   value: inProgress, color: "#2dd4bf" },
-          { label: "مكتمل",  value: completed,  color: "#5dd9cb" },
+          { label: "جارٍ",   value: inProgress, color: "var(--accent-1)" },
+          { label: "مكتمل",  value: completed,  color: "var(--accent-1)" },
           ...(lateCount > 0
             ? [{ label: "تأخّر", value: lateCount, color: "#fcd34d" }]
             : []),

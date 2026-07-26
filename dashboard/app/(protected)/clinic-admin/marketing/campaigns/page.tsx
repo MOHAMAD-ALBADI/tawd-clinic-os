@@ -7,9 +7,9 @@ import { Radio, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 export const metadata = { title: "الحملات — التسويق — طود" };
 
 const STATUS: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  draft:     { label: "مسودة",  color: "#94A3B8", bg: "rgba(148,163,184,0.08)", border: "rgba(148,163,184,0.18)" },
+  draft:     { label: "مسودة",  color: "#94A3B8", bg: "var(--text-4)", border: "var(--text-4)" },
   scheduled: { label: "مجدول", color: "#38bdf8", bg: "rgba(56,189,248,0.08)",  border: "rgba(56,189,248,0.18)"  },
-  running:   { label: "يُرسَل", color: "#2dd4bf", bg: "rgba(45,212,191,0.08)",  border: "rgba(45,212,191,0.18)"  },
+  running:   { label: "يُرسَل", color: "var(--accent-1)", bg: "rgb(var(--accent-1-rgb) / 0.08)",  border: "rgb(var(--accent-1-rgb) / 0.18)"  },
   completed: { label: "مكتمل", color: "#34d399", bg: "rgba(52,211,153,0.07)",  border: "rgba(52,211,153,0.18)"  },
   cancelled: { label: "ملغي",  color: "#f43f5e", bg: "rgba(244,63,94,0.07)",   border: "rgba(244,63,94,0.18)"   },
 };
@@ -52,9 +52,9 @@ export default async function MarketingCampaignsPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "إجمالي الحملات",  value: count ?? 0,  color: "#38bdf8", glow: "rgba(56,189,248,0.07)",  border: "rgba(56,189,248,0.16)",  Icon: Radio        },
-          { label: "تعمل الآن",        value: running,     color: "#2dd4bf", glow: "rgba(45,212,191,0.07)",  border: "rgba(45,212,191,0.16)",  Icon: Clock        },
+          { label: "تعمل الآن",        value: running,     color: "var(--accent-1)", glow: "rgb(var(--accent-1-rgb) / 0.07)",  border: "rgb(var(--accent-1-rgb) / 0.16)",  Icon: Clock        },
           { label: "مكتملة",          value: completed,   color: "#34d399", glow: "rgba(52,211,153,0.07)",  border: "rgba(52,211,153,0.16)",  Icon: CheckCircle2 },
-          { label: "إجمالي المُرسَل", value: totalSent.toLocaleString("en-US"), color: "#5dd9cb", glow: "rgba(94,217,203,0.07)", border: "rgba(94,217,203,0.16)", Icon: AlertCircle },
+          { label: "إجمالي المُرسَل", value: totalSent.toLocaleString("en-US"), color: "var(--accent-1)", glow: "rgb(var(--accent-1-rgb) / 0.07)", border: "rgb(var(--accent-1-rgb) / 0.16)", Icon: AlertCircle },
         ].map((s) => (
           <div
             key={s.label}
@@ -68,7 +68,7 @@ export default async function MarketingCampaignsPage() {
               {typeof s.value === "number" ? s.value : ""}
             </div>
             <div className="relative flex items-center justify-between mb-3">
-              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "rgba(148,163,184,0.4)" }}>
+              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-4)" }}>
                 {s.label}
               </p>
               <div className="w-7 h-7 rounded-xl flex items-center justify-center" style={{ background: `${s.color}14` }}>
@@ -92,12 +92,12 @@ export default async function MarketingCampaignsPage() {
           style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.02)" }}
         >
           <div className="flex items-center gap-2">
-            <Radio className="w-4 h-4" style={{ color: "#14b8a6" }} />
+            <Radio className="w-4 h-4" style={{ color: "var(--accent-2)" }} />
             <span className="text-sm font-semibold text-white">قائمة الحملات</span>
           </div>
           <span
             className="text-[11px] px-2.5 py-1 rounded-full"
-            style={{ background: "rgba(20,184,166,0.1)", color: "#5dd9cb", border: "1px solid rgba(20,184,166,0.18)" }}
+            style={{ background: "rgb(var(--accent-2-rgb) / 0.1)", color: "var(--accent-1)", border: "1px solid rgb(var(--accent-2-rgb) / 0.18)" }}
           >
             {campaigns.length} حملة
           </span>
@@ -107,9 +107,9 @@ export default async function MarketingCampaignsPage() {
           <div className="flex flex-col items-center justify-center py-24 gap-4">
             <div
               className="w-16 h-16 rounded-2xl flex items-center justify-center"
-              style={{ background: "rgba(20,184,166,0.08)", border: "1px solid rgba(20,184,166,0.15)" }}
+              style={{ background: "rgb(var(--accent-2-rgb) / 0.08)", border: "1px solid rgb(var(--accent-2-rgb) / 0.15)" }}
             >
-              <Radio className="w-7 h-7" style={{ color: "rgba(20,184,166,0.4)" }} />
+              <Radio className="w-7 h-7" style={{ color: "rgb(var(--accent-2-rgb) / 0.4)" }} />
             </div>
             <div className="text-center">
               <p className="font-semibold text-white">لا توجد حملات بعد</p>

@@ -34,7 +34,7 @@ export default async function MarketingTemplatesPage() {
 
   const kpis = [
     { label: "إجمالي القوالب", value: String(templates.length), Icon: MessageSquare, color: "var(--accent-1)" },
-    { label: "مُفعّلة", value: String(active), Icon: CheckCircle2, color: "#5dd9cb" },
+    { label: "مُفعّلة", value: String(active), Icon: CheckCircle2, color: "var(--accent-1)" },
     { label: "معطّلة", value: String(templates.length - active), Icon: PowerOff,
       color: templates.length - active > 0 ? "#fbbf24" : "var(--text-3)" },
     { label: "القناة الأكثر", value: topChannel ? (CHANNEL_AR[topChannel[0]] ?? topChannel[0]) : "—", Icon: Send, color: "var(--accent-1)" },

@@ -15,9 +15,9 @@ export const metadata = { title: "لوحة الاستقبال — طود" };
 const STATUS: Record<string, { label: string; color: string }> = {
   scheduled:   { label: "مجدول",  color: "#a1a1aa" },
   confirmed:   { label: "مؤكد",   color: "#e4e4e7" },
-  checked_in:  { label: "وصل",    color: "#5dd9cb" },
-  in_progress: { label: "جارٍ",   color: "#2dd4bf" },
-  completed:   { label: "مكتمل",  color: "#5dd9cb" },
+  checked_in:  { label: "وصل",    color: "var(--accent-1)" },
+  in_progress: { label: "جارٍ",   color: "var(--accent-1)" },
+  completed:   { label: "مكتمل",  color: "var(--accent-1)" },
   cancelled:   { label: "ملغي",   color: "#71717a" },
   no_show:     { label: "لم يحضر", color: "#fda4b4" },
 };
@@ -112,7 +112,7 @@ export default async function ReceptionPage() {
               <p className="text-[12px] mt-1.5" style={{ color: "var(--text-3)" }}>
                 القادم: <span className="font-bold text-white">{(next.patients as unknown as { name?: string } | null)?.name ?? "مريض"}</span>
                 {" · "}
-                <span className="ltr-nums font-bold" style={{ color: "#5dd9cb" }}>{fmtTime(next.slot_time)}</span>
+                <span className="ltr-nums font-bold" style={{ color: "var(--accent-1)" }}>{fmtTime(next.slot_time)}</span>
               </p>
             ) : (
               <p className="text-[12px] mt-1.5" style={{ color: "var(--text-4)" }}>لا مواعيد قادمة اليوم</p>

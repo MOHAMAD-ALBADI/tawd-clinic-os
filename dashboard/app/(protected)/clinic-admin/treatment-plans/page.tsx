@@ -56,7 +56,7 @@ export default async function TreatmentPlansPage() {
     { label: "خطط نشطة", value: String(active.length), Icon: ListChecks, color: "var(--accent-1)" },
     { label: "إجمالي الخطط", value: String(plans.length), Icon: ClipboardList, color: "var(--accent-1)" },
     { label: "قيمة مقترحة (ر.ع)", value: fmt(proposedVal), Icon: Coins, color: "#fbbf24" },
-    { label: "قيمة مقبولة (ر.ع)", value: fmt(acceptedVal), Icon: CheckCircle2, color: "#5dd9cb" },
+    { label: "قيمة مقبولة (ر.ع)", value: fmt(acceptedVal), Icon: CheckCircle2, color: "var(--accent-1)" },
   ];
 
   return (

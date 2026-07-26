@@ -58,7 +58,7 @@ export function TemplatesManager({ templates }: { templates: TemplateRow[] }) {
         الرسائل التي تُرسل تلقائياً للمرضى (تذكير موعد، تأكيد، متابعة…) — اكتبها بنفسك وعدّلها وقتما تشاء
       </p>
 
-      {flash && <div className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-xl mb-3" style={{ background: "rgba(45,212,191,0.1)", border: "1px solid rgba(45,212,191,0.25)", color: "#5dd9cb" }}><CheckCircle2 className="w-4 h-4" /> {flash}</div>}
+      {flash && <div className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-xl mb-3" style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", border: "1px solid rgb(var(--accent-1-rgb) / 0.25)", color: "var(--accent-1)" }}><CheckCircle2 className="w-4 h-4" /> {flash}</div>}
       {err && !modal && <div className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-xl mb-3" style={{ background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.2)", color: "#fda4b4" }}><AlertTriangle className="w-4 h-4" /> {err}</div>}
 
       {templates.length === 0 ? (
@@ -78,7 +78,7 @@ export function TemplatesManager({ templates }: { templates: TemplateRow[] }) {
                   <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-3)" }}>
                     {TYPE_AR[t.template_type] ?? t.template_type}
                   </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "rgba(45,212,191,0.1)", color: "#5dd9cb" }}>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", color: "var(--accent-1)" }}>
                     {CHANNELS.find((c) => c.v === t.channel)?.l ?? t.channel}
                   </span>
                   {!t.is_active && <span className="text-[10px]" style={{ color: "#fbbf24" }}>معطّل</span>}
@@ -86,7 +86,7 @@ export function TemplatesManager({ templates }: { templates: TemplateRow[] }) {
                 <p className="text-[11.5px] mt-1 line-clamp-2" style={{ color: "var(--text-3)" }}>{t.body_ar}</p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <IconBtn title={t.is_active ? "تعطيل" : "تفعيل"} color={t.is_active ? "#fbbf24" : "#5dd9cb"}
+                <IconBtn title={t.is_active ? "تعطيل" : "تفعيل"} color={t.is_active ? "#fbbf24" : "var(--accent-1)"}
                   onClick={() => run(() => toggleTemplate(t.id, !t.is_active), t.is_active ? "عُطّل القالب" : "فُعّل القالب")}>
                   <Power className="w-3.5 h-3.5" />
                 </IconBtn>
@@ -141,7 +141,7 @@ function TemplateModal({ row, onSave, onClose, pending, err }: {
   const addVar = (v: string) => setF((p) => ({ ...p, body_ar: `${p.body_ar}${p.body_ar.endsWith(" ") || !p.body_ar ? "" : " "}${v}` }));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.9)" }} onClick={onClose}>
       <div className="w-full max-w-lg panel-feature max-h-[90vh] overflow-y-auto" style={{ padding: "1.5rem" }} onClick={(e) => e.stopPropagation()}>
         <button onClick={onClose} className="float-start" style={{ color: "var(--text-4)" }}><X className="w-4 h-4" /></button>
         <h3 className="font-bold text-white text-lg mb-3">{row ? "تعديل قالب" : "قالب جديد"}</h3>
@@ -177,7 +177,7 @@ function TemplateModal({ row, onSave, onClose, pending, err }: {
                 <button key={v.token} type="button" onClick={() => addVar(v.token)}
                   title={`يُستبدل بـ: ${v.sample}`}
                   className="text-[11px] font-semibold px-2.5 py-1 rounded-lg"
-                  style={{ background: "rgba(45,212,191,0.08)", border: "1px solid rgba(45,212,191,0.2)", color: "#5dd9cb" }}>
+                  style={{ background: "rgb(var(--accent-1-rgb) / 0.08)", border: "1px solid rgb(var(--accent-1-rgb) / 0.2)", color: "var(--accent-1)" }}>
                   + {v.label}
                 </button>
               ))}
@@ -186,8 +186,8 @@ function TemplateModal({ row, onSave, onClose, pending, err }: {
 
           {/* Live preview: the fastest way to make placeholders make sense */}
           {f.body_ar.trim() && (
-            <div className="rounded-xl p-3" style={{ background: "rgba(45,212,191,0.05)", border: "1px solid rgba(45,212,191,0.18)" }}>
-              <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "#5dd9cb" }}>
+            <div className="rounded-xl p-3" style={{ background: "rgb(var(--accent-1-rgb) / 0.05)", border: "1px solid rgb(var(--accent-1-rgb) / 0.18)" }}>
+              <p className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--accent-1)" }}>
                 كما ستظهر للمريض
               </p>
               <p className="text-[12.5px] whitespace-pre-wrap" style={{ color: "var(--text-1)" }}>

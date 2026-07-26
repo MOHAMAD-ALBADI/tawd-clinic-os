@@ -32,8 +32,8 @@ export function FinanceTabs() {
             aria-current={active ? "page" : undefined}
             className="flex items-center gap-1.5 shrink-0 text-[12.5px] font-bold px-3.5 py-2 rounded-xl transition-colors"
             style={{
-              background: active ? "rgba(45,212,191,0.12)" : "rgba(255,255,255,0.025)",
-              border: `1px solid ${active ? "rgba(45,212,191,0.32)" : "var(--hairline)"}`,
+              background: active ? "rgb(var(--accent-1-rgb) / 0.12)" : "rgba(255,255,255,0.025)",
+              border: `1px solid ${active ? "rgb(var(--accent-1-rgb) / 0.32)" : "var(--hairline)"}`,
               color: active ? "var(--accent-1)" : "var(--text-3)",
             }}
           >

@@ -21,11 +21,11 @@ export function TodayTimeline({ slots: initial }: TodayTimelineProps) {
       <div className="flex flex-col items-center justify-center py-16 gap-3">
         <div
           className="w-14 h-14 rounded-2xl flex items-center justify-center"
-          style={{ background: "rgba(20,184,166,0.1)", border: "1px solid rgba(20,184,166,0.2)" }}
+          style={{ background: "rgb(var(--accent-2-rgb) / 0.1)", border: "1px solid rgb(var(--accent-2-rgb) / 0.2)" }}
         >
-          <Clock className="w-7 h-7" style={{ color: "#14b8a6" }} />
+          <Clock className="w-7 h-7" style={{ color: "var(--accent-2)" }} />
         </div>
-        <p className="text-sm" style={{ color: "rgba(148,163,184,0.6)" }}>
+        <p className="text-sm" style={{ color: "var(--text-3)" }}>
           لا توجد مواعيد اليوم
         </p>
       </div>
@@ -61,10 +61,10 @@ export function TodayTimeline({ slots: initial }: TodayTimelineProps) {
             className="group flex items-center gap-3 p-3.5 rounded-xl transition-all duration-200"
             style={{
               background: late
-                ? "rgba(20,184,166,0.08)"
+                ? "rgb(var(--accent-2-rgb) / 0.08)"
                 : "rgba(255,255,255,0.03)",
               border: late
-                ? "1px solid rgba(20,184,166,0.2)"
+                ? "1px solid rgb(var(--accent-2-rgb) / 0.2)"
                 : "1px solid rgba(255,255,255,0.06)",
             }}
           >
@@ -72,11 +72,11 @@ export function TodayTimeline({ slots: initial }: TodayTimelineProps) {
             <div className="flex flex-col items-center gap-1 shrink-0 w-12">
               <div
                 className="w-1.5 h-1.5 rounded-full"
-                style={{ background: late ? "#14b8a6" : "#14b8a6" }}
+                style={{ background: late ? "var(--accent-2)" : "var(--accent-2)" }}
               />
               <span
                 className="text-xs font-mono ltr-nums tabular-nums"
-                style={{ color: "rgba(148,163,184,0.6)" }}
+                style={{ color: "var(--text-3)" }}
               >
                 {formatTime(slot.time)}
               </span>
@@ -87,10 +87,10 @@ export function TodayTimeline({ slots: initial }: TodayTimelineProps) {
               <p className="font-semibold text-sm truncate" style={{ color: "rgba(226,232,240,0.95)" }}>
                 {slot.patient_name}
               </p>
-              <p className="text-xs truncate mt-0.5" style={{ color: "rgba(148,163,184,0.55)" }}>
+              <p className="text-xs truncate mt-0.5" style={{ color: "var(--text-3)" }}>
                 {slot.service}
                 {slot.doctor_name && (
-                  <span style={{ color: "#14b8a6" }}> · د. {slot.doctor_name}</span>
+                  <span style={{ color: "var(--accent-2)" }}> · د. {slot.doctor_name}</span>
                 )}
               </p>
             </div>
@@ -110,12 +110,12 @@ export function TodayTimeline({ slots: initial }: TodayTimelineProps) {
                   title="تسجيل حضور"
                   className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all active:scale-95"
                   style={{
-                    background: "rgba(45,212,191,0.14)",
-                    border: "1px solid rgba(45,212,191,0.28)",
-                    color: "#5dd9cb",
+                    background: "rgb(var(--accent-1-rgb) / 0.14)",
+                    border: "1px solid rgb(var(--accent-1-rgb) / 0.28)",
+                    color: "var(--accent-1)",
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(45,212,191,0.24)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(45,212,191,0.14)"; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgb(var(--accent-1-rgb) / 0.24)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgb(var(--accent-1-rgb) / 0.14)"; }}
                 >
                   <UserCheck className="w-3.5 h-3.5" />
                   وصل

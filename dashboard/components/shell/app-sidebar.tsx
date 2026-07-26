@@ -140,7 +140,7 @@ export function AppSidebar({ role, allRoles, userName, clinicName }: AppSidebarP
                     className="absolute inset-y-2 start-0 w-[3px] rounded-full"
                     style={{
                       background: "var(--accent-1)",
-                      boxShadow: "0 0 8px rgba(45,212,191,0.6)",
+                      boxShadow: "0 0 8px rgb(var(--accent-1-rgb) / 0.6)",
                     }}
                   />
                 )}
@@ -152,7 +152,7 @@ export function AppSidebar({ role, allRoles, userName, clinicName }: AppSidebarP
                 {item.badge && (
                   <span
                     className="text-[10px] font-bold px-1.5 py-0.5 rounded-full ltr-nums"
-                    style={{ background: "rgba(45,212,191,0.14)", color: "#5dd9cb" }}
+                    style={{ background: "rgb(var(--accent-1-rgb) / 0.14)", color: "var(--accent-1)" }}
                   >
                     {item.badge}
                   </span>

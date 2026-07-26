@@ -33,7 +33,7 @@ export function ProvidersManager({ providers }: { providers: ProviderRow[] }) {
         <div className="section-title"><Building2 className="w-3.5 h-3.5" style={{ color: "var(--accent-1)" }} /><h2>مزوّدو التأمين</h2></div>
         <button className="btn-ghost" onClick={() => { setErr(null); setModal("new"); }}><Plus className="w-3.5 h-3.5" /> مزوّد</button>
       </div>
-      {flash && <div className="flex items-center gap-2 text-[12px] px-3 py-2 rounded-xl mb-3" style={{ background: "rgba(45,212,191,0.1)", color: "#5dd9cb" }}><CheckCircle2 className="w-3.5 h-3.5" /> {flash}</div>}
+      {flash && <div className="flex items-center gap-2 text-[12px] px-3 py-2 rounded-xl mb-3" style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", color: "var(--accent-1)" }}><CheckCircle2 className="w-3.5 h-3.5" /> {flash}</div>}
       {providers.length === 0 ? (
         <p className="text-sm text-center py-6" style={{ color: "var(--text-4)" }}>لا مزوّدون — أضف أول مزوّد تأمين</p>
       ) : (
@@ -70,7 +70,7 @@ function ProviderModal({ row, onSave, onClose, pending, err }: {
   });
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.9)" }} onClick={onClose}>
       <div className="w-full max-w-md panel-feature" style={{ padding: "1.5rem" }} onClick={(e) => e.stopPropagation()}>
         <button onClick={onClose} className="float-start" style={{ color: "var(--text-4)" }}><X className="w-4 h-4" /></button>
         <h3 className="font-bold text-white text-lg mb-3">{row ? "تعديل مزوّد" : "مزوّد جديد"}</h3>

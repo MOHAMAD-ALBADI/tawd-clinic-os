@@ -9,7 +9,7 @@ export const metadata = { title: "مواعيدي — طود" };
 
 const STATUS: Record<string, { label: string; color: string }> = {
   scheduled: { label: "مجدول", color: "#94A3B8" },
-  confirmed: { label: "مؤكد", color: "#5dd9cb" },
+  confirmed: { label: "مؤكد", color: "var(--accent-1)" },
   checked_in: { label: "حضَر", color: "#38bdf8" },
   in_progress: { label: "جارٍ الكشف", color: "#fbbf24" },
   completed: { label: "مكتمل", color: "#34D399" },
@@ -56,18 +56,18 @@ export default async function DoctorAppointmentsPage() {
     <div className="space-y-5 animate-fade-in">
       <div>
         <h2 className="text-xl font-bold text-white">مواعيدي القادمة</h2>
-        <p className="text-sm mt-0.5" style={{ color: "rgba(148,163,184,0.6)" }}>{appts.length} موعد</p>
+        <p className="text-sm mt-0.5" style={{ color: "var(--text-3)" }}>{appts.length} موعد</p>
       </div>
 
       {groups.size === 0 ? (
         <div className="rounded-2xl p-12 text-center" style={{ background: "rgba(6,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)" }}>
-          <Calendar className="w-10 h-10 mx-auto mb-3" style={{ color: "rgba(148,163,184,0.3)" }} />
-          <p className="text-sm" style={{ color: "rgba(148,163,184,0.5)" }}>لا مواعيد قادمة</p>
+          <Calendar className="w-10 h-10 mx-auto mb-3" style={{ color: "var(--text-4)" }} />
+          <p className="text-sm" style={{ color: "var(--text-3)" }}>لا مواعيد قادمة</p>
         </div>
       ) : (
         [...groups.entries()].map(([k, list]) => (
           <div key={k}>
-            <h3 className="text-xs font-bold mb-2 px-1" style={{ color: "#5dd9cb" }}>{dayLabel(list[0].slot_time)}</h3>
+            <h3 className="text-xs font-bold mb-2 px-1" style={{ color: "var(--accent-1)" }}>{dayLabel(list[0].slot_time)}</h3>
             <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(6,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)" }}>
               {list.map((a, i) => {
                 const st = STATUS[a.status] ?? STATUS.scheduled;
@@ -75,14 +75,14 @@ export default async function DoctorAppointmentsPage() {
                 const svc = (a.services as unknown as { name_ar: string } | null)?.name_ar ?? "";
                 return (
                   <div key={a.id} className="flex items-center gap-4 px-4 py-3 flex-wrap" style={{ borderTop: i ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-                    <span className="text-sm font-bold ltr-nums w-16 shrink-0" style={{ color: "#5dd9cb" }}>{fmtTime(a.slot_time)}</span>
+                    <span className="text-sm font-bold ltr-nums w-16 shrink-0" style={{ color: "var(--accent-1)" }}>{fmtTime(a.slot_time)}</span>
                     <div className="flex-1 min-w-0">
                       <Link href={`/doctor/patients/${a.patient_id}`} className="font-semibold text-sm text-white hover:underline truncate block">{name}</Link>
-                      <span className="text-xs" style={{ color: "rgba(148,163,184,0.55)" }}>{svc}</span>
+                      <span className="text-xs" style={{ color: "var(--text-3)" }}>{svc}</span>
                     </div>
                     <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0" style={{ background: `${st.color}1a`, color: st.color }}>{st.label}</span>
                     <AppointmentActions id={a.id} status={a.status} />
-                    <Link href={`/doctor/patients/${a.patient_id}`} className="text-[11px] flex items-center gap-0.5 shrink-0" style={{ color: "rgba(148,163,184,0.5)" }}>الملف <ChevronLeft className="w-3 h-3" /></Link>
+                    <Link href={`/doctor/patients/${a.patient_id}`} className="text-[11px] flex items-center gap-0.5 shrink-0" style={{ color: "var(--text-3)" }}>الملف <ChevronLeft className="w-3 h-3" /></Link>
                   </div>
                 );
               })}

@@ -69,7 +69,7 @@ export function GlobalSearch({ placeholder = "ابحث عن مريض، خدمة�
                 <button key={`${r.kind}-${r.id}`} onClick={() => go(r.href)}
                   className="w-full flex items-center gap-3 px-3 py-2 text-right transition-colors hover:bg-white/[0.04]">
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                    style={{ background: "rgba(45,212,191,0.1)", border: "1px solid rgba(45,212,191,0.18)" }}>
+                    style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", border: "1px solid rgb(var(--accent-1-rgb) / 0.18)" }}>
                     <Icon className="w-4 h-4" style={{ color: "var(--color-brand-300)" }} />
                   </div>
                   <div className="flex-1 min-w-0">

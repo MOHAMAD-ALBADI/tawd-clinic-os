@@ -34,7 +34,7 @@ export function ToggleServiceTrigger({ id, isActive }: { id: string; isActive: b
           ? { background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.3)", color: "#fda4b4" }
           : isActive
             ? { background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.18)", color: "#F87171" }
-            : { background: "rgba(20,184,166,0.08)", border: "1px solid rgba(20,184,166,0.2)", color: "#5dd9cb" }
+            : { background: "rgb(var(--accent-2-rgb) / 0.08)", border: "1px solid rgb(var(--accent-2-rgb) / 0.2)", color: "var(--accent-1)" }
       }
     >
       {pending ? "..." : failed ? "تعذّر" : isActive ? "تعطيل" : "تفعيل"}

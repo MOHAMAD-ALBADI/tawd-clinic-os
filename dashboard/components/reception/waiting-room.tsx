@@ -17,8 +17,8 @@ export type QueueEntry = {
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
   waiting: { label: "ينتظر",       color: "#a1a1aa" },
-  called:  { label: "تمت مناداته", color: "#2dd4bf" },
-  in_room: { label: "في العيادة",  color: "#5dd9cb" },
+  called:  { label: "تمت مناداته", color: "var(--accent-1)" },
+  in_room: { label: "في العيادة",  color: "var(--accent-1)" },
 };
 
 export function WaitingRoom({ entries }: { entries: QueueEntry[] }) {
@@ -88,8 +88,8 @@ export function WaitingRoom({ entries }: { entries: QueueEntry[] }) {
                 key={q.id}
                 className="rounded-xl p-3"
                 style={{
-                  background: q.status === "called" ? "rgba(45,212,191,0.05)" : "rgba(255,255,255,0.025)",
-                  border: `1px solid ${q.status === "called" ? "rgba(45,212,191,0.2)" : "rgba(255,255,255,0.06)"}`,
+                  background: q.status === "called" ? "rgb(var(--accent-1-rgb) / 0.05)" : "rgba(255,255,255,0.025)",
+                  border: `1px solid ${q.status === "called" ? "rgb(var(--accent-1-rgb) / 0.2)" : "rgba(255,255,255,0.06)"}`,
                 }}
               >
                 <div className="flex items-center gap-3">
@@ -118,7 +118,7 @@ export function WaitingRoom({ entries }: { entries: QueueEntry[] }) {
                   {q.status === "waiting" && (
                     <button onClick={() => move(q.id, "called")} disabled={busy}
                       className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg disabled:opacity-50"
-                      style={{ background: "rgba(45,212,191,0.12)", border: "1px solid rgba(45,212,191,0.25)", color: "#5dd9cb" }}>
+                      style={{ background: "rgb(var(--accent-1-rgb) / 0.12)", border: "1px solid rgb(var(--accent-1-rgb) / 0.25)", color: "var(--accent-1)" }}>
                       <BellRing className="w-3 h-3" /> {busy ? "…" : "مناداة"}
                     </button>
                   )}
@@ -132,7 +132,7 @@ export function WaitingRoom({ entries }: { entries: QueueEntry[] }) {
                   {q.status === "in_room" && (
                     <button onClick={() => move(q.id, "done")} disabled={busy}
                       className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg disabled:opacity-50"
-                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#5dd9cb" }}>
+                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--accent-1)" }}>
                       <CheckCheck className="w-3 h-3" /> انتهى
                     </button>
                   )}

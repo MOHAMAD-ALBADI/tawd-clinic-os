@@ -1,39 +1,56 @@
 @import "tailwindcss";
 
 /* ════════════════════════════════════════════════════════════
-   TAWD Clinic OS — Design System v2 "Instrument"
-   Charcoal canvas · WHITE data · ONE clinical accent.
-   The monochrome carries the interface; color carries meaning:
-   teal = alive/primary, green = good, amber = attention, red = risk.
-   Numbers are set in mono — this dashboard is a clinical instrument.
+   TAWD Clinic OS — Design System v3 "طَود"
+   ────────────────────────────────────────────────────────────
+   طَود means a towering, immovable mountain. That is what the
+   product promises a clinic, so the interface is built to read
+   institutional rather than app-like.
+
+   Two deliberate decisions:
+
+   1. The accent is BLUE, not the teal every generated health
+      dashboard reaches for. Green could not be the brand colour
+      because green already carries meaning here — "completed",
+      "active", "paid". A brand colour that is also a status
+      colour destroys both. Blue leaves the semantic map intact:
+        green = good · amber = attention · red = risk · BLUE = us.
+
+   2. The neutrals are WARM. Every dark dashboard uses a cool
+      blue-grey; ours leans a few degrees toward stone, after the
+      Hajar mountains. Cold clinical blue over warm stone is the
+      whole personality — no gradients, no glow, no cost.
+
+   Numbers are set in mono: this is an instrument, not a brochure.
+   Colour is meaning. Restraint is the luxury.
    ════════════════════════════════════════════════════════════ */
 @theme {
-  /* — Brand: clinical teal (the ONLY decorative accent) — */
-  --color-brand-50:  #effcfa;
-  --color-brand-100: #cbf6ef;
-  --color-brand-200: #98ece0;
-  --color-brand-300: #5dd9cb;
-  --color-brand-400: #2dd4bf;
-  --color-brand-500: #14b8a6;
-  --color-brand-600: #0d9488;
-  --color-brand-700: #0f766e;
-  --color-brand-800: #115e59;
-  --color-brand-900: #134e4a;
+  /* — Brand: Tawd Blue. The ONLY decorative accent. — */
+  --color-brand-50:  #eef3ff;
+  --color-brand-100: #dbe6ff;
+  --color-brand-200: #b8ccff;
+  --color-brand-300: #8badff;
+  --color-brand-400: #5b93ff;  /* text + icons on dark */
+  --color-brand-500: #2e6bf0;  /* actions */
+  --color-brand-600: #1e52d6;  /* brand core — logo, social, print */
+  --color-brand-700: #1740ab;
+  --color-brand-800: #143585;
+  --color-brand-900: #0b2a6b;
 
-  /* — Neutral zinc scale (true neutral, no blue cast) — */
-  --color-ink-50:  #fafafa;
-  --color-ink-100: #f4f4f5;
-  --color-ink-200: #e4e4e7;
-  --color-ink-300: #a1a1aa;
-  --color-ink-400: #71717a;
-  --color-ink-500: #52525b;
-  --color-ink-600: #3f3f46;
-  --color-ink-700: #27272a;
-  --color-ink-800: #1b1b1f;
-  --color-ink-900: #121214;
-  --color-ink-950: #0a0a0b;
+  /* — Warm stone neutrals (a few degrees off true grey) — */
+  --color-ink-50:  #faf9f7;
+  --color-ink-100: #f5f4f2;
+  --color-ink-200: #e5e2de;
+  --color-ink-300: #a8a29b;
+  --color-ink-400: #78716b;
+  --color-ink-500: #57524d;
+  --color-ink-600: #423e3a;
+  --color-ink-700: #2a2724;
+  --color-ink-800: #1c1a18;
+  --color-ink-900: #131211;
+  --color-ink-950: #0a0a09;
 
-  /* — Semantic status (used ONLY for meaning) — */
+  /* — Semantic status (used ONLY for meaning, never decoration) — */
   --color-ok:    #34d399;
   --color-warn:  #fbbf24;
   --color-bad:   #f43f5e;
@@ -51,40 +68,55 @@
 @variant dark (&:where(.dark, .dark *));
 
 :root {
-  /* HSL channels consumed by hsl(var(--token)) */
-  --background:             240 4% 4%;
-  --foreground:             240 5% 96%;
-  --card:                   240 4% 7%;
-  --card-foreground:        240 5% 96%;
-  --primary:                174 80% 40%;
+  /* HSL channels consumed by hsl(var(--token)) — warm stone hue 30 */
+  --background:             30 6% 4%;
+  --foreground:             30 8% 96%;
+  --card:                   30 6% 7%;
+  --card-foreground:        30 8% 96%;
+  --primary:                222 87% 48%;
   --primary-foreground:     0 0% 100%;
-  --secondary:              240 4% 10%;
-  --secondary-foreground:   240 4% 65%;
-  --muted:                  240 4% 9%;
-  --muted-foreground:       240 4% 46%;
-  --accent:                 174 70% 45%;
+  --secondary:              30 5% 10%;
+  --secondary-foreground:   30 6% 65%;
+  --muted:                  30 5% 9%;
+  --muted-foreground:       30 5% 46%;
+  --accent:                 222 100% 68%;
   --accent-foreground:      0 0% 100%;
   --destructive:            350 89% 60%;
   --destructive-foreground: 0 0% 100%;
-  --border:                 240 4% 13%;
-  --input:                  240 4% 10%;
-  --ring:                   174 80% 40%;
+  --border:                 30 5% 13%;
+  --input:                  30 5% 10%;
+  --ring:                   222 87% 48%;
+
+  /* ── The four tokens that own the whole look ──
+     Changing the brand hue is these four lines plus the @theme scale
+     above. Nothing else in the codebase should name a brand colour. */
+  --accent-1: #5b93ff;   /* text + icons on dark  */
+  --accent-2: #2e6bf0;   /* fills + actions       */
+  --accent-3: #1e52d6;   /* pressed + deep fills  */
+
+  /* RGB channels so translucent brand tints stay tokenised:
+     rgb(var(--accent-1-rgb) / 0.12) — never a literal rgba(). */
+  --accent-1-rgb: 91 147 255;
+  --accent-2-rgb: 46 107 240;
 
   /* Direct surface tokens (preferred for new code) */
-  --surface-0:  #0a0a0b;
+  --surface-0:  #0a0a09;
   --surface-1:  rgba(255,255,255,0.025);
   --surface-2:  rgba(255,255,255,0.045);
   --surface-3:  rgba(255,255,255,0.07);
   --hairline:   rgba(255,255,255,0.08);
   --hairline-2: rgba(255,255,255,0.05);
 
-  --text-1: #f4f4f5;
-  --text-2: #a1a1aa;
-  --text-3: #71717a;
-  --text-4: #52525b;
+  /* Warm-leaning text ramp — the stone half of the palette */
+  --text-1: #f5f4f2;
+  --text-2: #a8a29b;
+  --text-3: #78716b;
+  --text-4: #57524d;
 
-  --accent-1: #2dd4bf;
-  --accent-2: #14b8a6;
+  /* Status. These carry meaning and must never be used as decoration. */
+  --ok:   #34d399;
+  --warn: #fbbf24;
+  --bad:  #f43f5e;
 }
 
 /* ── Keyframes ── */
@@ -165,17 +197,24 @@ body {
   box-shadow: 0 24px 64px rgba(0,0,0,0.45);
 }
 
-/* Sidebar surfaces (kept for compatibility) */
-.glass        { background: rgba(10,10,11,0.92); border: 1px solid var(--hairline); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
-.glass-light  { background: var(--surface-2); border: 1px solid var(--hairline); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
-.sidebar-gradient { background: linear-gradient(180deg, #0b0b0c 0%, #0d0d0f 100%); }
+/* Overlay surface — modals, popovers, the sidebar.
 
-/* Legacy aliases mapped onto the new system so old pages stay coherent */
-.glass-card    { background: var(--surface-1); border: 1px solid var(--hairline); border-radius: 1.25rem; transition: border-color .2s, box-shadow .2s, transform .2s; }
-.glass-card:hover { border-color: rgba(255,255,255,0.15); box-shadow: 0 10px 36px rgba(0,0,0,0.45); transform: translateY(-1px); }
-.glass-gold    { background: linear-gradient(160deg, rgba(255,255,255,0.045) 0%, rgba(255,255,255,0.012) 100%); border: 1px solid rgba(255,255,255,0.1); border-radius: 1.25rem; }
-.card-elevated { background: var(--surface-1); border: 1px solid var(--hairline); border-radius: 1.25rem; box-shadow: 0 4px 24px rgba(0,0,0,0.4); transition: box-shadow .2s, border-color .2s, transform .2s; }
-.card-elevated:hover { border-color: rgba(255,255,255,0.14); box-shadow: 0 12px 40px rgba(0,0,0,0.55); transform: translateY(-2px); }
+   backdrop-filter was removed here on purpose. Blurring a full-screen layer
+   forces the browser to re-composite everything beneath it on every paint,
+   which is the single most expensive thing a dark dashboard usually does. An
+   opaque surface is indistinguishable at these opacities and costs nothing. */
+.glass        { background: #0d0c0b; border: 1px solid var(--hairline); }
+.glass-light  { background: #161513; border: 1px solid var(--hairline); }
+.sidebar-gradient { background: #0c0b0a; }
+
+/* Aliases. There were eight card classes doing three jobs; the extras now
+   point at the real ones so no page had to be rewritten to stay coherent.
+   New code should use .panel, .panel-2 or .panel-feature only. */
+.glass-card,
+.card-elevated { background: var(--surface-1); border: 1px solid var(--hairline); border-radius: 1.25rem; transition: border-color .2s, transform .2s; }
+.glass-card:hover,
+.card-elevated:hover { border-color: rgba(255,255,255,0.15); transform: translateY(-1px); }
+.glass-gold    { background: var(--surface-2); border: 1px solid rgba(255,255,255,0.1); border-radius: 1.25rem; }
 
 /* Micro-label (the 9-10px uppercase eyebrow) */
 .eyebrow {
@@ -195,13 +234,14 @@ body {
 .btn-primary {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
   padding: 0.625rem 1.125rem; border-radius: 0.875rem; cursor: pointer;
-  font-weight: 700; font-size: 0.875rem; color: #02201d;
-  background: linear-gradient(135deg, #2dd4bf 0%, #14b8a6 100%);
-  border: 1px solid rgba(45,212,191,0.5);
-  box-shadow: 0 6px 20px rgba(20,184,166,0.18);
-  transition: filter .2s, box-shadow .2s, transform .12s;
+  font-weight: 700; font-size: 0.875rem; color: #ffffff;
+  /* Flat, not gradient. A single confident blue reads more institutional
+     than a gradient, and one fewer paint layer per button. */
+  background: var(--accent-2);
+  border: 1px solid var(--accent-1);
+  transition: background .15s, transform .12s;
 }
-.btn-primary:hover { filter: brightness(1.06); box-shadow: 0 8px 26px rgba(20,184,166,0.28); }
+.btn-primary:hover { background: var(--accent-1); }
 .btn-primary:active { transform: translateY(1px); }
 .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
 
@@ -231,16 +271,19 @@ body {
   transition: border-color .2s, box-shadow .2s;
 }
 .field::placeholder { color: var(--text-4); }
-.field:focus { border-color: rgba(45,212,191,0.5); box-shadow: 0 0 0 3px rgba(20,184,166,0.12); }
+.field:focus { border-color: var(--accent-1); box-shadow: 0 0 0 3px rgb(var(--accent-1-rgb) / 0.15); }
 
 /* Status badge (semantic — the ONLY place status colors appear) */
 .badge { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.25rem 0.625rem; border-radius: 999px; font-size: 11px; font-weight: 700; }
-.badge-ok    { background: rgba(45,212,191,0.12); color: #5dd9cb; border: 1px solid rgba(45,212,191,0.24); }
+/* badge-ok was rendering in the brand teal, so "مدفوعة" and "مكتمل" looked
+   like brand chrome rather than success. Success is green; the brand is blue;
+   they are now visibly different things. */
+.badge-ok    { background: rgba(52,211,153,0.12); color: #6ee7b7; border: 1px solid rgba(52,211,153,0.26); }
 .badge-warn  { background: rgba(251,191,36,0.12); color: #fcd34d; border: 1px solid rgba(251,191,36,0.24); }
 .badge-bad   { background: rgba(244,63,94,0.12);  color: #fda4b4; border: 1px solid rgba(244,63,94,0.24); }
-.badge-info  { background: rgba(56,189,248,0.12); color: #7dd3fc; border: 1px solid rgba(56,189,248,0.24); }
-.badge-mute  { background: rgba(255,255,255,0.06); color: #a1a1aa; border: 1px solid rgba(255,255,255,0.1); }
-.badge-brand { background: rgba(45,212,191,0.12); color: #5dd9cb; border: 1px solid rgba(45,212,191,0.24); }
+.badge-info  { background: rgb(var(--accent-1-rgb) / 0.12); color: var(--accent-1); border: 1px solid rgb(var(--accent-1-rgb) / 0.26); }
+.badge-mute  { background: rgba(255,255,255,0.06); color: var(--text-2); border: 1px solid rgba(255,255,255,0.1); }
+.badge-brand { background: rgb(var(--accent-1-rgb) / 0.12); color: var(--accent-1); border: 1px solid rgb(var(--accent-1-rgb) / 0.26); }
 
 /* Table row hover */
 .row-hover { transition: background .15s; }
@@ -248,7 +291,7 @@ body {
 
 /* Gradient text */
 .text-gradient-brand {
-  background: linear-gradient(135deg, #5dd9cb 0%, #14b8a6 100%);
+  background: linear-gradient(135deg, var(--accent-1) 0%, var(--accent-2) 100%);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
 }
 .text-gradient-white {
@@ -264,7 +307,7 @@ body {
 .live-dot {
   width: 6px; height: 6px; border-radius: 999px; flex: none;
   background: var(--accent-1);
-  box-shadow: 0 0 8px rgba(45,212,191,0.8);
+  box-shadow: 0 0 8px rgb(var(--accent-1-rgb) / 0.8);
   animation: pulse-dot 2.4s ease-in-out infinite;
 }
 

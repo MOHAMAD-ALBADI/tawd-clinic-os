@@ -137,9 +137,9 @@ export function NewClinicForm() {
                 onClick={() => setForm((p) => ({ ...p, clinicType: t.key }))}
                 className="text-[12px] font-bold px-3 py-2 rounded-xl transition-colors"
                 style={{
-                  background: form.clinicType === t.key ? "rgba(45,212,191,0.12)" : "rgba(255,255,255,0.03)",
-                  border: `1px solid ${form.clinicType === t.key ? "rgba(45,212,191,0.35)" : "rgba(255,255,255,0.08)"}`,
-                  color: form.clinicType === t.key ? "#5dd9cb" : "var(--text-2)",
+                  background: form.clinicType === t.key ? "rgb(var(--accent-1-rgb) / 0.12)" : "rgba(255,255,255,0.03)",
+                  border: `1px solid ${form.clinicType === t.key ? "rgb(var(--accent-1-rgb) / 0.35)" : "rgba(255,255,255,0.08)"}`,
+                  color: form.clinicType === t.key ? "var(--accent-1)" : "var(--text-2)",
                 }}
               >
                 {t.label}

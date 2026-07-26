@@ -26,7 +26,7 @@ export function Modal({ open, onClose, title, subtitle, children, maxWidth = "56
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ background: "rgba(2,9,18,0.85)", backdropFilter: "blur(8px)" }}
+      style={{ background: "rgba(2,9,18,0.85)" }}
     >
       <div
         className="w-full relative animate-scale-in"
@@ -35,8 +35,7 @@ export function Modal({ open, onClose, title, subtitle, children, maxWidth = "56
           background: "rgba(6,14,28,0.98)",
           border: "1px solid rgba(255,255,255,0.1)",
           borderRadius: "1.25rem",
-          backdropFilter: "blur(40px)",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.07)",
+          boxShadow: "0 24px 80px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.07)",
         }}
       >
         {/* Header */}
@@ -47,7 +46,7 @@ export function Modal({ open, onClose, title, subtitle, children, maxWidth = "56
           <div>
             <h2 className="text-white font-bold text-[17px]">{title}</h2>
             {subtitle && (
-              <p className="text-sm mt-0.5" style={{ color: "rgba(148,163,184,0.6)" }}>
+              <p className="text-sm mt-0.5" style={{ color: "var(--text-3)" }}>
                 {subtitle}
               </p>
             )}
@@ -55,7 +54,7 @@ export function Modal({ open, onClose, title, subtitle, children, maxWidth = "56
           <button
             onClick={onClose}
             className="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:bg-white/10"
-            style={{ color: "rgba(148,163,184,0.6)" }}
+            style={{ color: "var(--text-3)" }}
           >
             <X className="w-4 h-4" />
           </button>

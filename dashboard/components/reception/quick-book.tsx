@@ -128,9 +128,9 @@ export function QuickBook({
             onClick={() => { setMode(m); setErr(null); }}
             className="text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors"
             style={{
-              background: mode === m ? "rgba(45,212,191,0.12)" : "rgba(255,255,255,0.03)",
-              border: `1px solid ${mode === m ? "rgba(45,212,191,0.3)" : "rgba(255,255,255,0.07)"}`,
-              color: mode === m ? "#5dd9cb" : "var(--text-3)",
+              background: mode === m ? "rgb(var(--accent-1-rgb) / 0.12)" : "rgba(255,255,255,0.03)",
+              border: `1px solid ${mode === m ? "rgb(var(--accent-1-rgb) / 0.3)" : "rgba(255,255,255,0.07)"}`,
+              color: mode === m ? "var(--accent-1)" : "var(--text-3)",
             }}
           >
             {label}
@@ -231,7 +231,7 @@ export function QuickBook({
                     onClick={() => submit(t)}
                     disabled={pending}
                     className="text-[12px] font-bold ltr-nums px-3 py-1.5 rounded-lg"
-                    style={{ background: "rgba(45,212,191,0.1)", border: "1px solid rgba(45,212,191,0.3)", color: "#5dd9cb" }}
+                    style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", border: "1px solid rgb(var(--accent-1-rgb) / 0.3)", color: "var(--accent-1)" }}
                   >
                     {t}
                   </button>

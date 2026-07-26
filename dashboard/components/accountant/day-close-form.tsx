@@ -82,10 +82,10 @@ export function DayCloseForm({
         <div className="rounded-xl px-4 py-3 flex items-center justify-between"
           style={{
             background: liveVariance === null ? "rgba(255,255,255,0.025)"
-              : Math.abs(liveVariance) < 0.001 ? "rgba(45,212,191,0.07)"
+              : Math.abs(liveVariance) < 0.001 ? "rgb(var(--accent-1-rgb) / 0.07)"
               : "rgba(244,63,94,0.06)",
             border: `1px solid ${liveVariance === null ? "rgba(255,255,255,0.06)"
-              : Math.abs(liveVariance) < 0.001 ? "rgba(45,212,191,0.25)"
+              : Math.abs(liveVariance) < 0.001 ? "rgb(var(--accent-1-rgb) / 0.25)"
               : "rgba(244,63,94,0.25)"}`,
           }}>
           <span className="text-[12px]" style={{ color: "var(--text-2)" }}>
@@ -93,7 +93,7 @@ export function DayCloseForm({
           </span>
           {liveVariance !== null && (
             <span className="text-[13px] font-bold ltr-nums"
-              style={{ color: Math.abs(liveVariance) < 0.001 ? "#5dd9cb" : "#fda4b4" }}>
+              style={{ color: Math.abs(liveVariance) < 0.001 ? "var(--accent-1)" : "#fda4b4" }}>
               {Math.abs(liveVariance) < 0.001 ? "مطابق ✓" : `${liveVariance > 0 ? "زيادة +" : "عجز "}${fmt(Math.abs(liveVariance))}`}
             </span>
           )}
@@ -116,7 +116,7 @@ export function DayCloseForm({
         </button>
 
         {result && (
-          <p className="text-[12px] text-center" style={{ color: Math.abs(result.variance) < 0.001 ? "#5dd9cb" : "#fcd34d" }}>
+          <p className="text-[12px] text-center" style={{ color: Math.abs(result.variance) < 0.001 ? "var(--accent-1)" : "#fcd34d" }}>
             أُغلق اليوم — {Math.abs(result.variance) < 0.001 ? "الصندوق مطابق تماماً ✓" : `الفرق المسجّل: ${fmt(result.variance)} ر.ع`}
           </p>
         )}

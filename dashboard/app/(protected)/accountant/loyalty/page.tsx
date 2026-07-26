@@ -50,7 +50,7 @@ export default async function LoyaltyPage() {
                 <tr key={p.id} style={{ borderBottom: i < patients.length - 1 ? "1px solid hsl(var(--border))" : undefined }}>
                   <td className="py-3.5 px-5 font-semibold" style={{ color: "hsl(var(--foreground))" }}>{p.name}</td>
                   <td className="py-3.5 px-5">
-                    <span className="flex items-center gap-1.5 font-bold ltr-nums" style={{ color: "#0f766e" }}>
+                    <span className="flex items-center gap-1.5 font-bold ltr-nums" style={{ color: "var(--accent-3)" }}>
                       <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
                       {p.loyalty_points.toLocaleString("ar-SA")}
                     </span>

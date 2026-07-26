@@ -47,7 +47,7 @@ export function RecordVitalsForm({ patientId }: { patientId: string }) {
     <div className="rounded-2xl p-5" style={{ background: "rgba(6,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)" }}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Activity className="w-4 h-4" style={{ color: "#5dd9cb" }} />
+          <Activity className="w-4 h-4" style={{ color: "var(--accent-1)" }} />
           <h3 className="font-bold text-white text-sm">تسجيل العلامات الحيوية</h3>
         </div>
         {done && <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: "#34D399" }}><CheckCircle2 className="w-3.5 h-3.5" /> تم</span>}
@@ -56,7 +56,7 @@ export function RecordVitalsForm({ patientId }: { patientId: string }) {
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {FIELDS.map((f) => (
           <div key={f.key}>
-            <label className="text-[11px] font-medium block mb-1" style={{ color: "rgba(148,163,184,0.6)" }}>{f.label} {f.unit && <span className="opacity-60">({f.unit})</span>}</label>
+            <label className="text-[11px] font-medium block mb-1" style={{ color: "var(--text-3)" }}>{f.label} {f.unit && <span className="opacity-60">({f.unit})</span>}</label>
             <input type="text" inputMode="decimal" step={f.step ?? "1"} value={vals[f.key] ?? ""} onChange={(e) => setVals((s) => ({ ...s, [f.key]: e.target.value }))}
               style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(226,232,240,0.92)", borderRadius: 8, padding: "0.45rem 0.6rem", fontSize: 13, outline: "none" }} />
           </div>
@@ -64,7 +64,7 @@ export function RecordVitalsForm({ patientId }: { patientId: string }) {
       </div>
       <div className="flex justify-end mt-4">
         <button onClick={save} disabled={pending} className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-xl disabled:opacity-50"
-          style={{ background: "linear-gradient(135deg,#0d9488,#0f766e)", color: "white" }}>
+          style={{ background: "linear-gradient(135deg,var(--accent-2),var(--accent-3))", color: "white" }}>
           {pending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} حفظ القياسات
         </button>
       </div>

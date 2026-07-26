@@ -44,7 +44,7 @@ export default async function DoctorPatientsPage() {
     <div className="space-y-4 animate-fade-in">
       <div>
         <h2 className="text-xl font-bold text-white">مرضاي</h2>
-        <p className="text-sm mt-0.5" style={{ color: "rgba(148,163,184,0.6)" }}>{patients.length} مريض في سجلاتك</p>
+        <p className="text-sm mt-0.5" style={{ color: "var(--text-3)" }}>{patients.length} مريض في سجلاتك</p>
       </div>
       <PatientSearch patients={patients} />
     </div>

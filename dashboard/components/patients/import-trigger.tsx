@@ -15,7 +15,7 @@ export function ImportTrigger({ clinicId, label = "استيراد Excel/CSV" }: 
       </button>
       {open && (
         <div className="fixed inset-0 z-[9000] flex items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}
+          style={{ background: "rgba(0,0,0,0.5)" }}
           onClick={() => setOpen(false)}>
           <div className="w-full max-w-lg rounded-2xl p-5" style={{ background: "#131315", border: "1px solid rgba(255,255,255,0.1)" }}
             onClick={(e) => e.stopPropagation()}>

@@ -68,16 +68,16 @@ export function WorkingHoursForm({ hours: initial }: { hours: HoursMap }) {
   return (
     <div
       className="rounded-2xl p-6"
-      style={{ background: "rgba(6,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(20px)" }}
+      style={{ background: "rgba(6,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)" }}
     >
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(20,184,166,0.12)", border: "1px solid rgba(20,184,166,0.2)" }}>
-            <Clock className="w-4 h-4" style={{ color: "#5dd9cb" }} />
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgb(var(--accent-2-rgb) / 0.12)", border: "1px solid rgb(var(--accent-2-rgb) / 0.2)" }}>
+            <Clock className="w-4 h-4" style={{ color: "var(--accent-1)" }} />
           </div>
           <div>
             <h3 className="font-bold text-white">ساعات العمل</h3>
-            <p className="text-[11px] mt-0.5" style={{ color: "rgba(148,163,184,0.5)" }}>تحديد أوقات استقبال المرضى لكل يوم</p>
+            <p className="text-[11px] mt-0.5" style={{ color: "var(--text-3)" }}>تحديد أوقات استقبال المرضى لكل يوم</p>
           </div>
         </div>
 
@@ -91,7 +91,7 @@ export function WorkingHoursForm({ hours: initial }: { hours: HoursMap }) {
               <button
                 onClick={() => { setEditing(false); setHours(initial); setError(null); }}
                 className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl font-semibold"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(148,163,184,0.7)" }}
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-2)" }}
               >
                 <X className="w-3.5 h-3.5" /> إلغاء
               </button>
@@ -99,7 +99,7 @@ export function WorkingHoursForm({ hours: initial }: { hours: HoursMap }) {
                 onClick={handleSave}
                 disabled={pending}
                 className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl font-bold disabled:opacity-50 transition-all"
-                style={{ background: "linear-gradient(135deg, #0d9488, #0f766e)", color: "white" }}
+                style={{ background: "linear-gradient(135deg, var(--accent-2), var(--accent-3))", color: "white" }}
               >
                 <Save className="w-3.5 h-3.5" />
                 {pending ? "جارٍ الحفظ..." : "حفظ"}
@@ -109,9 +109,9 @@ export function WorkingHoursForm({ hours: initial }: { hours: HoursMap }) {
             <button
               onClick={() => setEditing(true)}
               className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl font-semibold transition-all"
-              style={{ background: "rgba(20,184,166,0.1)", border: "1px solid rgba(20,184,166,0.2)", color: "#5dd9cb" }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(20,184,166,0.2)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(20,184,166,0.1)"; }}
+              style={{ background: "rgb(var(--accent-2-rgb) / 0.1)", border: "1px solid rgb(var(--accent-2-rgb) / 0.2)", color: "var(--accent-1)" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgb(var(--accent-2-rgb) / 0.2)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "rgb(var(--accent-2-rgb) / 0.1)"; }}
             >
               <Edit3 className="w-3.5 h-3.5" /> تعديل
             </button>
@@ -135,8 +135,8 @@ export function WorkingHoursForm({ hours: initial }: { hours: HoursMap }) {
               key={key}
               className="flex items-center gap-4 px-4 py-3 rounded-xl"
               style={{
-                background: isOpen ? "rgba(20,184,166,0.05)" : "rgba(255,255,255,0.02)",
-                border: `1px solid ${isOpen ? "rgba(20,184,166,0.12)" : "rgba(255,255,255,0.05)"}`,
+                background: isOpen ? "rgb(var(--accent-2-rgb) / 0.05)" : "rgba(255,255,255,0.02)",
+                border: `1px solid ${isOpen ? "rgb(var(--accent-2-rgb) / 0.12)" : "rgba(255,255,255,0.05)"}`,
               }}
             >
               {/* Day toggle */}
@@ -144,7 +144,7 @@ export function WorkingHoursForm({ hours: initial }: { hours: HoursMap }) {
                 <button
                   onClick={() => toggleDay(key)}
                   className="relative w-10 h-5 rounded-full transition-all shrink-0"
-                  style={{ background: isOpen ? "#14b8a6" : "rgba(255,255,255,0.1)" }}
+                  style={{ background: isOpen ? "var(--accent-2)" : "rgba(255,255,255,0.1)" }}
                 >
                   <span
                     className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"
@@ -154,12 +154,12 @@ export function WorkingHoursForm({ hours: initial }: { hours: HoursMap }) {
               ) : (
                 <div
                   className="w-2 h-2 rounded-full shrink-0"
-                  style={{ background: isOpen ? "#5dd9cb" : "rgba(148,163,184,0.25)" }}
+                  style={{ background: isOpen ? "var(--accent-1)" : "var(--text-4)" }}
                 />
               )}
 
               {/* Day name */}
-              <span className="w-16 text-sm font-semibold shrink-0" style={{ color: isOpen ? "white" : "rgba(148,163,184,0.4)" }}>
+              <span className="w-16 text-sm font-semibold shrink-0" style={{ color: isOpen ? "white" : "var(--text-4)" }}>
                 {label}
               </span>
 
@@ -173,7 +173,7 @@ export function WorkingHoursForm({ hours: initial }: { hours: HoursMap }) {
                       onChange={(e) => setTime(key, "open", e.target.value)}
                       style={timeInput}
                     />
-                    <span className="text-xs" style={{ color: "rgba(148,163,184,0.5)" }}>—</span>
+                    <span className="text-xs" style={{ color: "var(--text-3)" }}>—</span>
                     <input
                       type="time"
                       value={day?.close ?? "22:00"}
@@ -182,12 +182,12 @@ export function WorkingHoursForm({ hours: initial }: { hours: HoursMap }) {
                     />
                   </div>
                 ) : (
-                  <span className="text-sm ltr-nums" style={{ color: "rgba(148,163,184,0.7)" }}>
+                  <span className="text-sm ltr-nums" style={{ color: "var(--text-2)" }}>
                     {day?.open} — {day?.close}
                   </span>
                 )
               ) : (
-                <span className="text-sm" style={{ color: "rgba(148,163,184,0.3)" }}>مغلق</span>
+                <span className="text-sm" style={{ color: "var(--text-4)" }}>مغلق</span>
               )}
             </div>
           );

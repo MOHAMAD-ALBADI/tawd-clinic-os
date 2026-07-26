@@ -227,8 +227,8 @@ export default async function ClinicAdminPage() {
 
   /* status ring — ONE hue family: teal=alive/done, neutral=waiting, muted red=lost */
   const ringData = [
-    { name: "مكتمل",  value: completed,  color: "rgba(45,212,191,0.55)" },
-    { name: "جارٍ",   value: inProgress, color: "#2dd4bf" },
+    { name: "مكتمل",  value: completed,  color: "rgb(var(--accent-1-rgb) / 0.55)" },
+    { name: "جارٍ",   value: inProgress, color: "var(--accent-1)" },
     { name: "انتظار", value: pending,    color: "rgba(255,255,255,0.16)" },
     { name: "غياب",  value: noShow,     color: "rgba(244,63,94,0.55)" },
   ];
@@ -276,9 +276,9 @@ export default async function ClinicAdminPage() {
                 {clinicName}
               </h1>
             </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: "rgba(45,212,191,0.08)", border: "1px solid rgba(45,212,191,0.18)" }}>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: "rgb(var(--accent-1-rgb) / 0.08)", border: "1px solid rgb(var(--accent-1-rgb) / 0.18)" }}>
               <span className="live-dot" />
-              <span className="text-[11px] font-semibold" style={{ color: "#5dd9cb" }}>مباشر</span>
+              <span className="text-[11px] font-semibold" style={{ color: "var(--accent-1)" }}>مباشر</span>
             </div>
           </div>
 
@@ -367,8 +367,8 @@ export default async function ClinicAdminPage() {
             <div className="relative flex-1 space-y-2">
               <p className="eyebrow">مواعيد اليوم</p>
               {[
-                { label: "مكتمل",  v: completed,  c: "rgba(45,212,191,0.55)" },
-                { label: "جارٍ",   v: inProgress, c: "#2dd4bf" },
+                { label: "مكتمل",  v: completed,  c: "rgb(var(--accent-1-rgb) / 0.55)" },
+                { label: "جارٍ",   v: inProgress, c: "var(--accent-1)" },
                 { label: "انتظار", v: pending,    c: "rgba(255,255,255,0.3)" },
                 { label: "غياب",  v: noShow,     c: "rgba(244,63,94,0.6)" },
               ].map((s) => (
@@ -386,7 +386,7 @@ export default async function ClinicAdminPage() {
                 <div className="pt-1.5 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
                   <div className="flex items-center justify-between">
                     <span className="text-[10px]" style={{ color: "var(--text-4)" }}>معدل الإتمام</span>
-                    <span className="text-[11px] font-bold ltr-nums" style={{ color: completionRate >= 70 ? "#5dd9cb" : "var(--text-1)" }}>
+                    <span className="text-[11px] font-bold ltr-nums" style={{ color: completionRate >= 70 ? "var(--accent-1)" : "var(--text-1)" }}>
                       {completionRate}%
                     </span>
                   </div>
@@ -459,7 +459,7 @@ export default async function ClinicAdminPage() {
           label: "طابور سُرى",
           value: hitlCount,
           sub: hitlCount > 0 ? "تحتاج مراجعة فورية" : "الطابور فارغ ✓",
-          color: hitlCount > 0 ? "#2dd4bf" : "var(--text-2)",
+          color: hitlCount > 0 ? "var(--accent-1)" : "var(--text-2)",
           glow: "", border: "",
           spark: [0, 1, 0, 0, 1, 2, hitlCount],
           iconName: "Bot",
@@ -478,9 +478,9 @@ export default async function ClinicAdminPage() {
             <div className="section-title">
               <TawdBarsGlyph size={13} />
               <h2>جدول اليوم الحي</h2>
-              <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ background: "rgba(45,212,191,0.08)", border: "1px solid rgba(45,212,191,0.16)" }}>
+              <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ background: "rgb(var(--accent-1-rgb) / 0.08)", border: "1px solid rgb(var(--accent-1-rgb) / 0.16)" }}>
                 <span className="live-dot" style={{ width: 4, height: 4 }} />
-                <span className="text-[9px] font-bold" style={{ color: "#5dd9cb" }}>LIVE</span>
+                <span className="text-[9px] font-bold" style={{ color: "var(--accent-1)" }}>LIVE</span>
               </div>
             </div>
             <a

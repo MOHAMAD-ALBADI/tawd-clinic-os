@@ -101,8 +101,8 @@ export function ScheduleEditor({
                 key={d.day}
                 className="flex items-center gap-3 px-3 py-2 rounded-xl flex-wrap"
                 style={{
-                  background: d.active ? "rgba(45,212,191,0.05)" : "rgba(255,255,255,0.02)",
-                  border: `1px solid ${d.active ? "rgba(45,212,191,0.16)" : "rgba(255,255,255,0.05)"}`,
+                  background: d.active ? "rgb(var(--accent-1-rgb) / 0.05)" : "rgba(255,255,255,0.02)",
+                  border: `1px solid ${d.active ? "rgb(var(--accent-1-rgb) / 0.16)" : "rgba(255,255,255,0.05)"}`,
                 }}
               >
                 <button

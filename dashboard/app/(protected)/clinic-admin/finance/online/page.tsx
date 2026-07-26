@@ -53,7 +53,7 @@ export default async function OnlinePaymentsPage() {
   const conversion = decided > 0 ? Math.round((paid.length / decided) * 100) : 0;
 
   const kpis = [
-    { label: "محصَّل إلكترونياً", value: fmt(collected), Icon: CheckCircle2, color: "#5dd9cb" },
+    { label: "محصَّل إلكترونياً", value: fmt(collected), Icon: CheckCircle2, color: "var(--accent-1)" },
     { label: "بانتظار الدفع", value: fmt(awaiting), Icon: Clock, color: "#fbbf24" },
     { label: "روابط مرسلة", value: String(links.length), Icon: Smartphone, color: "var(--accent-1)" },
     { label: "نسبة الإتمام", value: decided > 0 ? `${conversion}%` : "—", Icon: Percent, color: "var(--accent-1)" },

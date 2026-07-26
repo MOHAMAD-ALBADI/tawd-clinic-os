@@ -12,9 +12,9 @@ import type { PlanRow } from "@/components/treatment/treatment-plans-manager";
 const STATUS: Record<string, { label: string; color: string }> = {
   draft: { label: "مسودّة", color: "#a1a1aa" },
   proposed: { label: "معروضة", color: "#fbbf24" },
-  accepted: { label: "مقبولة", color: "#5dd9cb" },
-  in_progress: { label: "جارية", color: "#2dd4bf" },
-  completed: { label: "مكتملة", color: "#5dd9cb" },
+  accepted: { label: "مقبولة", color: "var(--accent-1)" },
+  in_progress: { label: "جارية", color: "var(--accent-1)" },
+  completed: { label: "مكتملة", color: "var(--accent-1)" },
   cancelled: { label: "ملغاة", color: "#71717a" },
 };
 const fmt = (v: number) =>

@@ -14,7 +14,7 @@ export type PayableInvoice = { id: string; invoice_number: string; patient_name:
 
 const STATUS: Record<string, { label: string; color: string }> = {
   pending:   { label: "بانتظار الدفع", color: "#fbbf24" },
-  paid:      { label: "مدفوع",          color: "#5dd9cb" },
+  paid:      { label: "مدفوع",          color: "var(--accent-1)" },
   expired:   { label: "منتهي",          color: "#a1a1aa" },
   cancelled: { label: "ملغى",           color: "#71717a" },
 };
@@ -78,7 +78,7 @@ export function ThawaniBoard({
 
       {flash && (
         <div className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-xl mb-3"
-          style={{ background: "rgba(45,212,191,0.1)", border: "1px solid rgba(45,212,191,0.25)", color: "#5dd9cb" }}>
+          style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", border: "1px solid rgb(var(--accent-1-rgb) / 0.25)", color: "var(--accent-1)" }}>
           <CheckCircle2 className="w-4 h-4" /> {flash}
         </div>
       )}
@@ -154,7 +154,7 @@ export function ThawaniBoard({
                       {l.status === "pending" && (
                         <div className="flex items-center justify-end gap-1.5">
                           <button className="btn-ghost" disabled={pending} onClick={() => copy(l.url, l.id)} title="نسخ الرابط">
-                            {copied === l.id ? <Check className="w-3.5 h-3.5" style={{ color: "#5dd9cb" }} /> : <Copy className="w-3.5 h-3.5" />}
+                            {copied === l.id ? <Check className="w-3.5 h-3.5" style={{ color: "var(--accent-1)" }} /> : <Copy className="w-3.5 h-3.5" />}
                           </button>
                           <button className="btn-ghost" disabled={pending} onClick={() => send(l.id)} title="إرسال على واتساب">
                             <Send className="w-3.5 h-3.5" />

@@ -21,13 +21,13 @@ export function AppointmentsTable({ appts }: { appts: ApptRow[] }) {
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <div
           className="w-16 h-16 rounded-2xl flex items-center justify-center"
-          style={{ background: "rgba(20,184,166,0.1)", border: "1px solid rgba(20,184,166,0.2)" }}
+          style={{ background: "rgb(var(--accent-2-rgb) / 0.1)", border: "1px solid rgb(var(--accent-2-rgb) / 0.2)" }}
         >
-          <Calendar className="w-8 h-8" style={{ color: "#14b8a6" }} />
+          <Calendar className="w-8 h-8" style={{ color: "var(--accent-2)" }} />
         </div>
         <div className="text-center">
           <p className="font-semibold text-white">لا توجد مواعيد</p>
-          <p className="text-sm mt-1" style={{ color: "rgba(148,163,184,0.6)" }}>
+          <p className="text-sm mt-1" style={{ color: "var(--text-3)" }}>
             اضغط "موعد جديد" لإضافة أول موعد
           </p>
         </div>
@@ -44,7 +44,7 @@ export function AppointmentsTable({ appts }: { appts: ApptRow[] }) {
               <th
                 key={hi}
                 className="text-right py-3.5 px-5 text-[12px] font-semibold"
-                style={{ color: "rgba(148,163,184,0.6)" }}
+                style={{ color: "var(--text-3)" }}
               >
                 {h}
               </th>
@@ -57,18 +57,18 @@ export function AppointmentsTable({ appts }: { appts: ApptRow[] }) {
               key={row.id}
               className="transition-all duration-150 cursor-default"
               style={{ borderBottom: i < appts.length - 1 ? "1px solid rgba(255,255,255,0.05)" : undefined }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(20,184,166,0.06)"; }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgb(var(--accent-2-rgb) / 0.06)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = ""; }}
             >
               <td className="py-3.5 px-5">
                 <div className="font-medium ltr-nums text-white">{formatDate(row.slot_time)}</div>
-                <div className="text-xs ltr-nums mt-0.5" style={{ color: "rgba(148,163,184,0.5)" }}>
+                <div className="text-xs ltr-nums mt-0.5" style={{ color: "var(--text-3)" }}>
                   {formatTime(row.slot_time)}
                 </div>
               </td>
               <td className="py-3.5 px-5 font-semibold text-white">{row.patient_name}</td>
-              <td className="py-3.5 px-5" style={{ color: "rgba(148,163,184,0.7)" }}>{row.service_name}</td>
-              <td className="py-3.5 px-5" style={{ color: "rgba(148,163,184,0.7)" }}>
+              <td className="py-3.5 px-5" style={{ color: "var(--text-2)" }}>{row.service_name}</td>
+              <td className="py-3.5 px-5" style={{ color: "var(--text-2)" }}>
                 {row.doctor_name !== "—" ? `د. ${row.doctor_name}` : "—"}
               </td>
               <td className="py-3.5 px-5">

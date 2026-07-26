@@ -64,9 +64,9 @@ export default async function AppointmentsPage() {
       {/* ── HEADER ── */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1" style={{ color: "rgba(20,184,166,0.5)" }}>SCHEDULE</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1" style={{ color: "rgb(var(--accent-2-rgb) / 0.5)" }}>SCHEDULE</p>
           <h2 className="text-2xl font-black text-white tracking-tight leading-none">المواعيد</h2>
-          <p className="text-[12px] mt-1" style={{ color: "rgba(148,163,184,0.4)" }}>
+          <p className="text-[12px] mt-1" style={{ color: "var(--text-4)" }}>
             <span className="ltr-nums font-bold text-white">{total}</span> موعد مسجّل
           </p>
         </div>
@@ -91,12 +91,11 @@ export default async function AppointmentsPage() {
                 background: "rgba(255,255,255,0.018)",
                 border: `1px solid ${s.color}18`,
                 padding: "1.1rem 1.2rem",
-                backdropFilter: "blur(16px)",
               }}
             >
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em]"
-                  style={{ color: "rgba(148,163,184,0.35)" }}>{s.label}</p>
+                  style={{ color: "var(--text-4)" }}>{s.label}</p>
                 <div className="w-6 h-6 rounded-lg flex items-center justify-center"
                   style={{ background: `${s.color}14` }}>
                   <s.Icon className="w-3 h-3" style={{ color: s.color }} />
@@ -121,10 +120,9 @@ export default async function AppointmentsPage() {
           style={{
             background: "rgba(255,255,255,0.018)",
             border: "1px solid rgba(255,255,255,0.055)",
-            backdropFilter: "blur(16px)",
           }}
         >
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] mb-3" style={{ color: "rgba(148,163,184,0.3)" }}>
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] mb-3" style={{ color: "var(--text-4)" }}>
             نسبة الإكمال
           </p>
           <div className="relative mb-2">
@@ -138,19 +136,19 @@ export default async function AppointmentsPage() {
               />
               <defs>
                 <linearGradient id="appt-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#0f766e" />
+                  <stop offset="0%" stopColor="var(--accent-3)" />
                   <stop offset="100%" stopColor="#4ADE80" />
                 </linearGradient>
               </defs>
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="font-black ltr-nums text-xl leading-none"
-                style={{ color: completionPct > 0 ? "#4ADE80" : "rgba(148,163,184,0.2)" }}>
+                style={{ color: completionPct > 0 ? "#4ADE80" : "var(--text-4)" }}>
                 {completionPct}%
               </span>
             </div>
           </div>
-          <p className="text-[10px] text-center" style={{ color: "rgba(148,163,184,0.35)" }}>
+          <p className="text-[10px] text-center" style={{ color: "var(--text-4)" }}>
             {done} مكتمل من {total}
           </p>
         </div>
@@ -162,17 +160,16 @@ export default async function AppointmentsPage() {
         style={{
           background: "rgba(255,255,255,0.018)",
           border: "1px solid rgba(255,255,255,0.055)",
-          backdropFilter: "blur(20px)",
         }}
       >
         <div className="flex items-center justify-between px-6 py-4"
           style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: "rgba(148,163,184,0.3)" }}>LOG</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: "var(--text-4)" }}>LOG</p>
             <p className="text-sm font-bold text-white mt-0.5">قائمة المواعيد</p>
           </div>
           <span className="text-[11px] font-bold ltr-nums px-2.5 py-1 rounded-full"
-            style={{ background: "rgba(20,184,166,0.08)", color: "rgba(94,217,203,0.7)", border: "1px solid rgba(20,184,166,0.15)" }}>
+            style={{ background: "rgb(var(--accent-2-rgb) / 0.08)", color: "rgb(var(--accent-1-rgb) / 0.7)", border: "1px solid rgb(var(--accent-2-rgb) / 0.15)" }}>
             {total}
           </span>
         </div>

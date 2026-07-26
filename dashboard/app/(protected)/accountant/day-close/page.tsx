@@ -70,7 +70,7 @@ export default async function DayClosePage() {
                       كاش {fmt(Number(h.system_cash))} · شبكة {fmt(Number(h.system_card))}
                     </span>
                     <span className="text-[11px] font-bold ltr-nums shrink-0"
-                      style={{ color: ok ? "#5dd9cb" : "#fcd34d" }}>
+                      style={{ color: ok ? "var(--accent-1)" : "#fcd34d" }}>
                       {ok ? "مطابق ✓" : `فرق ${fmt(Number(h.variance))}`}
                     </span>
                   </div>

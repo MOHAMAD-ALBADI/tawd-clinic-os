@@ -31,7 +31,7 @@ export default async function CommissionsPage() {
   const kpis = [
     { label: "بانتظار الاعتماد", value: fmt(sum("pending")), Icon: Clock, color: "#fbbf24" },
     { label: "معتمدة غير مدفوعة", value: fmt(sum("approved")), Icon: Percent, color: "#38bdf8" },
-    { label: "مدفوعة", value: fmt(sum("paid")), Icon: CheckCircle2, color: "#5dd9cb" },
+    { label: "مدفوعة", value: fmt(sum("paid")), Icon: CheckCircle2, color: "var(--accent-1)" },
   ];
 
   return (

@@ -50,7 +50,7 @@ export function StaffManager({ staff, selfId }: { staff: StaffRow[]; selfId: str
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3 flex-wrap">
           {[
-            { label: "الفريق", value: staff.length, color: "#5dd9cb" },
+            { label: "الفريق", value: staff.length, color: "var(--accent-1)" },
             { label: "الأطباء", value: staff.filter((s) => appRoles(s.all_roles).includes("doctor")).length, color: "#38bdf8" },
             { label: "نشطون", value: active.length, color: "#4ADE80" },
             ...(disabled.length ? [{ label: "معطّلون", value: disabled.length, color: "#F87171" }] : []),
@@ -69,7 +69,7 @@ export function StaffManager({ staff, selfId }: { staff: StaffRow[]; selfId: str
 
       {flash && (
         <div className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-xl"
-          style={{ background: "rgba(45,212,191,0.1)", border: "1px solid rgba(45,212,191,0.25)", color: "#5dd9cb" }}>
+          style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", border: "1px solid rgb(var(--accent-1-rgb) / 0.25)", color: "var(--accent-1)" }}>
           <CheckCircle2 className="w-4 h-4" /> {flash}
         </div>
       )}
@@ -241,7 +241,7 @@ export function StaffManager({ staff, selfId }: { staff: StaffRow[]; selfId: str
 /* ── modal shell ── */
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.65)" }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.9)" }}>
       <div className="w-full glass" style={{ maxWidth: 560, borderRadius: "1.25rem", padding: "1.5rem", maxHeight: "88vh", overflowY: "auto" }}>
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-[15px] font-black text-white">{title}</h3>
@@ -350,8 +350,8 @@ function StaffForm({
                 <button key={m} type="button" onClick={() => setMode(m)}
                   className="text-[12px] font-bold px-3 py-1.5 rounded-xl transition-colors"
                   style={{
-                    background: mode === m ? "rgba(45,212,191,0.12)" : "rgba(255,255,255,0.03)",
-                    border: `1px solid ${mode === m ? "rgba(45,212,191,0.35)" : "var(--hairline)"}`,
+                    background: mode === m ? "rgb(var(--accent-1-rgb) / 0.12)" : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${mode === m ? "rgb(var(--accent-1-rgb) / 0.35)" : "var(--hairline)"}`,
                     color: mode === m ? "var(--accent-1)" : "var(--text-3)",
                   }}>
                   {label}

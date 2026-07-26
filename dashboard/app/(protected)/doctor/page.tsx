@@ -11,9 +11,9 @@ export const metadata = { title: "جدولي اليوم — طود" };
 const STATUS: Record<string, { label: string; color: string }> = {
   scheduled:   { label: "مجدول",      color: "#a1a1aa" },
   confirmed:   { label: "مؤكد",       color: "#e4e4e7" },
-  checked_in:  { label: "حضَر",       color: "#5dd9cb" },
-  in_progress: { label: "جارٍ الكشف", color: "#2dd4bf" },
-  completed:   { label: "مكتمل",      color: "#5dd9cb" },
+  checked_in:  { label: "حضَر",       color: "var(--accent-1)" },
+  in_progress: { label: "جارٍ الكشف", color: "var(--accent-1)" },
+  completed:   { label: "مكتمل",      color: "var(--accent-1)" },
   cancelled:   { label: "ملغي",       color: "#71717a" },
   no_show:     { label: "لم يحضر",    color: "#fda4b4" },
 };
@@ -201,8 +201,8 @@ export default async function DoctorTodayPage() {
                   key={a.id}
                   className="flex items-center gap-4 px-4 py-3 rounded-xl flex-wrap"
                   style={{
-                    background: active ? "rgba(45,212,191,0.05)" : "rgba(255,255,255,0.02)",
-                    border: `1px solid ${active ? "rgba(45,212,191,0.2)" : "rgba(255,255,255,0.05)"}`,
+                    background: active ? "rgb(var(--accent-1-rgb) / 0.05)" : "rgba(255,255,255,0.02)",
+                    border: `1px solid ${active ? "rgb(var(--accent-1-rgb) / 0.2)" : "rgba(255,255,255,0.05)"}`,
                   }}
                 >
                   <span className="text-sm font-bold ltr-nums w-16 shrink-0 text-white">{fmtTime(a.slot_time)}</span>
@@ -236,7 +236,7 @@ export default async function DoctorTodayPage() {
                     <Link
                       href={`/doctor/exam/${a.id}`}
                       className="text-[11px] font-bold px-2.5 py-1 rounded-lg shrink-0"
-                      style={{ background: "rgba(45,212,191,0.1)", border: "1px solid rgba(45,212,191,0.2)", color: "#5dd9cb" }}
+                      style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", border: "1px solid rgb(var(--accent-1-rgb) / 0.2)", color: "var(--accent-1)" }}
                     >
                       الكشف
                     </Link>

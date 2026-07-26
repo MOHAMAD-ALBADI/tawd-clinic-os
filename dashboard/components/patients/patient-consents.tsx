@@ -61,7 +61,7 @@ export function PatientConsents({ patientId, consents }: { patientId: string; co
           لا توجد موافقة على معالجة البيانات — مطلوبة نظاماً (قانون حماية البيانات العُماني)
         </div>
       )}
-      {flash && <div className="flex items-center gap-2 text-[12px] px-3 py-2 rounded-xl mb-3" style={{ background: "rgba(45,212,191,0.1)", color: "#5dd9cb" }}><CheckCircle2 className="w-3.5 h-3.5" /> {flash}</div>}
+      {flash && <div className="flex items-center gap-2 text-[12px] px-3 py-2 rounded-xl mb-3" style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", color: "var(--accent-1)" }}><CheckCircle2 className="w-3.5 h-3.5" /> {flash}</div>}
       {err && <p className="text-[12px] mb-2 flex items-center gap-1.5" style={{ color: "#fda4b4" }}><AlertTriangle className="w-3.5 h-3.5" /> {err}</p>}
 
       {consents.length === 0 ? (
@@ -71,7 +71,7 @@ export function PatientConsents({ patientId, consents }: { patientId: string; co
           {consents.map((c) => (
             <div key={c.id} className="flex items-center gap-3 px-3 py-2 rounded-xl"
               style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--hairline)" }}>
-              <FileSignature className="w-3.5 h-3.5 shrink-0" style={{ color: c.is_active ? "#5dd9cb" : "var(--text-4)" }} />
+              <FileSignature className="w-3.5 h-3.5 shrink-0" style={{ color: c.is_active ? "var(--accent-1)" : "var(--text-4)" }} />
               <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-semibold truncate" style={{ color: c.is_active ? "#fff" : "var(--text-3)" }}>
                   {TYPE_AR[c.consent_type] ?? c.consent_type}
@@ -93,7 +93,7 @@ export function PatientConsents({ patientId, consents }: { patientId: string; co
       )}
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }} onClick={() => setOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.9)" }} onClick={() => setOpen(false)}>
           <div className="w-full max-w-sm panel-feature" style={{ padding: "1.5rem" }} onClick={(e) => e.stopPropagation()}>
             <button onClick={() => setOpen(false)} className="float-start" style={{ color: "var(--text-4)" }}><X className="w-4 h-4" /></button>
             <h3 className="font-bold text-white text-lg mb-3">تسجيل موافقة</h3>

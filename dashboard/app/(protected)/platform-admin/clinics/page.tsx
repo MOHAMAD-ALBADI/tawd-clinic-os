@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
   trial:     { label: "تجريبي",  color: "#fcd34d" },
-  active:    { label: "نشطة",    color: "#5dd9cb" },
+  active:    { label: "نشطة",    color: "var(--accent-1)" },
   suspended: { label: "موقوفة",  color: "#fda4b4" },
   cancelled: { label: "ملغاة",   color: "#71717a" },
 };
@@ -90,7 +90,7 @@ export default async function ClinicsPage() {
                 </p>
               </div>
               <MessageCircle className="w-3.5 h-3.5 shrink-0"
-                style={{ color: waLinked.has(c.id) ? "#5dd9cb" : "var(--text-4)" }} />
+                style={{ color: waLinked.has(c.id) ? "var(--accent-1)" : "var(--text-4)" }} />
               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1"
                 style={{ background: "rgba(255,255,255,0.045)", border: "1px solid rgba(255,255,255,0.08)", color: st.color }}>
                 <span className="w-1 h-1 rounded-full" style={{ background: st.color }} />

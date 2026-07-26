@@ -38,7 +38,7 @@ export default async function SubscriptionsPage() {
           <h2 className="text-xl font-bold text-white">الاشتراكات</h2>
           <p className="text-sm mt-0.5" style={{ color: "var(--text-3)" }}>
             MRR: <span className="font-bold ltr-nums text-white">{fmt(mrr)} ر.ع</span>
-            {" · "}منتهية: <span className="font-bold ltr-nums" style={{ color: overdue > 0 ? "#fda4b4" : "#5dd9cb" }}>{overdue}</span>
+            {" · "}منتهية: <span className="font-bold ltr-nums" style={{ color: overdue > 0 ? "#fda4b4" : "var(--accent-1)" }}>{overdue}</span>
           </p>
         </div>
         <Link href="/platform-admin/broadcast" className="btn-ghost">📣 مراسلة غير المجددين</Link>

@@ -15,7 +15,7 @@ export const metadata = { title: "ملف العيادة — طود" };
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
   trial:     { label: "تجريبي",  color: "#fcd34d" },
-  active:    { label: "نشطة",    color: "#5dd9cb" },
+  active:    { label: "نشطة",    color: "var(--accent-1)" },
   suspended: { label: "موقوفة",  color: "#fda4b4" },
   cancelled: { label: "ملغاة",   color: "#71717a" },
 };
@@ -83,7 +83,7 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
             <Scissors className="w-3.5 h-3.5" style={{ color: "var(--text-3)" }} />
             <span className="font-bold text-white ltr-nums">{(services ?? []).length}</span> خدمة مفعّلة
           </span>
-          <span className="flex items-center gap-1.5" style={{ color: wa?.is_active ? "#5dd9cb" : "#fcd34d" }}>
+          <span className="flex items-center gap-1.5" style={{ color: wa?.is_active ? "var(--accent-1)" : "#fcd34d" }}>
             <MessageCircle className="w-3.5 h-3.5" />
             سُرى واتساب: {wa?.is_active ? "مربوطة ✓" : "غير مربوطة — إعداد تقني من فريق طود"}
           </span>

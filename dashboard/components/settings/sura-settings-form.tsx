@@ -53,23 +53,23 @@ export function SuraSettingsForm({ initial }: { initial: SuraSettings }) {
   const Label = ({ children, hint }: { children: React.ReactNode; hint?: string }) => (
     <div className="mb-1.5">
       <span className="text-sm font-semibold text-white">{children}</span>
-      {hint && <span className="text-[11px] mr-2" style={{ color: "rgba(148,163,184,0.5)" }}>{hint}</span>}
+      {hint && <span className="text-[11px] mr-2" style={{ color: "var(--text-3)" }}>{hint}</span>}
     </div>
   );
 
   return (
     <div
       className="rounded-2xl p-6"
-      style={{ background: "rgba(6,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(20px)" }}
+      style={{ background: "rgba(6,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)" }}
     >
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(20,184,166,0.12)", border: "1px solid rgba(20,184,166,0.2)" }}>
-            <Sparkles className="w-4 h-4" style={{ color: "#5dd9cb" }} />
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgb(var(--accent-2-rgb) / 0.12)", border: "1px solid rgb(var(--accent-2-rgb) / 0.2)" }}>
+            <Sparkles className="w-4 h-4" style={{ color: "var(--accent-1)" }} />
           </div>
           <div>
             <h3 className="font-bold text-white">إعدادات سُرى — المساعدة الذكية</h3>
-            <p className="text-[11px] mt-0.5" style={{ color: "rgba(148,163,184,0.5)" }}>
+            <p className="text-[11px] mt-0.5" style={{ color: "var(--text-3)" }}>
               شخصية سُرى وتعليماتها ومعرفتها عن عيادتك — تنعكس فوراً على واتساب
             </p>
           </div>
@@ -85,7 +85,7 @@ export function SuraSettingsForm({ initial }: { initial: SuraSettings }) {
             onClick={handleSave}
             disabled={pending}
             className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-xl font-bold disabled:opacity-50 transition-all"
-            style={{ background: "linear-gradient(135deg, #0d9488, #0f766e)", color: "white" }}
+            style={{ background: "linear-gradient(135deg, var(--accent-2), var(--accent-3))", color: "white" }}
           >
             <Save className="w-3.5 h-3.5" />
             {pending ? "جارٍ الحفظ..." : "حفظ التغييرات"}
@@ -130,7 +130,7 @@ export function SuraSettingsForm({ initial }: { initial: SuraSettings }) {
         <div>
           <Label hint="الصق هنا معلومات وملفات عيادتك النصية — سُرى تجاوب منها"><BookOpen className="inline w-3.5 h-3.5 ml-1" />قاعدة معرفة العيادة</Label>
           <textarea style={{ ...fieldStyle, minHeight: "180px", resize: "vertical", lineHeight: "1.8" }} value={knowledge} onChange={(e) => setKnowledge(e.target.value)} placeholder={"سياسة الإلغاء، التأمينات المقبولة، الأسئلة الشائعة، تفاصيل الخدمات، مواقف السيارات...\nالصق محتوى ملفات العيادة هنا وسُرى تجاوب منها مباشرة."} />
-          <p className="text-[11px] mt-1.5" style={{ color: "rgba(148,163,184,0.45)" }}>
+          <p className="text-[11px] mt-1.5" style={{ color: "var(--text-3)" }}>
             💡 الخدمات والأسعار تُدار من صفحة «الخدمات»، والدوام من «ساعات العمل». هنا للمعلومات النصية فقط.
           </p>
         </div>

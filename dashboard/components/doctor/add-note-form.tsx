@@ -28,7 +28,7 @@ export function AddNoteForm({ patientId }: { patientId: string }) {
   return (
     <div className="rounded-2xl p-5" style={{ background: "rgba(6,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)" }}>
       <div className="flex items-center gap-2 mb-3">
-        <NotebookPen className="w-4 h-4" style={{ color: "#5dd9cb" }} />
+        <NotebookPen className="w-4 h-4" style={{ color: "var(--accent-1)" }} />
         <h3 className="font-bold text-white text-sm">إضافة ملاحظة سريرية</h3>
       </div>
       {error && <div className="text-xs py-2 px-3 rounded-lg mb-3" style={{ background: "rgba(239,68,68,0.08)", color: "#F87171" }}>{error}</div>}
@@ -40,11 +40,11 @@ export function AddNoteForm({ patientId }: { patientId: string }) {
       />
       <div className="flex items-center justify-between mt-3">
         <button onClick={() => setIsPrivate((p) => !p)} className="flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1.5 rounded-lg"
-          style={{ background: isPrivate ? "rgba(56,189,248,0.1)" : "rgba(255,255,255,0.04)", border: `1px solid ${isPrivate ? "rgba(56,189,248,0.25)" : "rgba(255,255,255,0.08)"}`, color: isPrivate ? "#38bdf8" : "rgba(148,163,184,0.6)" }}>
+          style={{ background: isPrivate ? "rgba(56,189,248,0.1)" : "rgba(255,255,255,0.04)", border: `1px solid ${isPrivate ? "rgba(56,189,248,0.25)" : "rgba(255,255,255,0.08)"}`, color: isPrivate ? "#38bdf8" : "var(--text-3)" }}>
           <Lock className="w-3 h-3" /> {isPrivate ? "خاصة (للطبيب فقط)" : "مرئية للكادر"}
         </button>
         <button onClick={save} disabled={pending || !text.trim()} className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-xl disabled:opacity-50"
-          style={{ background: "linear-gradient(135deg,#0d9488,#0f766e)", color: "white" }}>
+          style={{ background: "linear-gradient(135deg,var(--accent-2),var(--accent-3))", color: "white" }}>
           {pending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />} حفظ الملاحظة
         </button>
       </div>

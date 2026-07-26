@@ -29,7 +29,7 @@ export function VatNumberForm({ current }: { current: string | null }) {
   return (
     <div className="panel" style={{ padding: "1.25rem" }}>
       <div className="flex items-center gap-3 mb-1.5">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(45,212,191,0.1)", border: "1px solid rgba(45,212,191,0.22)" }}>
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", border: "1px solid rgb(var(--accent-1-rgb) / 0.22)" }}>
           <ReceiptText className="w-4 h-4" style={{ color: "var(--accent-1)" }} />
         </div>
         <div>

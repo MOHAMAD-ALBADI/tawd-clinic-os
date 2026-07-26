@@ -47,7 +47,7 @@ export function AppErrorsPanel({ errors }: { errors: AppErrorRow[] }) {
         أخطاء لوحة التحكم <span className="text-[11px] font-normal" style={{ color: "var(--text-4)" }}>(متتبّع طود الخاص)</span>
       </h3>
       {errors.length === 0 ? (
-        <p className="text-[12px]" style={{ color: "#5dd9cb" }}>لا أخطاء ✓</p>
+        <p className="text-[12px]" style={{ color: "var(--accent-1)" }}>لا أخطاء ✓</p>
       ) : (
         <div className="space-y-1.5">
           {errors.map((e) => {
@@ -64,7 +64,7 @@ export function AppErrorsPanel({ errors }: { errors: AppErrorRow[] }) {
                 </div>
                 <button title="تعليم كمُراجَع" disabled={pending} onClick={() => resolve(e.id)}
                   className="w-7 h-7 rounded-lg inline-flex items-center justify-center shrink-0"
-                  style={{ background: "rgba(45,212,191,0.12)", border: "1px solid rgba(45,212,191,0.28)", color: "#5dd9cb" }}>
+                  style={{ background: "rgb(var(--accent-1-rgb) / 0.12)", border: "1px solid rgb(var(--accent-1-rgb) / 0.28)", color: "var(--accent-1)" }}>
                   <CheckCircle2 className="w-3.5 h-3.5" />
                 </button>
               </div>

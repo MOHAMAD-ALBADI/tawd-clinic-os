@@ -55,7 +55,7 @@ export function SubscriptionCard({
         </h3>
         {daysLeft !== null && (
           <span className="text-[11px] font-bold ltr-nums"
-            style={{ color: daysLeft <= 0 ? "#fda4b4" : daysLeft <= 7 ? "#fcd34d" : "#5dd9cb" }}>
+            style={{ color: daysLeft <= 0 ? "#fda4b4" : daysLeft <= 7 ? "#fcd34d" : "var(--accent-1)" }}>
             {daysLeft <= 0 ? "منتهي!" : `باقي ${daysLeft} يوم`}
           </span>
         )}
@@ -81,7 +81,7 @@ export function SubscriptionCard({
         </div>
       </div>
 
-      {msg && <p className="text-[12px] font-semibold mt-3" style={{ color: msg.bad ? "#fda4b4" : "#5dd9cb" }}>{msg.text}</p>}
+      {msg && <p className="text-[12px] font-semibold mt-3" style={{ color: msg.bad ? "#fda4b4" : "var(--accent-1)" }}>{msg.text}</p>}
 
       <div className="flex gap-2 mt-4">
         <button onClick={save} disabled={pending} className="btn-ghost flex-1">حفظ</button>
@@ -121,7 +121,7 @@ export function ClinicWhatsApp({ clinicId, hasPhone }: { clinicId: string; hasPh
       </p>
       <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} className="field" style={{ resize: "vertical" }}
         placeholder="مثال: اشتراككم ينتهي بعد ٣ أيام — للتجديد تواصلوا معنا" />
-      {msg && <p className="text-[12px] font-semibold mt-2" style={{ color: msg.bad ? "#fda4b4" : "#5dd9cb" }}>{msg.text}</p>}
+      {msg && <p className="text-[12px] font-semibold mt-2" style={{ color: msg.bad ? "#fda4b4" : "var(--accent-1)" }}>{msg.text}</p>}
       <button onClick={send} disabled={pending || !text.trim() || !hasPhone} className="btn-primary w-full mt-3">
         <Send className="w-3.5 h-3.5" /> {pending ? "جارٍ الإرسال…" : "إرسال"}
       </button>
@@ -178,7 +178,7 @@ export function CostsCard({
           { l: "حجم قاعدة البيانات", v: dbSizeMb !== null ? `${dbSizeMb} MB` : "—", sub: "من أصل 500MB (خطة Supabase المجانية)" },
           { l: "تشغيلات الأتمتة/24س", v: n8nRuns24h !== null ? n8nRuns24h.toLocaleString("en-US") : "—", sub: "n8n على خادمك الخاص" },
         ].map((k) => (
-          <div key={k.l} className="rounded-xl px-3 py-2.5" style={{ background: "rgba(45,212,191,0.04)", border: "1px solid rgba(45,212,191,0.12)" }}>
+          <div key={k.l} className="rounded-xl px-3 py-2.5" style={{ background: "rgb(var(--accent-1-rgb) / 0.04)", border: "1px solid rgb(var(--accent-1-rgb) / 0.12)" }}>
             <p className="text-[9px] mb-1" style={{ color: "var(--text-4)" }}>{k.l}</p>
             <p className="text-sm font-bold ltr-nums text-white">{k.v}</p>
             <p className="text-[9px]" style={{ color: "var(--text-4)" }}>{k.sub}</p>
@@ -270,7 +270,7 @@ export function ImpersonateButton({ clinicId }: { clinicId: string }) {
           </button>
         </div>
       )}
-      {reqMsg && <p className="text-[12px] mt-2" style={{ color: "#5dd9cb" }}>{reqMsg}</p>}
+      {reqMsg && <p className="text-[12px] mt-2" style={{ color: "var(--accent-1)" }}>{reqMsg}</p>}
       {err && <p className="text-[12px] mt-2" style={{ color: "#fda4b4" }}>{err}</p>}
     </div>
   );
@@ -294,7 +294,7 @@ export function SupportAccessBanner({ requestId }: { requestId: string }) {
   if (done) return <div className="badge badge-brand mb-1">{done}</div>;
   return (
     <div className="rounded-2xl flex items-center gap-3 px-4 py-3 flex-wrap"
-      style={{ background: "rgba(45,212,191,0.06)", border: "1px solid rgba(45,212,191,0.25)" }}>
+      style={{ background: "rgb(var(--accent-1-rgb) / 0.06)", border: "1px solid rgb(var(--accent-1-rgb) / 0.25)" }}>
       <p className="text-[13px] font-semibold text-white flex-1">
         🛠️ فريق طود يطلب إذن الدخول للوحتكم للدعم الفني (صلاحية ساعة واحدة)
       </p>
@@ -344,9 +344,9 @@ export function PlatformBroadcast({
           <button key={k} onClick={() => setAudience(k)}
             className="text-[12px] font-bold px-3 py-1.5 rounded-lg"
             style={{
-              background: audience === k ? "rgba(45,212,191,0.12)" : "rgba(255,255,255,0.03)",
-              border: `1px solid ${audience === k ? "rgba(45,212,191,0.35)" : "rgba(255,255,255,0.08)"}`,
-              color: audience === k ? "#5dd9cb" : "var(--text-3)",
+              background: audience === k ? "rgb(var(--accent-1-rgb) / 0.12)" : "rgba(255,255,255,0.03)",
+              border: `1px solid ${audience === k ? "rgb(var(--accent-1-rgb) / 0.35)" : "rgba(255,255,255,0.08)"}`,
+              color: audience === k ? "var(--accent-1)" : "var(--text-3)",
             }}>
             {label}
           </button>
@@ -367,8 +367,8 @@ export function PlatformBroadcast({
 
       {err && <p className="text-[12px] font-semibold mt-3" style={{ color: "#fda4b4" }}>{err}</p>}
       {result && (
-        <div className="rounded-xl px-3 py-2.5 mt-3" style={{ background: "rgba(45,212,191,0.06)", border: "1px solid rgba(45,212,191,0.2)" }}>
-          <p className="text-[12px] font-semibold flex items-center gap-1.5" style={{ color: "#5dd9cb" }}>
+        <div className="rounded-xl px-3 py-2.5 mt-3" style={{ background: "rgb(var(--accent-1-rgb) / 0.06)", border: "1px solid rgb(var(--accent-1-rgb) / 0.2)" }}>
+          <p className="text-[12px] font-semibold flex items-center gap-1.5" style={{ color: "var(--accent-1)" }}>
             <CheckCircle2 className="w-3.5 h-3.5" /> أُرسلت لـ {result.sent} من {result.total}
           </p>
           {result.fails.length > 0 && (

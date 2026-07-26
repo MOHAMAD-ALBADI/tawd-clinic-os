@@ -25,9 +25,9 @@ export type SvcOpt = { id: string; label: string; price: number };
 const STATUS: Record<PlanStatus, { label: string; color: string }> = {
   draft: { label: "مسودّة", color: "#a1a1aa" },
   proposed: { label: "معروضة", color: "#fbbf24" },
-  accepted: { label: "مقبولة", color: "#5dd9cb" },
-  in_progress: { label: "جارية", color: "#2dd4bf" },
-  completed: { label: "مكتملة", color: "#5dd9cb" },
+  accepted: { label: "مقبولة", color: "var(--accent-1)" },
+  in_progress: { label: "جارية", color: "var(--accent-1)" },
+  completed: { label: "مكتملة", color: "var(--accent-1)" },
   cancelled: { label: "ملغاة", color: "#71717a" },
 };
 const fmt = (v: number) => new Intl.NumberFormat("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(v);
@@ -67,7 +67,7 @@ export function TreatmentPlansManager({ plans, patients, doctors, services }: {
           <div className="section-title"><ClipboardList className="w-3.5 h-3.5" style={{ color: "var(--accent-1)" }} /><h2>الخطط</h2></div>
           <button className="btn-primary" onClick={() => { setErr(null); setCreating(true); }}><Plus className="w-4 h-4" /> خطة</button>
         </div>
-        {flash && <div className="flex items-center gap-2 text-[12px] px-3 py-2 rounded-xl mb-3" style={{ background: "rgba(45,212,191,0.1)", color: "#5dd9cb" }}><CheckCircle2 className="w-3.5 h-3.5" /> {flash}</div>}
+        {flash && <div className="flex items-center gap-2 text-[12px] px-3 py-2 rounded-xl mb-3" style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", color: "var(--accent-1)" }}><CheckCircle2 className="w-3.5 h-3.5" /> {flash}</div>}
         {plans.length === 0 ? (
           <p className="text-sm text-center py-8" style={{ color: "var(--text-4)" }}>لا خطط بعد — أنشئ أول خطة علاج</p>
         ) : (
@@ -78,7 +78,7 @@ export function TreatmentPlansManager({ plans, patients, doctors, services }: {
               return (
                 <button key={p.id} onClick={() => setSelId(p.id)}
                   className="w-full text-start flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors"
-                  style={{ background: selId === p.id ? "rgba(45,212,191,0.08)" : "rgba(255,255,255,0.02)", border: `1px solid ${selId === p.id ? "rgba(45,212,191,0.3)" : "var(--hairline)"}` }}>
+                  style={{ background: selId === p.id ? "rgb(var(--accent-1-rgb) / 0.08)" : "rgba(255,255,255,0.02)", border: `1px solid ${selId === p.id ? "rgb(var(--accent-1-rgb) / 0.3)" : "var(--hairline)"}` }}>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-white text-[13px] truncate">{p.patient_name}</p>
                     <p className="text-[11px] truncate" style={{ color: "var(--text-4)" }}>{p.title} · {p.items.length ? `${done}/${p.items.length} منجز` : "لا بنود"}</p>
@@ -163,7 +163,7 @@ function PlanDetail({ plan, services, onStatus, onCancel, onDelete, onAddItem, o
       {plan.items.length > 0 && (
         <div className="mb-4">
           <div className="flex justify-between text-[11px] mb-1" style={{ color: "var(--text-3)" }}>
-            <span>التقدّم</span><span className="ltr-nums font-bold" style={{ color: "#5dd9cb" }}>{pct}% ({doneCount}/{plan.items.length})</span>
+            <span>التقدّم</span><span className="ltr-nums font-bold" style={{ color: "var(--accent-1)" }}>{pct}% ({doneCount}/{plan.items.length})</span>
           </div>
           <div className="rounded-full overflow-hidden" style={{ height: 5, background: "rgba(255,255,255,0.04)" }}>
             <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--accent-1)" }} />
@@ -178,7 +178,7 @@ function PlanDetail({ plan, services, onStatus, onCancel, onDelete, onAddItem, o
             <button title={i.status === "done" ? "منجز" : "تعليم كمنجز"} onClick={() => onToggle(i.id, i.status !== "done")}
               className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
               style={i.status === "done"
-                ? { background: "rgba(45,212,191,0.15)", border: "1px solid rgba(45,212,191,0.4)", color: "#5dd9cb" }
+                ? { background: "rgb(var(--accent-1-rgb) / 0.15)", border: "1px solid rgb(var(--accent-1-rgb) / 0.4)", color: "var(--accent-1)" }
                 : { background: "rgba(255,255,255,0.03)", border: "1px solid var(--hairline)", color: "var(--text-4)" }}>
               <Check className="w-3.5 h-3.5" />
             </button>
@@ -224,7 +224,7 @@ function CreatePlanModal({ patients, doctors, onSave, onClose, pending, err }: {
   const [f, setF] = useState({ patient_id: "", doctor_id: "", title: "خطة علاج" });
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.9)" }} onClick={onClose}>
       <div className="w-full max-w-md panel-feature" style={{ padding: "1.5rem" }} onClick={(e) => e.stopPropagation()}>
         <button onClick={onClose} className="float-start" style={{ color: "var(--text-4)" }}><X className="w-4 h-4" /></button>
         <h3 className="font-bold text-white text-lg mb-3">خطة علاج جديدة</h3>

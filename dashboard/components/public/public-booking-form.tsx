@@ -118,7 +118,7 @@ export function PublicBookingForm({
                 {alts.map((t) => (
                   <button key={t} onClick={() => submit(t)} disabled={pending}
                     className="text-[12px] font-bold ltr-nums px-3 py-1.5 rounded-lg"
-                    style={{ background: "rgba(45,212,191,0.1)", border: "1px solid rgba(45,212,191,0.3)", color: "#5dd9cb" }}>
+                    style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", border: "1px solid rgb(var(--accent-1-rgb) / 0.3)", color: "var(--accent-1)" }}>
                     {t}
                   </button>
                 ))}

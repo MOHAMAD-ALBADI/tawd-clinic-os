@@ -99,7 +99,7 @@ export function ServiceMaterialsEditor({
           <Save className="w-3.5 h-3.5" /> {pending ? "…" : "حفظ مواد الخدمة"}
         </button>
         {msg && (
-          <span className="text-[12px] flex items-center gap-1.5" style={{ color: msg.ok ? "#5dd9cb" : "#fda4b4" }}>
+          <span className="text-[12px] flex items-center gap-1.5" style={{ color: msg.ok ? "var(--accent-1)" : "#fda4b4" }}>
             {msg.ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}{msg.text}
           </span>
         )}

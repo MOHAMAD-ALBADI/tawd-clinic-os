@@ -26,8 +26,8 @@ const STALE_DAYS = 30;
 
 const STATUS: Record<ClaimRow["status"], { label: string; color: string }> = {
   pending: { label: "قيد الانتظار", color: "#fbbf24" },
-  submitted: { label: "مقدّمة", color: "#5dd9cb" },
-  approved: { label: "معتمدة", color: "#2dd4bf" },
+  submitted: { label: "مقدّمة", color: "var(--accent-1)" },
+  approved: { label: "معتمدة", color: "var(--accent-1)" },
   rejected: { label: "مرفوضة", color: "#fda4b4" },
   cancelled: { label: "ملغاة", color: "#71717a" },
 };
@@ -58,7 +58,7 @@ export function ClaimsBoard({ claims, providers, patients }: {
         <div className="section-title"><FileText className="w-3.5 h-3.5" style={{ color: "var(--accent-1)" }} /><h2>المطالبات</h2></div>
         <button className="btn-primary" disabled={providers.length === 0} onClick={() => { setErr(null); setCreating(true); }}><Plus className="w-4 h-4" /> مطالبة</button>
       </div>
-      {flash && <div className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-xl mb-3" style={{ background: "rgba(45,212,191,0.1)", border: "1px solid rgba(45,212,191,0.25)", color: "#5dd9cb" }}><CheckCircle2 className="w-4 h-4" /> {flash}</div>}
+      {flash && <div className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-xl mb-3" style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", border: "1px solid rgb(var(--accent-1-rgb) / 0.25)", color: "var(--accent-1)" }}><CheckCircle2 className="w-4 h-4" /> {flash}</div>}
       {err && <div className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-xl mb-3" style={{ background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.2)", color: "#fda4b4" }}><AlertTriangle className="w-4 h-4" /> {err}</div>}
 
       {claims.length === 0 ? (
@@ -94,7 +94,7 @@ export function ClaimsBoard({ claims, providers, patients }: {
                       )}
                     </td>
                     <td className="px-2.5 py-2.5 ltr-nums text-white">{fmt(c.submitted_amount)}</td>
-                    <td className="px-2.5 py-2.5 ltr-nums" style={{ color: c.approved_amount > 0 ? "#5dd9cb" : "var(--text-4)" }}>{c.status === "approved" ? fmt(c.approved_amount) : "—"}</td>
+                    <td className="px-2.5 py-2.5 ltr-nums" style={{ color: c.approved_amount > 0 ? "var(--accent-1)" : "var(--text-4)" }}>{c.status === "approved" ? fmt(c.approved_amount) : "—"}</td>
                     <td className="px-2.5 py-2.5">
                       {open ? (
                         <span className="text-[11.5px] ltr-nums font-bold" style={{ color: stale ? "#fda4b4" : "var(--text-3)" }}>
@@ -110,11 +110,11 @@ export function ClaimsBoard({ claims, providers, patients }: {
                     <td className="px-2.5 py-2.5">
                       <div className="flex items-center gap-1 justify-end">
                         {c.status === "pending" && (
-                          <IconBtn title="تقديم" color="#5dd9cb" onClick={() => run(() => submitClaim(c.id), "قُدّمت المطالبة")}><Send className="w-3.5 h-3.5" /></IconBtn>
+                          <IconBtn title="تقديم" color="var(--accent-1)" onClick={() => run(() => submitClaim(c.id), "قُدّمت المطالبة")}><Send className="w-3.5 h-3.5" /></IconBtn>
                         )}
                         {c.status === "submitted" && (
                           <>
-                            <IconBtn title="اعتماد" color="#2dd4bf" onClick={() => { setErr(null); setResolve({ claim: c, outcome: "approved" }); }}><CheckCircle2 className="w-3.5 h-3.5" /></IconBtn>
+                            <IconBtn title="اعتماد" color="var(--accent-1)" onClick={() => { setErr(null); setResolve({ claim: c, outcome: "approved" }); }}><CheckCircle2 className="w-3.5 h-3.5" /></IconBtn>
                             <IconBtn title="رفض" color="#fda4b4" onClick={() => { setErr(null); setResolve({ claim: c, outcome: "rejected" }); }}><XCircle className="w-3.5 h-3.5" /></IconBtn>
                           </>
                         )}
@@ -149,7 +149,7 @@ function IconBtn({ children, title, color, onClick }: { children: React.ReactNod
 
 function Overlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.9)" }} onClick={onClose}>
       <div className="w-full max-w-md panel-feature" style={{ padding: "1.5rem" }} onClick={(e) => e.stopPropagation()}>
         <button onClick={onClose} className="float-start" style={{ color: "var(--text-4)" }}><X className="w-4 h-4" /></button>
         {children}

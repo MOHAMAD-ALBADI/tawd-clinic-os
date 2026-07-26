@@ -42,7 +42,6 @@ export function SuraWidget({
         style={{
           zIndex: 9998,
           background: "rgba(0,0,0,0.35)",
-          backdropFilter: "blur(3px)",
         }}
         onClick={() => setOpen(false)}
       />
@@ -54,8 +53,8 @@ export function SuraWidget({
           width: "min(360px, 100vw)",
           zIndex: 9999,
           background: "rgba(13,13,15,0.98)",
-          borderInlineStart: "1px solid rgba(20,184,166,0.22)",
-          boxShadow: "-24px 0 80px rgba(0,0,0,0.6)",
+          borderInlineStart: "1px solid rgb(var(--accent-2-rgb) / 0.22)",
+          boxShadow: "-24px 0 80px rgba(0,0,0,0.9)",
         }}
       >
         {/* header */}
@@ -66,11 +65,11 @@ export function SuraWidget({
           <div
             className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
             style={{
-              background: "linear-gradient(135deg, rgba(20,184,166,0.28), rgba(13,148,136,0.18))",
-              border: "1px solid rgba(20,184,166,0.28)",
+              background: "linear-gradient(135deg, rgb(var(--accent-2-rgb) / 0.28), rgba(13,148,136,0.18))",
+              border: "1px solid rgb(var(--accent-2-rgb) / 0.28)",
             }}
           >
-            <Inbox className="w-4 h-4" style={{ color: "#2dd4bf" }} />
+            <Inbox className="w-4 h-4" style={{ color: "var(--accent-1)" }} />
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-bold text-white text-sm">طابور مراجعة سُرى</p>
@@ -94,13 +93,13 @@ export function SuraWidget({
               <div
                 className="w-10 h-10 rounded-xl flex items-center justify-center"
                 style={{
-                  background: "rgba(45,212,191,0.06)",
-                  border: "1px solid rgba(45,212,191,0.1)",
+                  background: "rgb(var(--accent-1-rgb) / 0.06)",
+                  border: "1px solid rgb(var(--accent-1-rgb) / 0.1)",
                 }}
               >
-                <Inbox className="w-4 h-4" style={{ color: "rgba(45,212,191,0.45)" }} />
+                <Inbox className="w-4 h-4" style={{ color: "rgb(var(--accent-1-rgb) / 0.45)" }} />
               </div>
-              <p className="text-xs font-semibold" style={{ color: "#5dd9cb" }}>
+              <p className="text-xs font-semibold" style={{ color: "var(--accent-1)" }}>
                 الطابور فارغ
               </p>
             </div>
@@ -110,21 +109,21 @@ export function SuraWidget({
                 const patient = (item.patients as any)?.name ?? "زائر غير مسجّل";
                 const conf = Math.round(Number(item.confidence_score) * 100);
                 const confColor =
-                  conf >= 70 ? "#5dd9cb" : conf >= 40 ? "rgba(45,212,191,0.6)" : "#fda4b4";
+                  conf >= 70 ? "var(--accent-1)" : conf >= 40 ? "rgb(var(--accent-1-rgb) / 0.6)" : "#fda4b4";
 
                 return (
                   <div
                     key={item.id}
                     className="rounded-xl p-3"
                     style={{
-                      background: "rgba(94,217,203,0.04)",
-                      border: "1px solid rgba(94,217,203,0.1)",
+                      background: "rgb(var(--accent-1-rgb) / 0.04)",
+                      border: "1px solid rgb(var(--accent-1-rgb) / 0.1)",
                     }}
                   >
                     <div className="flex items-center justify-between gap-2 mb-1.5">
                       <p className="text-xs font-bold text-white truncate flex-1">{patient}</p>
                       <div className="flex items-center gap-1 shrink-0">
-                        <Clock className="w-3 h-3" style={{ color: "#5dd9cb", opacity: 0.5 }} />
+                        <Clock className="w-3 h-3" style={{ color: "var(--accent-1)", opacity: 0.5 }} />
                         <span className="text-[10px] ltr-nums" style={{ color: "var(--text-4)" }}>
                           {ageLabel(item.created_at)}
                         </span>
@@ -177,8 +176,8 @@ export function SuraWidget({
           insetInlineEnd: "1.5rem",
           zIndex: 9990,
           background: "rgba(19,19,21,0.95)",
-          border: "1px solid rgba(45,212,191,0.35)",
-          color: "#5dd9cb",
+          border: "1px solid rgb(var(--accent-1-rgb) / 0.35)",
+          color: "var(--accent-1)",
           boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
         }}
       >
@@ -186,7 +185,7 @@ export function SuraWidget({
         مراجعة سُرى
         <span
           className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black ltr-nums"
-          style={{ background: "#5dd9cb", color: "#0a0a0b" }}
+          style={{ background: "var(--accent-1)", color: "#0a0a0b" }}
         >
           {hitlCount}
         </span>

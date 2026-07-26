@@ -100,8 +100,7 @@ export function SuraWidget({ userRole }: { userRole: Role }) {
           style={{
             background: "rgba(14,14,16,0.98)",
             border: "1px solid rgba(255,255,255,0.09)",
-            backdropFilter: "blur(28px)",
-            boxShadow: "0 24px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(20,184,166,0.08)",
+            boxShadow: "0 24px 80px rgba(0,0,0,0.9), 0 0 0 1px rgb(var(--accent-2-rgb) / 0.08)",
             animation: "slideUp 0.22s ease-out",
           }}
         >
@@ -113,18 +112,18 @@ export function SuraWidget({ userRole }: { userRole: Role }) {
             <div className="flex items-center gap-2.5">
               <div
                 className="w-8 h-8 rounded-full flex items-center justify-center"
-                style={{ background: "rgba(20,184,166,0.2)", border: "1px solid rgba(20,184,166,0.3)" }}
+                style={{ background: "rgb(var(--accent-2-rgb) / 0.2)", border: "1px solid rgb(var(--accent-2-rgb) / 0.3)" }}
               >
-                <Bot className="w-4 h-4" style={{ color: "#5dd9cb" }} />
+                <Bot className="w-4 h-4" style={{ color: "var(--accent-1)" }} />
               </div>
               <div>
                 <p className="text-white text-[13px] font-bold leading-none">سُرى</p>
                 <div className="flex items-center gap-1 mt-0.5">
                   <span
                     className="w-1.5 h-1.5 rounded-full"
-                    style={{ background: "#2dd4bf", animation: "pulse 2s infinite" }}
+                    style={{ background: "var(--accent-1)", animation: "pulse 2s infinite" }}
                   />
-                  <span className="text-[10px]" style={{ color: "#5dd9cb" }}>
+                  <span className="text-[10px]" style={{ color: "var(--accent-1)" }}>
                     {streaming ? "تحلّل بياناتك…" : "متصلة ببيانات عيادتك"}
                   </span>
                 </div>
@@ -133,7 +132,7 @@ export function SuraWidget({ userRole }: { userRole: Role }) {
             <button
               onClick={() => setOpen(false)}
               className="w-7 h-7 rounded-lg flex items-center justify-center transition-all hover:bg-white/10"
-              style={{ color: "rgba(148,163,184,0.5)" }}
+              style={{ color: "var(--text-3)" }}
             >
               <Minimize2 className="w-4 h-4" />
             </button>
@@ -153,12 +152,12 @@ export function SuraWidget({ userRole }: { userRole: Role }) {
                   )}
                   style={
                     m.role === "user"
-                      ? { background: "rgba(20,184,166,0.25)", color: "#E2E8F0", border: "1px solid rgba(20,184,166,0.2)" }
+                      ? { background: "rgb(var(--accent-2-rgb) / 0.25)", color: "#E2E8F0", border: "1px solid rgb(var(--accent-2-rgb) / 0.2)" }
                       : { background: "rgba(255,255,255,0.06)", color: "rgba(226,232,240,0.9)" }
                   }
                 >
                   {m.content || (streaming && i === messages.length - 1
-                    ? <span style={{ color: "rgba(148,163,184,0.4)", animation: "pulse 1.2s infinite" }}>...</span>
+                    ? <span style={{ color: "var(--text-4)", animation: "pulse 1.2s infinite" }}>...</span>
                     : null)}
                 </div>
               </div>
@@ -205,14 +204,14 @@ export function SuraWidget({ userRole }: { userRole: Role }) {
                 border: "1px solid rgba(255,255,255,0.09)",
                 color: "rgba(226,232,240,0.95)",
               }}
-              onFocus={(e) => { e.currentTarget.style.borderColor = "rgba(20,184,166,0.4)"; }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = "rgb(var(--accent-2-rgb) / 0.4)"; }}
               onBlur={(e)  => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; }}
             />
             <button
               onClick={() => send()}
               disabled={streaming || !input.trim()}
               className="w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-90 disabled:opacity-35"
-              style={{ background: "linear-gradient(135deg, #0d9488, #0f766e)" }}
+              style={{ background: "linear-gradient(135deg, var(--accent-2), var(--accent-3))" }}
             >
               <Send className="w-3.5 h-3.5 text-white" />
             </button>
@@ -232,12 +231,12 @@ export function SuraWidget({ userRole }: { userRole: Role }) {
           borderRadius: "999px",
           background: open
             ? "rgba(15,118,110,0.92)"
-            : "linear-gradient(135deg, #14b8a6 0%, #0d9488 60%, #0f766e 100%)",
-          border: "1px solid rgba(45,212,191,0.45)",
-          boxShadow: "0 8px 32px rgba(20,184,166,0.35), inset 0 1px 0 rgba(255,255,255,0.18)",
+            : "linear-gradient(135deg, var(--accent-2) 0%, var(--accent-2) 60%, var(--accent-3) 100%)",
+          border: "1px solid rgb(var(--accent-1-rgb) / 0.45)",
+          boxShadow: "0 8px 32px rgb(var(--accent-2-rgb) / 0.35), inset 0 1px 0 rgba(255,255,255,0.18)",
         }}
-        onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 12px 40px rgba(20,184,166,0.5), inset 0 1px 0 rgba(255,255,255,0.22)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 8px 32px rgba(20,184,166,0.35), inset 0 1px 0 rgba(255,255,255,0.18)"; e.currentTarget.style.transform = "translateY(0)"; }}
+        onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 12px 40px rgb(var(--accent-2-rgb) / 0.5), inset 0 1px 0 rgba(255,255,255,0.22)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 8px 32px rgb(var(--accent-2-rgb) / 0.35), inset 0 1px 0 rgba(255,255,255,0.18)"; e.currentTarget.style.transform = "translateY(0)"; }}
         aria-label={open ? "إغلاق سُرى" : "فتح المساعد سُرى"}
       >
         {open ? (
@@ -248,7 +247,7 @@ export function SuraWidget({ userRole }: { userRole: Role }) {
               style={{ background: "rgba(255,255,255,0.16)" }}>
               <Sparkles className="w-4 h-4 text-white" />
               <span className="absolute -top-0.5 -end-0.5 w-2 h-2 rounded-full"
-                style={{ background: "#cbf6ef", boxShadow: "0 0 6px #5dd9cb", animation: "pulse 2s infinite" }} />
+                style={{ background: "var(--accent-1)", boxShadow: "0 0 6px rgb(var(--accent-1-rgb) / 0.9)", animation: "pulse 2s infinite" }} />
             </span>
             <span className="text-white font-bold text-[14px] leading-none pe-1" style={{ letterSpacing: "0.01em" }}>
               سُرى

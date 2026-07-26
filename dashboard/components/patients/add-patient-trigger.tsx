@@ -69,7 +69,7 @@ function PatientModal({ patient, onClose }: { patient?: PatientRecord; onClose: 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
-      style={{ background: "rgba(2,8,18,0.82)", backdropFilter: "blur(8px)" }}
+      style={{ background: "rgba(2,8,18,0.9)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="w-full max-w-md panel animate-scale-in" style={{ background: "rgba(8,14,24,0.98)", padding: "1.5rem" }}>
         <div className="flex items-center justify-between mb-5">
@@ -190,7 +190,7 @@ export function ArchivePatientTrigger({ id, name }: { id: string; name: string }
       </button>
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
-          style={{ background: "rgba(2,8,18,0.82)", backdropFilter: "blur(8px)" }}
+          style={{ background: "rgba(2,8,18,0.9)" }}
           onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}>
           <div className="w-full max-w-sm panel animate-scale-in" style={{ background: "rgba(8,14,24,0.98)", padding: "1.5rem" }}>
             <div className="flex items-center gap-3 mb-3">

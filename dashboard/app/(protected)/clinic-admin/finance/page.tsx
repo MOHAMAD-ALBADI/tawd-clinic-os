@@ -10,7 +10,7 @@ const fmt = (v: number) => new Intl.NumberFormat("en-US", { minimumFractionDigit
 const monthKey = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 
 const GATEWAY_META: Record<string, { label: string; Icon: typeof Banknote; color: string }> = {
-  cash:          { label: "نقداً",        Icon: Banknote,   color: "#5dd9cb" },
+  cash:          { label: "نقداً",        Icon: Banknote,   color: "var(--accent-1)" },
   thawani:       { label: "ثواني",        Icon: Smartphone, color: "#38bdf8" },
   bank_transfer: { label: "تحويل بنكي",   Icon: CreditCard, color: "#a78bfa" },
   insurance:     { label: "تأمين",        Icon: ShieldCheck, color: "#fbbf24" },
@@ -90,10 +90,10 @@ export default async function FinanceOverviewPage() {
   const peak = Math.max(1, ...months.map((m) => Math.max(m.rev, m.exp)));
 
   const kpis = [
-    { label: "الإيراد (الشهر)", value: fmt(revenue), Icon: TrendingUp, color: "#5dd9cb" },
+    { label: "الإيراد (الشهر)", value: fmt(revenue), Icon: TrendingUp, color: "var(--accent-1)" },
     { label: "المصروفات", value: fmt(expenses), Icon: TrendingDown, color: "#fbbf24" },
-    { label: "صافي الربح", value: fmt(profit), Icon: Wallet, color: profit >= 0 ? "#5dd9cb" : "#fda4b4" },
-    { label: "هامش الربح", value: `${margin}%`, Icon: PieChart, color: profit >= 0 ? "#5dd9cb" : "#fda4b4" },
+    { label: "صافي الربح", value: fmt(profit), Icon: Wallet, color: profit >= 0 ? "var(--accent-1)" : "#fda4b4" },
+    { label: "هامش الربح", value: `${margin}%`, Icon: PieChart, color: profit >= 0 ? "var(--accent-1)" : "#fda4b4" },
   ];
 
   return (
@@ -137,7 +137,7 @@ export default async function FinanceOverviewPage() {
             <h2>الإيراد مقابل المصروفات — ٦ أشهر</h2>
           </div>
           <div className="flex items-center gap-3 text-[11px]" style={{ color: "var(--text-3)" }}>
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm" style={{ background: "#5dd9cb" }} />إيراد</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm" style={{ background: "var(--accent-1)" }} />إيراد</span>
             <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm" style={{ background: "#fbbf24" }} />مصروف</span>
           </div>
         </div>
@@ -146,7 +146,7 @@ export default async function FinanceOverviewPage() {
             <div key={m.key} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
               <div className="w-full flex items-end justify-center gap-1" style={{ height: "100%" }}>
                 <div className="rounded-t" title={`إيراد ${fmt(m.rev)}`}
-                  style={{ width: "42%", height: `${(m.rev / peak) * 100}%`, minHeight: m.rev > 0 ? 3 : 0, background: "#5dd9cb", opacity: 0.85 }} />
+                  style={{ width: "42%", height: `${(m.rev / peak) * 100}%`, minHeight: m.rev > 0 ? 3 : 0, background: "var(--accent-1)", opacity: 0.85 }} />
                 <div className="rounded-t" title={`مصروف ${fmt(m.exp)}`}
                   style={{ width: "42%", height: `${(m.exp / peak) * 100}%`, minHeight: m.exp > 0 ? 3 : 0, background: "#fbbf24", opacity: 0.8 }} />
               </div>

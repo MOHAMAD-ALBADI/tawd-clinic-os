@@ -57,7 +57,7 @@ export function PatientInsuranceManager({ coverage, providers, patients }: {
             <F label="سارية حتى"><input className="field ltr-nums" type="date" dir="ltr" value={f.valid_until} onChange={(e) => set("valid_until", e.target.value)} /></F>
           </div>
           {err && <p className="text-[12px] flex items-center gap-1.5" style={{ color: "#fda4b4" }}><AlertTriangle className="w-3.5 h-3.5" /> {err}</p>}
-          {flash && <p className="text-[12px] flex items-center gap-1.5" style={{ color: "#5dd9cb" }}><CheckCircle2 className="w-3.5 h-3.5" /> {flash}</p>}
+          {flash && <p className="text-[12px] flex items-center gap-1.5" style={{ color: "var(--accent-1)" }}><CheckCircle2 className="w-3.5 h-3.5" /> {flash}</p>}
           <button className="btn-primary" disabled={pending || !f.patient_id || !f.provider_id} onClick={save}><Save className="w-3.5 h-3.5" /> {pending ? "…" : "حفظ التغطية"}</button>
         </div>
       )}
@@ -68,7 +68,7 @@ export function PatientInsuranceManager({ coverage, providers, patients }: {
             <div key={c.id} className="flex items-center gap-3 px-3 py-2 rounded-xl text-[12px]" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--hairline)" }}>
               <span className="font-bold text-white flex-1 truncate">{c.patient_name}</span>
               <span style={{ color: "var(--text-3)" }} className="truncate">{c.provider_name}</span>
-              <span className="ltr-nums font-bold" style={{ color: "#5dd9cb" }}>{c.coverage_percent}%</span>
+              <span className="ltr-nums font-bold" style={{ color: "var(--accent-1)" }}>{c.coverage_percent}%</span>
             </div>
           ))}
         </div>

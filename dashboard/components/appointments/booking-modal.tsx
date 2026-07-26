@@ -30,8 +30,8 @@ interface BookingResult {
 
 function FieldLabel({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
   return (
-    <label className="flex items-center gap-2 text-xs font-semibold mb-2" style={{ color: "rgba(148,163,184,0.7)" }}>
-      <Icon className="w-3.5 h-3.5" style={{ color: "#14b8a6" }} />
+    <label className="flex items-center gap-2 text-xs font-semibold mb-2" style={{ color: "var(--text-2)" }}>
+      <Icon className="w-3.5 h-3.5" style={{ color: "var(--accent-2)" }} />
       {label}
     </label>
   );
@@ -162,7 +162,7 @@ export function BookingModal({ open, onClose, patients, services, doctors }: Boo
               value={form.patient_id}
               onChange={(e) => field("patient_id", e.target.value)}
               style={selectStyle}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "rgb(var(--accent-2-rgb) / 0.6)")}
               onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")}
             >
               <option value="">اختر المريض</option>
@@ -179,7 +179,7 @@ export function BookingModal({ open, onClose, patients, services, doctors }: Boo
               value={form.service_id}
               onChange={(e) => field("service_id", e.target.value)}
               style={selectStyle}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "rgb(var(--accent-2-rgb) / 0.6)")}
               onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")}
             >
               <option value="">اختر الخدمة</option>
@@ -198,7 +198,7 @@ export function BookingModal({ open, onClose, patients, services, doctors }: Boo
               value={form.doctor_id}
               onChange={(e) => field("doctor_id", e.target.value)}
               style={selectStyle}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "rgb(var(--accent-2-rgb) / 0.6)")}
               onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")}
             >
               <option value="">اختر الطبيب</option>
@@ -218,7 +218,7 @@ export function BookingModal({ open, onClose, patients, services, doctors }: Boo
                 min={new Date().toISOString().split("T")[0]}
                 onChange={(e) => field("date", e.target.value)}
                 style={inputStyle}
-                onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
+                onFocus={(e) => (e.currentTarget.style.borderColor = "rgb(var(--accent-2-rgb) / 0.6)")}
                 onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")}
               />
             </div>
@@ -229,7 +229,7 @@ export function BookingModal({ open, onClose, patients, services, doctors }: Boo
                 value={form.time}
                 onChange={(e) => field("time", e.target.value)}
                 style={inputStyle}
-                onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
+                onFocus={(e) => (e.currentTarget.style.borderColor = "rgb(var(--accent-2-rgb) / 0.6)")}
                 onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")}
               />
             </div>
@@ -244,7 +244,7 @@ export function BookingModal({ open, onClose, patients, services, doctors }: Boo
               placeholder="أي ملاحظات إضافية..."
               rows={2}
               style={{ ...inputStyle, resize: "none" }}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "rgb(var(--accent-2-rgb) / 0.6)")}
               onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")}
             />
           </div>
@@ -262,7 +262,7 @@ export function BookingModal({ open, onClose, patients, services, doctors }: Boo
             <button
               onClick={onClose}
               className="flex-1 h-11 rounded-xl text-sm font-semibold transition-all"
-              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(148,163,184,0.8)" }}
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-2)" }}
             >
               إلغاء
             </button>
@@ -270,7 +270,7 @@ export function BookingModal({ open, onClose, patients, services, doctors }: Boo
               onClick={handleBook}
               disabled={loading}
               className="flex-1 h-11 rounded-xl text-white text-sm font-bold transition-all disabled:opacity-50 active:scale-95"
-              style={{ background: "linear-gradient(135deg, #0d9488, #0f766e)", boxShadow: "0 4px 16px rgba(20,184,166,0.3)" }}
+              style={{ background: "linear-gradient(135deg, var(--accent-2), var(--accent-3))", boxShadow: "0 4px 16px rgb(var(--accent-2-rgb) / 0.3)" }}
             >
               {loading ? "جارٍ الحجز..." : "تأكيد الحجز ←"}
             </button>
@@ -283,16 +283,16 @@ export function BookingModal({ open, onClose, patients, services, doctors }: Boo
         <div className="space-y-5">
           <div
             className="rounded-2xl p-5 text-center"
-            style={{ background: "rgba(20,184,166,0.08)", border: "1px solid rgba(20,184,166,0.2)" }}
+            style={{ background: "rgb(var(--accent-2-rgb) / 0.08)", border: "1px solid rgb(var(--accent-2-rgb) / 0.2)" }}
           >
             <div
               className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-3"
-              style={{ background: "rgba(20,184,166,0.15)" }}
+              style={{ background: "rgb(var(--accent-2-rgb) / 0.15)" }}
             >
-              <CheckCircle2 className="w-7 h-7" style={{ color: "#5dd9cb" }} />
+              <CheckCircle2 className="w-7 h-7" style={{ color: "var(--accent-1)" }} />
             </div>
             <h3 className="text-white font-bold text-lg mb-1">تم الحجز بنجاح!</h3>
-            <p className="text-sm" style={{ color: "rgba(148,163,184,0.7)" }}>
+            <p className="text-sm" style={{ color: "var(--text-2)" }}>
               {result.patientName} — {result.serviceName}
             </p>
           </div>
@@ -307,7 +307,7 @@ export function BookingModal({ open, onClose, patients, services, doctors }: Boo
             <button
               onClick={onClose}
               className="flex-1 h-11 rounded-xl text-sm font-semibold transition-all"
-              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(148,163,184,0.8)" }}
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-2)" }}
             >
               إغلاق
             </button>
@@ -315,7 +315,7 @@ export function BookingModal({ open, onClose, patients, services, doctors }: Boo
               onClick={handleCreateInvoice}
               disabled={invoiceLoading}
               className="flex-1 h-11 rounded-xl text-white text-sm font-bold transition-all disabled:opacity-50 active:scale-95"
-              style={{ background: "linear-gradient(135deg, #0f766e, #14b8a6)", boxShadow: "0 4px 16px rgba(20,184,166,0.3)" }}
+              style={{ background: "linear-gradient(135deg, var(--accent-3), var(--accent-2))", boxShadow: "0 4px 16px rgb(var(--accent-2-rgb) / 0.3)" }}
             >
               {invoiceLoading ? "جارٍ الإنشاء..." : "إنشاء فاتورة ←"}
             </button>
@@ -328,15 +328,15 @@ export function BookingModal({ open, onClose, patients, services, doctors }: Boo
         <div className="space-y-5">
           <div
             className="rounded-2xl p-5"
-            style={{ background: "rgba(20,184,166,0.07)", border: "1px solid rgba(20,184,166,0.2)" }}
+            style={{ background: "rgb(var(--accent-2-rgb) / 0.07)", border: "1px solid rgb(var(--accent-2-rgb) / 0.2)" }}
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(20,184,166,0.15)" }}>
-                <FileText className="w-5 h-5" style={{ color: "#2dd4bf" }} />
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgb(var(--accent-2-rgb) / 0.15)" }}>
+                <FileText className="w-5 h-5" style={{ color: "var(--accent-1)" }} />
               </div>
               <div>
                 <p className="text-white font-bold">تم إنشاء الفاتورة</p>
-                <p className="text-xs" style={{ color: "rgba(148,163,184,0.6)" }}>فاتورة بانتظار التحصيل</p>
+                <p className="text-xs" style={{ color: "var(--text-3)" }}>فاتورة بانتظار التحصيل</p>
               </div>
             </div>
             <div className="space-y-2.5">
@@ -347,7 +347,7 @@ export function BookingModal({ open, onClose, patients, services, doctors }: Boo
                 { label: "الحالة",  value: "بانتظار التحصيل" },
               ].map((r) => (
                 <div key={r.label} className="flex justify-between">
-                  <span className="text-sm" style={{ color: "rgba(148,163,184,0.6)" }}>{r.label}</span>
+                  <span className="text-sm" style={{ color: "var(--text-3)" }}>{r.label}</span>
                   <span className="text-sm font-semibold text-white ltr-nums">{r.value}</span>
                 </div>
               ))}
@@ -356,7 +356,7 @@ export function BookingModal({ open, onClose, patients, services, doctors }: Boo
           <button
             onClick={onClose}
             className="w-full h-11 rounded-xl text-white text-sm font-bold transition-all active:scale-95"
-            style={{ background: "linear-gradient(135deg, #0d9488, #0f766e)" }}
+            style={{ background: "linear-gradient(135deg, var(--accent-2), var(--accent-3))" }}
           >
             إغلاق
           </button>

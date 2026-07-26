@@ -75,7 +75,7 @@ export function PayrollRuns({ period, runs, currentRun, payslips }: {
         <div className="section-title">
           <FileText className="w-3.5 h-3.5" style={{ color: "var(--accent-1)" }} />
           <h2>مسيّر الرواتب — <span className="ltr-nums">{period}</span></h2>
-          {isFinal && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(45,212,191,0.14)", color: "#5dd9cb", border: "1px solid rgba(45,212,191,0.3)" }}>معتمد</span>}
+          {isFinal && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgb(var(--accent-1-rgb) / 0.14)", color: "var(--accent-1)", border: "1px solid rgb(var(--accent-1-rgb) / 0.3)" }}>معتمد</span>}
           {isDraft && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)" }}>مسودّة</span>}
         </div>
         <div className="flex items-center gap-2">
@@ -87,7 +87,7 @@ export function PayrollRuns({ period, runs, currentRun, payslips }: {
         </div>
       </div>
 
-      {flash && <div className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-xl mb-3" style={{ background: "rgba(45,212,191,0.1)", border: "1px solid rgba(45,212,191,0.25)", color: "#5dd9cb" }}><CheckCircle2 className="w-4 h-4" /> {flash}</div>}
+      {flash && <div className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-xl mb-3" style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", border: "1px solid rgb(var(--accent-1-rgb) / 0.25)", color: "var(--accent-1)" }}><CheckCircle2 className="w-4 h-4" /> {flash}</div>}
       {err && <div className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-xl mb-3" style={{ background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.2)", color: "#fda4b4" }}><AlertTriangle className="w-4 h-4" /> {err}</div>}
 
       {!currentRun ? (
@@ -133,7 +133,7 @@ export function PayrollRuns({ period, runs, currentRun, payslips }: {
                       {isDraft && e && (
                         <button title="حفظ" disabled={pending} onClick={() => saveRow(p)}
                           className="w-7 h-7 rounded-lg inline-flex items-center justify-center"
-                          style={{ background: "rgba(45,212,191,0.12)", border: "1px solid rgba(45,212,191,0.3)", color: "#5dd9cb" }}>
+                          style={{ background: "rgb(var(--accent-1-rgb) / 0.12)", border: "1px solid rgb(var(--accent-1-rgb) / 0.3)", color: "var(--accent-1)" }}>
                           <Save className="w-3.5 h-3.5" />
                         </button>
                       )}
@@ -145,7 +145,7 @@ export function PayrollRuns({ period, runs, currentRun, payslips }: {
             <tfoot>
               <tr style={{ borderTop: "1px solid var(--hairline)" }}>
                 <td colSpan={6} className="px-2.5 py-3 text-end font-bold" style={{ color: "var(--text-2)" }}>إجمالي صافي الرواتب</td>
-                <td colSpan={2} className="px-2.5 py-3 font-black ltr-nums" style={{ color: "#5dd9cb", fontSize: "1.05rem" }}>{fmt(totalNet)} ر.ع</td>
+                <td colSpan={2} className="px-2.5 py-3 font-black ltr-nums" style={{ color: "var(--accent-1)", fontSize: "1.05rem" }}>{fmt(totalNet)} ر.ع</td>
               </tr>
             </tfoot>
           </table>
@@ -160,7 +160,7 @@ export function PayrollRuns({ period, runs, currentRun, payslips }: {
               <div key={r.id} className="flex items-center gap-2 text-[12px] px-3 py-1.5 rounded-xl"
                 style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--hairline)" }}>
                 <span className="ltr-nums font-bold text-white">{r.period}</span>
-                <span style={{ color: r.status === "finalized" ? "#5dd9cb" : "#fbbf24" }}>{r.status === "finalized" ? "معتمد" : "مسودّة"}</span>
+                <span style={{ color: r.status === "finalized" ? "var(--accent-1)" : "#fbbf24" }}>{r.status === "finalized" ? "معتمد" : "مسودّة"}</span>
                 <span className="ltr-nums" style={{ color: "var(--text-3)" }}>{fmt(r.total_net)} ر.ع</span>
               </div>
             ))}

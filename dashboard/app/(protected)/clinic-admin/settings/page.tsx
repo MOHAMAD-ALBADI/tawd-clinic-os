@@ -14,7 +14,7 @@ const PLAN_NAMES: Record<string, string> = {
   starter: "Starter", growth: "Growth", pro: "Pro", enterprise: "Enterprise",
 };
 const PLAN_COLORS: Record<string, string> = {
-  starter: "#94A3B8", growth: "#5dd9cb", pro: "#38bdf8", enterprise: "#2dd4bf",
+  starter: "#a8a29b", growth: "#5b93ff", pro: "#2e6bf0", enterprise: "#1e52d6",
 };
 const STATUS_LABELS: Record<string, string> = {
   trial: "تجريبي", active: "نشط", past_due: "متأخر", cancelled: "ملغي", paused: "موقوف",
@@ -69,7 +69,7 @@ export default async function SettingsPage() {
     <div className="space-y-5 animate-fade-in">
       <div>
         <h2 className="text-xl font-bold text-white">الإعدادات</h2>
-        <p className="text-sm mt-0.5" style={{ color: "rgba(148,163,184,0.6)" }}>
+        <p className="text-sm mt-0.5" style={{ color: "var(--text-3)" }}>
           تخصيص بيانات وإعدادات عيادتك
         </p>
       </div>
@@ -88,7 +88,7 @@ export default async function SettingsPage() {
         </div>
         <div className="flex-1">
           <p className="font-bold text-white">باقة {PLAN_NAMES[sub.plan] ?? sub.plan}</p>
-          <p className="text-xs mt-0.5" style={{ color: "rgba(148,163,184,0.55)" }}>
+          <p className="text-xs mt-0.5" style={{ color: "var(--text-3)" }}>
             الحالة: {STATUS_LABELS[sub.status] ?? sub.status}
             {sub.renews_at ? ` · تتجدد ${new Date(sub.renews_at).toLocaleDateString("ar-SA")}` : ""}
           </p>
@@ -97,7 +97,7 @@ export default async function SettingsPage() {
         <div className="hidden md:flex items-center gap-4 text-center">
           <div>
             <p className="text-xl font-black" style={{ color: planColor }}>{staffCount ?? "—"}</p>
-            <p className="text-[11px]" style={{ color: "rgba(148,163,184,0.5)" }}>موظف نشط</p>
+            <p className="text-[11px]" style={{ color: "var(--text-3)" }}>موظف نشط</p>
           </div>
           <div className="w-px h-8" style={{ background: "rgba(255,255,255,0.08)" }} />
           <div>
@@ -105,13 +105,13 @@ export default async function SettingsPage() {
               {Object.entries(channels).map(([ch, active]) => (
                 <span key={ch} className="text-[10px] px-2 py-0.5 rounded-full"
                   style={active
-                    ? { background: "rgba(20,184,166,0.15)", color: "#5dd9cb", border: "1px solid rgba(20,184,166,0.2)" }
-                    : { background: "rgba(255,255,255,0.04)", color: "rgba(148,163,184,0.4)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    ? { background: "rgb(var(--accent-2-rgb) / 0.15)", color: "var(--accent-1)", border: "1px solid rgb(var(--accent-2-rgb) / 0.2)" }
+                    : { background: "rgba(255,255,255,0.04)", color: "var(--text-4)", border: "1px solid rgba(255,255,255,0.06)" }}>
                   {ch === "whatsapp" ? "واتساب" : ch === "instagram" ? "انستغرام" : ch === "web_chat" ? "ويب" : ch}
                 </span>
               ))}
             </div>
-            <p className="text-[11px] mt-1" style={{ color: "rgba(148,163,184,0.5)" }}>القنوات</p>
+            <p className="text-[11px] mt-1" style={{ color: "var(--text-3)" }}>القنوات</p>
           </div>
         </div>
       </div>
@@ -145,7 +145,7 @@ export default async function SettingsPage() {
       {/* Security info */}
       <div
         className="rounded-2xl p-5 flex items-center gap-4"
-        style={{ background: "rgba(6,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(20px)" }}
+        style={{ background: "rgba(6,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)" }}
       >
         <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
           style={{ background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.2)" }}>
@@ -153,7 +153,7 @@ export default async function SettingsPage() {
         </div>
         <div className="flex-1">
           <p className="font-semibold text-white text-sm">الأمان والمصادقة</p>
-          <p className="text-xs mt-0.5" style={{ color: "rgba(148,163,184,0.5)" }}>
+          <p className="text-xs mt-0.5" style={{ color: "var(--text-3)" }}>
             المصادقة الثنائية (MFA): {settings?.mfa_enforced ? "مفعّلة لجميع الموظفين" : "غير مفعّلة"} · لتفعيلها تواصل مع فريق طود
           </p>
         </div>

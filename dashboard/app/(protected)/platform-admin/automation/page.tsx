@@ -72,7 +72,7 @@ export default async function AutomationPage() {
               <div key={w.id} className="flex items-center gap-3 px-3 py-2 rounded-lg flex-wrap"
                 style={{ background: "rgba(255,255,255,0.018)", border: "1px solid rgba(255,255,255,0.045)" }}>
                 <span className="w-1.5 h-1.5 rounded-full shrink-0"
-                  style={{ background: w.active ? "#2dd4bf" : "rgba(255,255,255,0.15)" }} />
+                  style={{ background: w.active ? "var(--accent-1)" : "rgba(255,255,255,0.15)" }} />
                 <span className="text-[12px] flex-1 truncate" style={{ color: w.active ? "var(--text-1)" : "var(--text-4)" }}>
                   {w.name.replace("TAWD - ", "").replace("TAWD — ", "")}
                 </span>
@@ -93,7 +93,7 @@ export default async function AutomationPage() {
           آخر الأخطاء المسجّلة
         </h3>
         {(errs ?? []).length === 0 ? (
-          <p className="text-[12px]" style={{ color: "#5dd9cb" }}>لا أخطاء ✓</p>
+          <p className="text-[12px]" style={{ color: "var(--accent-1)" }}>لا أخطاء ✓</p>
         ) : (
           <div className="space-y-1.5">
             {(errs ?? []).map((e, i) => (

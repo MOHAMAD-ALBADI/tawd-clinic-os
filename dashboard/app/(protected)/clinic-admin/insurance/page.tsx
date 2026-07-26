@@ -81,7 +81,7 @@ export default async function InsurancePage() {
     { label: "قيد المعالجة", value: String(active.length), Icon: Clock, color: "#fbbf24" },
     { label: "مستحق من التأمين (ر.ع)", value: fmt(outstanding), Icon: Coins, color: "#fbbf24" },
     { label: "متأخر +٣٠ يوم (ر.ع)", value: fmt(staleSum), Icon: AlertTriangle, color: stale.length ? "#fda4b4" : "var(--text-3)" },
-    { label: "محصّل من التأمين (ر.ع)", value: fmt(approvedSum), Icon: ShieldCheck, color: "#5dd9cb" },
+    { label: "محصّل من التأمين (ر.ع)", value: fmt(approvedSum), Icon: ShieldCheck, color: "var(--accent-1)" },
   ];
 
   return (

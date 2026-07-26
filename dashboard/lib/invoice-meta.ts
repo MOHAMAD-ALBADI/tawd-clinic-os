@@ -20,7 +20,7 @@ export const STATUS_META: Record<InvoiceStatus, { label: string; cls: string; co
   partially_paid: { label: "مدفوعة جزئياً", cls: "badge-warn",  color: "#fbbf24" },
   overdue:        { label: "متأخرة",        cls: "badge-bad",   color: "#F87171" },
   cancelled:      { label: "ملغاة",         cls: "badge-mute",  color: "#71717a" },
-  refunded:       { label: "مستردة",        cls: "badge-brand", color: "#5dd9cb" },
+  refunded:       { label: "مستردة",        cls: "badge-brand", color: "var(--accent-1)" },
 };
 
 /** Oman's standard VAT rate. Health services are largely exempt, so this is

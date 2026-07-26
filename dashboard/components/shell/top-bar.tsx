@@ -21,7 +21,7 @@ type NotifItem = {
 const SEV: Record<string, { color: string; Icon: typeof Info }> = {
   bad:  { color: "#fda4b4", Icon: AlertTriangle },
   warn: { color: "#fcd34d", Icon: AlertTriangle },
-  info: { color: "#5dd9cb", Icon: Info },
+  info: { color: "var(--accent-1)", Icon: Info },
 };
 
 export function TopBar({ title, searchPlaceholder }: TopBarProps) {
@@ -63,8 +63,6 @@ export function TopBar({ title, searchPlaceholder }: TopBarProps) {
       style={{
         background: "rgba(10,10,11,0.9)",
         borderBottom: "1px solid rgba(255,255,255,0.06)",
-        backdropFilter: "blur(24px)",
-        WebkitBackdropFilter: "blur(24px)",
       }}
     >
       {title ? (
@@ -104,7 +102,7 @@ export function TopBar({ title, searchPlaceholder }: TopBarProps) {
               top: "3.75rem", left: "17rem", zIndex: 60,
               background: "#0e0e10",
               border: "1px solid rgba(255,255,255,0.1)",
-              boxShadow: "0 24px 64px rgba(0,0,0,0.8)",
+              boxShadow: "0 24px 64px rgba(0,0,0,0.9)",
             }}
           >
             <div
@@ -133,8 +131,8 @@ export function TopBar({ title, searchPlaceholder }: TopBarProps) {
                 <p className="text-[12px] text-center py-6" style={{ color: "var(--text-4)" }}>جارٍ التحميل…</p>
               ) : items.length === 0 ? (
                 <div className="flex flex-col items-center py-8 gap-2">
-                  <CheckCircle2 className="w-7 h-7" style={{ color: "rgba(45,212,191,0.5)" }} />
-                  <p className="text-[12px] font-semibold" style={{ color: "#5dd9cb" }}>كل شيء تحت السيطرة</p>
+                  <CheckCircle2 className="w-7 h-7" style={{ color: "rgb(var(--accent-1-rgb) / 0.5)" }} />
+                  <p className="text-[12px] font-semibold" style={{ color: "var(--accent-1)" }}>كل شيء تحت السيطرة</p>
                   <p className="text-[11px]" style={{ color: "var(--text-4)" }}>لا يوجد ما يحتاج انتباهك الآن</p>
                 </div>
               ) : (

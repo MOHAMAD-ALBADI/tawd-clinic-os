@@ -95,17 +95,17 @@ export function ClinicInfoForm(props: Props) {
   return (
     <div
       className="rounded-2xl p-6"
-      style={{ background: "rgba(6,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(20px)" }}
+      style={{ background: "rgba(6,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)" }}
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgba(20,184,166,0.12)", border: "1px solid rgba(20,184,166,0.2)" }}>
-            <Building2 className="w-4 h-4" style={{ color: "#5dd9cb" }} />
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "rgb(var(--accent-2-rgb) / 0.12)", border: "1px solid rgb(var(--accent-2-rgb) / 0.2)" }}>
+            <Building2 className="w-4 h-4" style={{ color: "var(--accent-1)" }} />
           </div>
           <div>
             <h3 className="font-bold text-white">معلومات العيادة</h3>
-            <p className="text-[11px] mt-0.5" style={{ color: "rgba(148,163,184,0.5)" }}>البيانات الأساسية للعيادة في النظام</p>
+            <p className="text-[11px] mt-0.5" style={{ color: "var(--text-3)" }}>البيانات الأساسية للعيادة في النظام</p>
           </div>
         </div>
 
@@ -119,7 +119,7 @@ export function ClinicInfoForm(props: Props) {
           </span>
           {/* Plan badge */}
           <span className="text-[11px] px-2.5 py-1 rounded-full font-semibold"
-            style={{ background: "rgba(20,184,166,0.1)", color: "#2dd4bf", border: "1px solid rgba(20,184,166,0.2)" }}>
+            style={{ background: "rgb(var(--accent-2-rgb) / 0.1)", color: "var(--accent-1)", border: "1px solid rgb(var(--accent-2-rgb) / 0.2)" }}>
             {planLabel[props.plan] ?? props.plan}
           </span>
 
@@ -131,12 +131,12 @@ export function ClinicInfoForm(props: Props) {
             <div className="flex gap-2">
               <button onClick={() => { setEditing(false); setError(null); setForm({ name: props.name, name_ar: props.name_ar ?? "", country_code: props.country_code, timezone: props.timezone, currency: props.currency as "OMR"|"SAR"|"AED"|"USD", vat_enabled: props.vat_enabled }); }}
                 className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl font-semibold"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(148,163,184,0.7)" }}>
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-2)" }}>
                 <X className="w-3.5 h-3.5" /> إلغاء
               </button>
               <button onClick={handleSave} disabled={pending}
                 className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl font-bold disabled:opacity-50 transition-all"
-                style={{ background: "linear-gradient(135deg, #0d9488, #0f766e)", color: "white" }}>
+                style={{ background: "linear-gradient(135deg, var(--accent-2), var(--accent-3))", color: "white" }}>
                 <Save className="w-3.5 h-3.5" />
                 {pending ? "جارٍ الحفظ..." : "حفظ"}
               </button>
@@ -144,9 +144,9 @@ export function ClinicInfoForm(props: Props) {
           ) : (
             <button onClick={() => setEditing(true)}
               className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl font-semibold transition-all"
-              style={{ background: "rgba(20,184,166,0.1)", border: "1px solid rgba(20,184,166,0.2)", color: "#5dd9cb" }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(20,184,166,0.2)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(20,184,166,0.1)"; }}>
+              style={{ background: "rgb(var(--accent-2-rgb) / 0.1)", border: "1px solid rgb(var(--accent-2-rgb) / 0.2)", color: "var(--accent-1)" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgb(var(--accent-2-rgb) / 0.2)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "rgb(var(--accent-2-rgb) / 0.1)"; }}>
               <Edit3 className="w-3.5 h-3.5" /> تعديل
             </button>
           )}
@@ -162,13 +162,13 @@ export function ClinicInfoForm(props: Props) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Name EN */}
         <div>
-          <label className="flex items-center gap-1.5 text-xs font-semibold mb-2" style={{ color: "rgba(148,163,184,0.6)" }}>
-            <Building2 className="w-3.5 h-3.5" style={{ color: "#14b8a6" }} />
+          <label className="flex items-center gap-1.5 text-xs font-semibold mb-2" style={{ color: "var(--text-3)" }}>
+            <Building2 className="w-3.5 h-3.5" style={{ color: "var(--accent-2)" }} />
             اسم العيادة (إنجليزي) *
           </label>
           {editing ? (
             <input value={form.name} onChange={(e) => field("name", e.target.value)} style={inputStyle}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "rgb(var(--accent-2-rgb) / 0.6)")}
               onBlur={(e)  => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")} />
           ) : (
             <div className="px-4 py-2.5 rounded-xl text-sm text-white" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>{props.name}</div>
@@ -177,13 +177,13 @@ export function ClinicInfoForm(props: Props) {
 
         {/* Name AR */}
         <div>
-          <label className="flex items-center gap-1.5 text-xs font-semibold mb-2" style={{ color: "rgba(148,163,184,0.6)" }}>
-            <Building2 className="w-3.5 h-3.5" style={{ color: "#14b8a6" }} />
+          <label className="flex items-center gap-1.5 text-xs font-semibold mb-2" style={{ color: "var(--text-3)" }}>
+            <Building2 className="w-3.5 h-3.5" style={{ color: "var(--accent-2)" }} />
             اسم العيادة (عربي)
           </label>
           {editing ? (
             <input value={form.name_ar} onChange={(e) => field("name_ar", e.target.value)} style={inputStyle} dir="rtl"
-              onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "rgb(var(--accent-2-rgb) / 0.6)")}
               onBlur={(e)  => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")} />
           ) : (
             <div className="px-4 py-2.5 rounded-xl text-sm text-white" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>{props.name_ar ?? "—"}</div>
@@ -192,13 +192,13 @@ export function ClinicInfoForm(props: Props) {
 
         {/* Country */}
         <div>
-          <label className="flex items-center gap-1.5 text-xs font-semibold mb-2" style={{ color: "rgba(148,163,184,0.6)" }}>
-            <Globe className="w-3.5 h-3.5" style={{ color: "#14b8a6" }} />
+          <label className="flex items-center gap-1.5 text-xs font-semibold mb-2" style={{ color: "var(--text-3)" }}>
+            <Globe className="w-3.5 h-3.5" style={{ color: "var(--accent-2)" }} />
             الدولة
           </label>
           {editing ? (
             <select value={form.country_code} onChange={(e) => field("country_code", e.target.value)} style={inputStyle}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "rgb(var(--accent-2-rgb) / 0.6)")}
               onBlur={(e)  => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")}>
               {COUNTRIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
@@ -211,13 +211,13 @@ export function ClinicInfoForm(props: Props) {
 
         {/* Timezone */}
         <div>
-          <label className="flex items-center gap-1.5 text-xs font-semibold mb-2" style={{ color: "rgba(148,163,184,0.6)" }}>
-            <Clock className="w-3.5 h-3.5" style={{ color: "#14b8a6" }} />
+          <label className="flex items-center gap-1.5 text-xs font-semibold mb-2" style={{ color: "var(--text-3)" }}>
+            <Clock className="w-3.5 h-3.5" style={{ color: "var(--accent-2)" }} />
             المنطقة الزمنية
           </label>
           {editing ? (
             <select value={form.timezone} onChange={(e) => field("timezone", e.target.value)} style={inputStyle}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "rgb(var(--accent-2-rgb) / 0.6)")}
               onBlur={(e)  => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")}>
               {TIMEZONES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
@@ -230,13 +230,13 @@ export function ClinicInfoForm(props: Props) {
 
         {/* Currency */}
         <div>
-          <label className="flex items-center gap-1.5 text-xs font-semibold mb-2" style={{ color: "rgba(148,163,184,0.6)" }}>
-            <Banknote className="w-3.5 h-3.5" style={{ color: "#14b8a6" }} />
+          <label className="flex items-center gap-1.5 text-xs font-semibold mb-2" style={{ color: "var(--text-3)" }}>
+            <Banknote className="w-3.5 h-3.5" style={{ color: "var(--accent-2)" }} />
             العملة الافتراضية
           </label>
           {editing ? (
             <select value={form.currency} onChange={(e) => field("currency", e.target.value as "OMR"|"SAR"|"AED"|"USD")} style={inputStyle}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "rgb(var(--accent-2-rgb) / 0.6)")}
               onBlur={(e)  => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")}>
               {CURRENCIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
@@ -249,22 +249,22 @@ export function ClinicInfoForm(props: Props) {
 
         {/* VAT */}
         <div>
-          <label className="flex items-center gap-1.5 text-xs font-semibold mb-2" style={{ color: "rgba(148,163,184,0.6)" }}>
-            <Banknote className="w-3.5 h-3.5" style={{ color: "#14b8a6" }} />
+          <label className="flex items-center gap-1.5 text-xs font-semibold mb-2" style={{ color: "var(--text-3)" }}>
+            <Banknote className="w-3.5 h-3.5" style={{ color: "var(--accent-2)" }} />
             ضريبة القيمة المضافة (VAT)
           </label>
           <div
             className="px-4 py-2.5 rounded-xl flex items-center justify-between"
             style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
           >
-            <span className="text-sm" style={{ color: form.vat_enabled ? "#34D399" : "rgba(148,163,184,0.6)" }}>
+            <span className="text-sm" style={{ color: form.vat_enabled ? "#34D399" : "var(--text-3)" }}>
               {form.vat_enabled ? "مفعّل" : "معطّل"}
             </span>
             {editing && (
               <button
                 onClick={() => field("vat_enabled", !form.vat_enabled)}
                 className="relative w-11 h-6 rounded-full transition-all"
-                style={{ background: form.vat_enabled ? "#14b8a6" : "rgba(255,255,255,0.1)" }}
+                style={{ background: form.vat_enabled ? "var(--accent-2)" : "rgba(255,255,255,0.1)" }}
               >
                 <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all"
                   style={{ left: form.vat_enabled ? "calc(100% - 1.375rem)" : "2px" }} />

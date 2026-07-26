@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
   trial:     { label: "تجريبي",  color: "#fcd34d" },
-  active:    { label: "نشطة",    color: "#5dd9cb" },
+  active:    { label: "نشطة",    color: "var(--accent-1)" },
   suspended: { label: "موقوفة",  color: "#fda4b4" },
   cancelled: { label: "ملغاة",   color: "#71717a" },
 };
@@ -175,7 +175,7 @@ export default async function PlatformAdminPage() {
               <div className="flex justify-between"><span style={{ color: "var(--text-3)" }}>تشغيلة آخر 24 ساعة</span><span className="font-bold ltr-nums text-white">{automation.runs24h}</span></div>
               <div className="flex justify-between">
                 <span style={{ color: "var(--text-3)" }}>أخطاء آخر 24 ساعة</span>
-                <span className="font-bold ltr-nums" style={{ color: automation.errors24h > 0 ? "#fda4b4" : "#5dd9cb" }}>{automation.errors24h}</span>
+                <span className="font-bold ltr-nums" style={{ color: automation.errors24h > 0 ? "#fda4b4" : "var(--accent-1)" }}>{automation.errors24h}</span>
               </div>
             </div>
           ) : (
@@ -186,7 +186,7 @@ export default async function PlatformAdminPage() {
           <div className="mt-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
             <p className="eyebrow mb-2" style={{ fontSize: 9 }}>آخر أخطاء سُرى المسجّلة</p>
             {(sysErrors ?? []).length === 0 ? (
-              <p className="text-[12px]" style={{ color: "#5dd9cb" }}>لا أخطاء ✓</p>
+              <p className="text-[12px]" style={{ color: "var(--accent-1)" }}>لا أخطاء ✓</p>
             ) : (
               <div className="space-y-1.5">
                 {(sysErrors ?? []).map((e, i) => (
@@ -286,7 +286,7 @@ export default async function PlatformAdminPage() {
                     <span><span className="font-bold text-white">{apptsBy[c.id] ?? 0}</span> موعد/شهر</span>
                     <span><span className="font-bold text-white">{fmt(revenueBy[c.id] ?? 0)}</span> ر.ع</span>
                     <span className="flex items-center gap-1">
-                      <MessageCircle className="w-3 h-3" style={{ color: waLinked.has(c.id) ? "#5dd9cb" : "var(--text-4)" }} />
+                      <MessageCircle className="w-3 h-3" style={{ color: waLinked.has(c.id) ? "var(--accent-1)" : "var(--text-4)" }} />
                       <span className="font-bold text-white">{msgsBy[c.id] ?? 0}</span> رسالة/7أيام
                     </span>
                   </div>

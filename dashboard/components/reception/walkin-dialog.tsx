@@ -52,7 +52,7 @@ export function WalkinDialog({ services, doctors }: { services: Opt[]; doctors: 
       {open && (
         <div
           className="fixed inset-0 z-[9000] flex items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}
+          style={{ background: "rgba(0,0,0,0.5)" }}
           onClick={closeAll}
         >
           <div

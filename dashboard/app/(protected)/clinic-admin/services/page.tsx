@@ -16,7 +16,12 @@ type ServiceRow = Service & { is_active: boolean };
     still a service the clinic sells. */
 const UNFILED = "غير مصنّفة";
 
-const PALETTE = ["#14b8a6", "#38bdf8", "#34D399", "#38bdf8", "#38bdf8", "#5dd9cb", "#5dd9cb"];
+/* One hue, five stops. The old palette mixed teal, sky and green, so a list of
+   services looked like a colour test rather than one clinic's catalogue. Now a
+   service is tinted by name only to keep neighbouring cards distinguishable —
+   the variation should read as texture, not as meaning. Hex, not tokens: these
+   get an alpha concatenated onto them. */
+const PALETTE = ["#5b93ff", "#8badff", "#2e6bf0", "#b8ccff", "#1e52d6"];
 const colorFor = (name: string) => PALETTE[name.charCodeAt(0) % PALETTE.length];
 
 export default async function ServicesPage() {
@@ -57,7 +62,7 @@ export default async function ServicesPage() {
       {/* ── HEADER ── */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1" style={{ color: "rgba(20,184,166,0.5)" }}>SERVICES</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-1" style={{ color: "rgb(var(--accent-2-rgb) / 0.5)" }}>SERVICES</p>
           <h2 className="text-2xl font-black text-white tracking-tight leading-none">الخدمات</h2>
         </div>
         <AddServiceTrigger categories={categories} />
@@ -66,15 +71,15 @@ export default async function ServicesPage() {
       {/* ── STAT PILLS ── */}
       <div className="flex items-center gap-3 flex-wrap">
         {[
-          { label: "إجمالي الخدمات", value: count ?? 0, color: "#5dd9cb", dot: "rgba(20,184,166,0.6)" },
+          { label: "إجمالي الخدمات", value: count ?? 0, color: "var(--accent-1)", dot: "rgb(var(--accent-2-rgb) / 0.6)" },
           { label: "نشطة",            value: active,      color: "#4ADE80", dot: "rgba(74,222,128,0.6)" },
           ...(inactive > 0 ? [{ label: "معطّلة", value: inactive, color: "#F87171", dot: "rgba(248,113,113,0.6)" }] : []),
-          { label: "متوسط السعر", value: `${avgPrice.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ر.ع`, color: "#2dd4bf", dot: "rgba(45,212,191,0.5)" },
+          { label: "متوسط السعر", value: `${avgPrice.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ر.ع`, color: "var(--accent-1)", dot: "rgb(var(--accent-1-rgb) / 0.5)" },
         ].map((s) => (
           <div key={s.label} className="flex items-center gap-2 px-3.5 py-2 rounded-full"
             style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
             <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: s.dot, boxShadow: `0 0 6px ${s.dot}` }} />
-            <span className="text-[11px] font-medium" style={{ color: "rgba(148,163,184,0.5)" }}>{s.label}</span>
+            <span className="text-[11px] font-medium" style={{ color: "var(--text-3)" }}>{s.label}</span>
             <span className="text-[13px] font-black ltr-nums" style={{ color: s.color }}>{s.value}</span>
           </div>
         ))}
@@ -85,10 +90,10 @@ export default async function ServicesPage() {
         <div className="rounded-3xl flex flex-col items-center justify-center py-24 gap-4"
           style={{ background: "rgba(255,255,255,0.018)", border: "1px solid rgba(255,255,255,0.055)" }}>
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
-            style={{ background: "rgba(20,184,166,0.06)", border: "1px solid rgba(20,184,166,0.12)" }}>
-            <Stethoscope className="w-6 h-6" style={{ color: "rgba(20,184,166,0.4)" }} />
+            style={{ background: "rgb(var(--accent-2-rgb) / 0.06)", border: "1px solid rgb(var(--accent-2-rgb) / 0.12)" }}>
+            <Stethoscope className="w-6 h-6" style={{ color: "rgb(var(--accent-2-rgb) / 0.4)" }} />
           </div>
-          <p className="text-sm font-medium" style={{ color: "rgba(148,163,184,0.35)" }}>لا توجد خدمات — أضف أول خدمة</p>
+          <p className="text-sm font-medium" style={{ color: "var(--text-4)" }}>لا توجد خدمات — أضف أول خدمة</p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -117,7 +122,6 @@ export default async function ServicesPage() {
                 style={{
                   background: "rgba(255,255,255,0.018)",
                   border: `1px solid ${s.is_active ? `${col}20` : "rgba(255,255,255,0.04)"}`,
-                  backdropFilter: "blur(16px)",
                   opacity: s.is_active ? 1 : 0.55,
                   transition: "border-color 0.2s, box-shadow 0.2s, transform 0.2s",
                 }}
@@ -141,7 +145,7 @@ export default async function ServicesPage() {
                       <div className="min-w-0">
                         <p className="font-bold text-white text-[13.5px] truncate">{label}</p>
                         {s.description && (
-                          <p className="text-[11px] truncate mt-0.5" style={{ color: "rgba(148,163,184,0.4)" }}>
+                          <p className="text-[11px] truncate mt-0.5" style={{ color: "var(--text-4)" }}>
                             {s.description}
                           </p>
                         )}
@@ -162,7 +166,7 @@ export default async function ServicesPage() {
                   <div className="flex items-center gap-4 mb-3">
                     <div>
                       <p className="text-[9px] font-bold uppercase tracking-[0.14em] mb-0.5"
-                        style={{ color: "rgba(148,163,184,0.3)" }}>السعر</p>
+                        style={{ color: "var(--text-4)" }}>السعر</p>
                       <p className="text-[18px] font-black ltr-nums leading-none"
                         style={{ color: col, letterSpacing: "-0.02em" }}>
                         {Number(s.price).toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
@@ -172,8 +176,8 @@ export default async function ServicesPage() {
                     {s.duration_minutes && (
                       <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl"
                         style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                        <Clock className="w-3 h-3" style={{ color: "rgba(148,163,184,0.45)" }} />
-                        <span className="text-[11px] ltr-nums font-medium" style={{ color: "rgba(148,163,184,0.55)" }}>
+                        <Clock className="w-3 h-3" style={{ color: "var(--text-3)" }} />
+                        <span className="text-[11px] ltr-nums font-medium" style={{ color: "var(--text-3)" }}>
                           {s.duration_minutes} د
                         </span>
                       </div>
@@ -181,7 +185,7 @@ export default async function ServicesPage() {
                     {s.vat_applicable && (
                       <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl"
                         title="تُضاف ٥٪ ضريبة على هذه الخدمة في الفاتورة"
-                        style={{ background: "rgba(45,212,191,0.08)", border: "1px solid rgba(45,212,191,0.2)" }}>
+                        style={{ background: "rgb(var(--accent-1-rgb) / 0.08)", border: "1px solid rgb(var(--accent-1-rgb) / 0.2)" }}>
                         <Receipt className="w-3 h-3" style={{ color: "var(--accent-1)" }} />
                         <span className="text-[11px] font-medium" style={{ color: "var(--accent-1)" }}>ض ٥٪</span>
                       </div>

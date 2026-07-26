@@ -26,22 +26,22 @@ const V: Record<Variant, {
   badge: string;
 }> = {
   teal: {
-    glow:       "rgba(20,184,166,0.18)",
-    border:     "rgba(20,184,166,0.25)",
-    topBar:     "linear-gradient(90deg, #0d9488, #14b8a6)",
-    valueColor: "#5dd9cb",
-    iconBg:     "rgba(20,184,166,0.15)",
-    liveColor:  "#5dd9cb",
-    badge:      "rgba(20,184,166,0.2)",
+    glow:       "rgb(var(--accent-2-rgb) / 0.18)",
+    border:     "rgb(var(--accent-2-rgb) / 0.25)",
+    topBar:     "linear-gradient(90deg, var(--accent-2), var(--accent-2))",
+    valueColor: "var(--accent-1)",
+    iconBg:     "rgb(var(--accent-2-rgb) / 0.15)",
+    liveColor:  "var(--accent-1)",
+    badge:      "rgb(var(--accent-2-rgb) / 0.2)",
   },
   gold: {
-    glow:       "rgba(20,184,166,0.15)",
-    border:     "rgba(20,184,166,0.2)",
-    topBar:     "linear-gradient(90deg, #0f766e, #14b8a6)",
-    valueColor: "#2dd4bf",
-    iconBg:     "rgba(20,184,166,0.12)",
-    liveColor:  "#14b8a6",
-    badge:      "rgba(20,184,166,0.15)",
+    glow:       "rgb(var(--accent-2-rgb) / 0.15)",
+    border:     "rgb(var(--accent-2-rgb) / 0.2)",
+    topBar:     "linear-gradient(90deg, var(--accent-3), var(--accent-2))",
+    valueColor: "var(--accent-1)",
+    iconBg:     "rgb(var(--accent-2-rgb) / 0.12)",
+    liveColor:  "var(--accent-2)",
+    badge:      "rgb(var(--accent-2-rgb) / 0.15)",
   },
   success: {
     glow:       "rgba(16,185,129,0.15)",
@@ -92,7 +92,6 @@ export function KPICard({
         background: "rgba(8,18,36,0.8)",
         border: `1px solid ${v.border}`,
         boxShadow: `0 0 0 0 ${v.glow}, 0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)`,
-        backdropFilter: "blur(20px)",
       }}
       onMouseEnter={(e) => {
         (e.currentTarget as HTMLDivElement).style.boxShadow = `0 0 30px ${v.glow}, 0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.07)`;
@@ -107,7 +106,7 @@ export function KPICard({
       <div className="p-5 pt-6">
         {/* Header row */}
         <div className="flex items-start justify-between mb-4 gap-2">
-          <p className="text-[13px] font-medium leading-tight" style={{ color: "rgba(148,163,184,0.85)" }}>
+          <p className="text-[13px] font-medium leading-tight" style={{ color: "var(--text-2)" }}>
             {label}
           </p>
           <div className="flex items-center gap-2 shrink-0">
@@ -143,7 +142,7 @@ export function KPICard({
             {value}
           </span>
           {subLabel && (
-            <span className="text-sm font-medium" style={{ color: "rgba(148,163,184,0.6)" }}>
+            <span className="text-sm font-medium" style={{ color: "var(--text-3)" }}>
               {subLabel}
             </span>
           )}
@@ -158,7 +157,7 @@ export function KPICard({
             {isPositive ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
             <span className="ltr-nums">{Math.abs(change)}%</span>
             {changeLabel && (
-              <span className="font-normal" style={{ color: "rgba(148,163,184,0.5)" }}>
+              <span className="font-normal" style={{ color: "var(--text-3)" }}>
                 {changeLabel}
               </span>
             )}

@@ -31,9 +31,16 @@ export const ROLE_LABEL_AR: Record<AppRole, string> = {
   accountant: "محاسب",
 };
 
+/* Kept as hex, not tokens, because the roster builds tints by concatenating an
+   alpha onto these (`${ROLE_COLOR[r]}14`) — "var(--accent-1)14" is not a colour.
+
+   The doctor is the clinic's centre of gravity, so the doctor carries the brand
+   blue. The other roles sit clearly apart from it: the manager on a deeper blue
+   (same family, more authority), reception and accounting on hues that could
+   never be mistaken for either. */
 export const ROLE_COLOR: Record<AppRole, string> = {
-  clinic_admin: "#5dd9cb",
-  doctor: "#38bdf8",
+  doctor: "#5b93ff",        // brand blue
+  clinic_admin: "#8badff",  // lighter blue — same family, distinct rank
   receptionist: "#fbbf24",
   accountant: "#34d399",
 };

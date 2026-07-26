@@ -18,9 +18,9 @@ export default function LoginPage() {
           position: "absolute",
           inset: 0,
           background: [
-            "radial-gradient(ellipse 70% 55% at 50% -10%, rgba(20,184,166,0.055) 0%, transparent 100%)",
+            "radial-gradient(ellipse 70% 55% at 50% -10%, rgb(var(--accent-2-rgb) / 0.055) 0%, transparent 100%)",
             "radial-gradient(ellipse 60% 50% at 15% 110%, rgba(99,102,241,0.04) 0%, transparent 100%)",
-            "radial-gradient(ellipse 40% 40% at 85% 90%, rgba(20,184,166,0.025) 0%, transparent 100%)",
+            "radial-gradient(ellipse 40% 40% at 85% 90%, rgb(var(--accent-2-rgb) / 0.025) 0%, transparent 100%)",
           ].join(", "),
           pointerEvents: "none",
         }}
@@ -44,15 +44,14 @@ export default function LoginPage() {
         style={{
           background: "rgba(255,255,255,0.02)",
           border: "1px solid rgba(255,255,255,0.07)",
-          backdropFilter: "blur(28px) saturate(160%)",
-          boxShadow: "0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(20,184,166,0.06)",
+          boxShadow: "0 32px 80px rgba(0,0,0,0.9), 0 0 0 1px rgb(var(--accent-2-rgb) / 0.06)",
         }}
       >
         {/* Top gold line accent */}
         <div
           style={{
             height: 1,
-            background: "linear-gradient(90deg, transparent, rgba(20,184,166,0.45), transparent)",
+            background: "linear-gradient(90deg, transparent, rgb(var(--accent-2-rgb) / 0.45), transparent)",
           }}
         />
 
@@ -69,7 +68,7 @@ export default function LoginPage() {
                   width: 120,
                   height: 120,
                   borderRadius: "50%",
-                  background: "radial-gradient(ellipse, rgba(20,184,166,0.13) 0%, transparent 70%)",
+                  background: "radial-gradient(ellipse, rgb(var(--accent-2-rgb) / 0.13) 0%, transparent 70%)",
                   pointerEvents: "none",
                 }}
               />
@@ -83,14 +82,13 @@ export default function LoginPage() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: "linear-gradient(145deg, rgba(20,184,166,0.1) 0%, rgba(13,13,15,0.8) 100%)",
-                  border: "1px solid rgba(20,184,166,0.22)",
-                  backdropFilter: "blur(12px)",
+                  background: "linear-gradient(145deg, rgb(var(--accent-2-rgb) / 0.1) 0%, rgba(13,13,15,0.8) 100%)",
+                  border: "1px solid rgb(var(--accent-2-rgb) / 0.22)",
                   boxShadow: [
-                    "0 0 0 1px rgba(20,184,166,0.08)",
-                    "0 0 32px rgba(20,184,166,0.15)",
+                    "0 0 0 1px rgb(var(--accent-2-rgb) / 0.08)",
+                    "0 0 32px rgb(var(--accent-2-rgb) / 0.15)",
                     "0 8px 32px rgba(0,0,0,0.5)",
-                    "inset 0 1px 0 rgba(94,217,203,0.1)",
+                    "inset 0 1px 0 rgb(var(--accent-1-rgb) / 0.1)",
                   ].join(", "),
                   position: "relative",
                   overflow: "hidden",
@@ -105,7 +103,7 @@ export default function LoginPage() {
                     left: 0,
                     right: 0,
                     height: "45%",
-                    background: "linear-gradient(180deg, rgba(94,217,203,0.07) 0%, transparent 100%)",
+                    background: "linear-gradient(180deg, rgb(var(--accent-1-rgb) / 0.07) 0%, transparent 100%)",
                     borderRadius: "22px 22px 0 0",
                     pointerEvents: "none",
                   }}
@@ -120,7 +118,7 @@ export default function LoginPage() {
               style={{
                 fontSize: 40,
                 letterSpacing: "-0.05em",
-                background: "linear-gradient(135deg, #cbf6ef 0%, #5dd9cb 35%, #14b8a6 70%, #0d9488 100%)",
+                background: "linear-gradient(135deg, #cbf6ef 0%, var(--accent-1) 35%, var(--accent-2) 70%, var(--accent-2) 100%)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
               }}
@@ -131,7 +129,7 @@ export default function LoginPage() {
             <p
               className="text-[12.5px] font-medium mt-1"
               style={{
-                color: "rgba(148,163,184,0.45)",
+                color: "var(--text-3)",
                 letterSpacing: "0.025em",
               }}
             >
@@ -143,7 +141,7 @@ export default function LoginPage() {
               className="w-24 mt-5"
               style={{
                 height: 1,
-                background: "linear-gradient(90deg, transparent, rgba(20,184,166,0.2), transparent)",
+                background: "linear-gradient(90deg, transparent, rgb(var(--accent-2-rgb) / 0.2), transparent)",
               }}
             />
           </div>
@@ -157,12 +155,12 @@ export default function LoginPage() {
           className="px-8 py-3.5 flex items-center justify-between"
           style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
         >
-          <p className="text-[10px]" style={{ color: "rgba(148,163,184,0.2)" }}>
+          <p className="text-[10px]" style={{ color: "var(--text-4)" }}>
             مدعوم بـ سُرى AI
           </p>
           <p
             className="text-[10px] font-bold tracking-[0.15em]"
-            style={{ color: "rgba(20,184,166,0.2)" }}
+            style={{ color: "rgb(var(--accent-2-rgb) / 0.2)" }}
           >
             TAWD OS
           </p>

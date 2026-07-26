@@ -96,7 +96,7 @@ export default async function DoctorStatsPage() {
                       className="h-full rounded-full"
                       style={{
                         width: `${Math.round((count / maxSvc) * 100)}%`,
-                        background: "linear-gradient(90deg, rgba(45,212,191,0.35), var(--accent-1))",
+                        background: "linear-gradient(90deg, rgb(var(--accent-1-rgb) / 0.35), var(--accent-1))",
                       }}
                     />
                   </div>

@@ -90,7 +90,7 @@ function InvoiceModal({ patients, services, onClose }: { patients: PatientOpt[];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
-      style={{ background: "rgba(2,8,18,0.82)", backdropFilter: "blur(8px)" }}
+      style={{ background: "rgba(2,8,18,0.9)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="w-full max-w-3xl panel animate-scale-in" style={{ background: "rgba(8,14,24,0.98)", padding: "1.5rem", maxHeight: "90vh", overflowY: "auto" }}>
         <div className="flex items-center justify-between mb-5">
@@ -161,8 +161,8 @@ function InvoiceModal({ patients, services, onClose }: { patients: PatientOpt[];
                       className="col-span-1 h-9 rounded-lg text-[11px] font-bold transition-colors"
                       title={l.vat ? "خاضع لـ ٥٪ ضريبة" : "معفى من الضريبة"}
                       style={{
-                        background: l.vat ? "rgba(45,212,191,0.14)" : "rgba(255,255,255,0.03)",
-                        border: `1px solid ${l.vat ? "rgba(45,212,191,0.4)" : "var(--hairline)"}`,
+                        background: l.vat ? "rgb(var(--accent-1-rgb) / 0.14)" : "rgba(255,255,255,0.03)",
+                        border: `1px solid ${l.vat ? "rgb(var(--accent-1-rgb) / 0.4)" : "var(--hairline)"}`,
                         color: l.vat ? "var(--accent-1)" : "var(--text-4)",
                       }}>
                       ٪٥

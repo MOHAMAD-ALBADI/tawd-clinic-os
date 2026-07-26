@@ -104,7 +104,7 @@ export function LoyaltyEditor({
 
       {flash && (
         <div className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-xl"
-          style={{ background: "rgba(45,212,191,0.1)", border: "1px solid rgba(45,212,191,0.25)", color: "#5dd9cb" }}>
+          style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", border: "1px solid rgb(var(--accent-1-rgb) / 0.25)", color: "var(--accent-1)" }}>
           <CheckCircle2 className="w-4 h-4" /> {flash}
         </div>
       )}
@@ -113,19 +113,19 @@ export function LoyaltyEditor({
       <div className="relative rounded-3xl overflow-hidden"
         style={{
           background: active
-            ? "linear-gradient(145deg, rgba(20,184,166,0.1) 0%, rgba(13,13,15,0.95) 60%)"
+            ? "linear-gradient(145deg, rgb(var(--accent-2-rgb) / 0.1) 0%, rgba(13,13,15,0.95) 60%)"
             : "linear-gradient(145deg, rgba(107,114,128,0.08) 0%, rgba(13,13,15,0.95) 60%)",
-          border: `1px solid ${active ? "rgba(20,184,166,0.15)" : "rgba(107,114,128,0.12)"}`,
+          border: `1px solid ${active ? "rgb(var(--accent-2-rgb) / 0.15)" : "rgba(107,114,128,0.12)"}`,
           padding: "1.75rem 2rem",
         }}>
         <div className="relative flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
               style={{
-                background: active ? "rgba(20,184,166,0.2)" : "rgba(107,114,128,0.1)",
-                border: `1px solid ${active ? "rgba(20,184,166,0.3)" : "rgba(107,114,128,0.18)"}`,
+                background: active ? "rgb(var(--accent-2-rgb) / 0.2)" : "rgba(107,114,128,0.1)",
+                border: `1px solid ${active ? "rgb(var(--accent-2-rgb) / 0.3)" : "rgba(107,114,128,0.18)"}`,
               }}>
-              <Zap className="w-6 h-6" style={{ color: active ? "#14b8a6" : "#6B7280" }} />
+              <Zap className="w-6 h-6" style={{ color: active ? "var(--accent-2)" : "#6B7280" }} />
             </div>
             <div>
               <div className="flex items-center gap-2 mb-1">
@@ -151,9 +151,9 @@ export function LoyaltyEditor({
           <button onClick={() => { setErr(null); setEditing(!editing); }}
             className="flex items-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
             style={{
-              background: editing ? "rgba(239,68,68,0.08)" : "rgba(20,184,166,0.08)",
-              color: editing ? "#F87171" : "#5dd9cb",
-              border: `1px solid ${editing ? "rgba(239,68,68,0.18)" : "rgba(20,184,166,0.18)"}`,
+              background: editing ? "rgba(239,68,68,0.08)" : "rgb(var(--accent-2-rgb) / 0.08)",
+              color: editing ? "#F87171" : "var(--accent-1)",
+              border: `1px solid ${editing ? "rgba(239,68,68,0.18)" : "rgb(var(--accent-2-rgb) / 0.18)"}`,
             }}>
             <Settings2 className="w-3.5 h-3.5" />
             {editing ? "إلغاء التعديل" : "تعديل القواعد"}
@@ -163,7 +163,7 @@ export function LoyaltyEditor({
 
       {/* ── editor ── */}
       {editing && (
-        <div className="panel animate-fade-in" style={{ padding: "1.5rem", border: "1px solid rgba(20,184,166,0.14)" }}>
+        <div className="panel animate-fade-in" style={{ padding: "1.5rem", border: "1px solid rgb(var(--accent-2-rgb) / 0.14)" }}>
           <p className="eyebrow mb-5">قواعد الاكتساب والاستبدال</p>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
@@ -233,7 +233,7 @@ export function LoyaltyEditor({
         <div className="grid sm:grid-cols-3 gap-3">
           {[
             { label: "يكسب", value: `${earned}`, unit: "نقطة", Icon: Star, color: "#38bdf8" },
-            { label: "تساوي", value: fmt3(earnedValue), unit: "ر.ع", Icon: Coins, color: "#5dd9cb" },
+            { label: "تساوي", value: fmt3(earnedValue), unit: "ر.ع", Icon: Coins, color: "var(--accent-1)" },
             { label: "أي عائد", value: `${cashbackPct.toFixed(1)}%`, unit: "من قيمة ما دفع", Icon: Percent, color: "#4ADE80" },
           ].map((c) => (
             <div key={c.label} className="rounded-2xl px-4 py-3.5"
@@ -258,7 +258,7 @@ export function LoyaltyEditor({
       <div className="grid sm:grid-cols-3 gap-3">
         {[
           { label: "أعضاء لديهم رصيد", value: String(stats.members), Icon: Users, color: "#38bdf8" },
-          { label: "إجمالي النقاط القائمة", value: stats.totalBal.toLocaleString("en-US"), Icon: Star, color: "#5dd9cb" },
+          { label: "إجمالي النقاط القائمة", value: stats.totalBal.toLocaleString("en-US"), Icon: Star, color: "var(--accent-1)" },
           { label: "التزام مالي مقابلها (ر.ع)", value: fmt3(balanceValue), Icon: Gift, color: "#fbbf24" },
         ].map((s) => (
           <div key={s.label} className="panel" style={{ padding: "1.1rem 1.2rem" }}>

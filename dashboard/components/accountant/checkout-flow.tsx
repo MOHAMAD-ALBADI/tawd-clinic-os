@@ -136,7 +136,7 @@ export function CheckoutFlow({
           {/* loyalty redemption */}
           {canRedeem && redeemPreviewPoints > 0 && (
             <div className="rounded-xl px-4 py-3 flex items-center justify-between gap-3 flex-wrap"
-              style={{ background: "rgba(45,212,191,0.06)", border: "1px solid rgba(45,212,191,0.2)" }}>
+              style={{ background: "rgb(var(--accent-1-rgb) / 0.06)", border: "1px solid rgb(var(--accent-1-rgb) / 0.2)" }}>
               <div className="flex items-center gap-2">
                 <Star className="w-4 h-4 shrink-0" style={{ color: "var(--accent-1)" }} />
                 <p className="text-[12px]" style={{ color: "var(--text-1)" }}>
@@ -147,7 +147,7 @@ export function CheckoutFlow({
               </div>
               <button onClick={doRedeem} disabled={pending}
                 className="text-[12px] font-bold px-3 py-1.5 rounded-lg shrink-0"
-                style={{ background: "rgba(45,212,191,0.14)", border: "1px solid rgba(45,212,191,0.35)", color: "#5dd9cb" }}>
+                style={{ background: "rgb(var(--accent-1-rgb) / 0.14)", border: "1px solid rgb(var(--accent-1-rgb) / 0.35)", color: "var(--accent-1)" }}>
                 {pending ? "…" : `استبدال = خصم ${fmt(redeemPreviewValue)} ر.ع`}
               </button>
             </div>
@@ -168,9 +168,9 @@ export function CheckoutFlow({
                   onClick={() => setGateway(g)}
                   className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-bold transition-colors"
                   style={{
-                    background: gateway === g ? "rgba(45,212,191,0.12)" : "rgba(255,255,255,0.03)",
-                    border: `1px solid ${gateway === g ? "rgba(45,212,191,0.35)" : "rgba(255,255,255,0.08)"}`,
-                    color: gateway === g ? "#5dd9cb" : "var(--text-2)",
+                    background: gateway === g ? "rgb(var(--accent-1-rgb) / 0.12)" : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${gateway === g ? "rgb(var(--accent-1-rgb) / 0.35)" : "rgba(255,255,255,0.08)"}`,
+                    color: gateway === g ? "var(--accent-1)" : "var(--text-2)",
                   }}
                 >
                   <Icon className="w-4 h-4" />

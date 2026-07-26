@@ -73,7 +73,7 @@ export function EmergencyAlerts({ alerts }: { alerts: EmergencyAlert[] }) {
                       {a.phone}
                     </a>
                   )}
-                  <span className="text-[10px]" style={{ color: "rgba(148,163,184,0.45)" }}>{a.ago}</span>
+                  <span className="text-[10px]" style={{ color: "var(--text-3)" }}>{a.ago}</span>
                 </div>
                 {a.message && (
                   <p className="text-[12px] mt-1 leading-relaxed line-clamp-3" style={{ color: "rgba(255,255,255,0.72)" }}>{a.message}</p>

@@ -143,7 +143,7 @@ export function PatientImport({ clinicId, onClose }: { clinicId?: string; onClos
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
             {FIELDS.map((f) => (
               <div key={f.key}>
-                <label className="text-[11px] font-semibold block mb-1" style={{ color: f.key === "name" ? "#5dd9cb" : "var(--text-3)" }}>{f.label}</label>
+                <label className="text-[11px] font-semibold block mb-1" style={{ color: f.key === "name" ? "var(--accent-1)" : "var(--text-3)" }}>{f.label}</label>
                 <select
                   value={map[f.key] ?? -1}
                   onChange={(e) => setMap((m) => ({ ...m, [f.key]: Number(e.target.value) }))}

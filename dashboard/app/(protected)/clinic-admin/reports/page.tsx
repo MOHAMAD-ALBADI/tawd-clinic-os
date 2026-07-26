@@ -127,24 +127,24 @@ export default async function ReportsPage() {
 
   const kpis = [
     { label: "محصّل هذا الشهر", value: omr(collected), unit: "ر.ع", Icon: Wallet,
-      trend: revenueTrend, color: "#5dd9cb" },
+      trend: revenueTrend, color: "var(--accent-1)" },
     { label: "معدل التحصيل", value: `${collectionRate}%`, unit: `من ${omr(billed)} مفوتر`,
-      Icon: Percent, trend: null, color: collectionRate >= 80 ? "#5dd9cb" : "#fbbf24" },
+      Icon: Percent, trend: null, color: collectionRate >= 80 ? "var(--accent-1)" : "#fbbf24" },
     { label: "صافي الربح", value: omr(profit), unit: "ر.ع بعد المصروفات", Icon: TrendingUp,
-      trend: null, color: profit >= 0 ? "#5dd9cb" : "#fda4b4" },
+      trend: null, color: profit >= 0 ? "var(--accent-1)" : "#fda4b4" },
     { label: "متوسط إيراد الزيارة", value: omr(revPerVisit), unit: "ر.ع", Icon: TrendingUp,
       trend: null, color: "var(--accent-1)" },
     { label: "معدل عدم الحضور", value: `${noShowRate}%`,
       unit: prevFinished > 0 ? `الشهر الماضي ${prevNoShowRate}%` : "لا مقارنة بعد",
       Icon: CalendarX, trend: null,
-      color: noShowRate <= 10 ? "#5dd9cb" : noShowRate <= 20 ? "#fbbf24" : "#fda4b4" },
+      color: noShowRate <= 10 ? "var(--accent-1)" : noShowRate <= 20 ? "#fbbf24" : "#fda4b4" },
     { label: "مواعيد مكتملة", value: String(completed), unit: `من ${appts.length} موعد`,
       Icon: ClipboardCheck, trend: null, color: "var(--accent-1)" },
     { label: "مرضى جدد", value: String(newThisMonth), unit: `عائدون ${returning}`,
       Icon: UserPlus, trend: null, color: "var(--accent-1)" },
     { label: "قبول خطط العلاج", value: proposed > 0 ? `${acceptanceRate}%` : "—",
       unit: pipeline > 0 ? `معروض ${omr(pipeline)} ر.ع` : "لا خطط معروضة", Icon: Repeat,
-      trend: null, color: acceptanceRate >= 50 ? "#5dd9cb" : "#fbbf24" },
+      trend: null, color: acceptanceRate >= 50 ? "var(--accent-1)" : "#fbbf24" },
   ];
 
   return (
@@ -168,7 +168,7 @@ export default async function ReportsPage() {
               <p className="font-black ltr-nums leading-none" style={{ fontSize: "1.7rem", color: k.color }}>{k.value}</p>
               {k.trend != null && (
                 <span className="flex items-center gap-0.5 text-[11px] font-bold ltr-nums mb-0.5"
-                  style={{ color: k.trend >= 0 ? "#5dd9cb" : "#fda4b4" }}>
+                  style={{ color: k.trend >= 0 ? "var(--accent-1)" : "#fda4b4" }}>
                   {k.trend >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                   {Math.abs(k.trend)}%
                 </span>
@@ -250,7 +250,7 @@ export default async function ReportsPage() {
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { l: "مكتملة", v: completed, c: "#5dd9cb" },
+            { l: "مكتملة", v: completed, c: "var(--accent-1)" },
             { l: "لم يحضر", v: noShow, c: "#fda4b4" },
             { l: "ملغاة", v: cancelled, c: "var(--text-3)" },
             { l: "قادمة / جارية", v: Math.max(0, appts.length - completed - noShow - cancelled), c: "var(--accent-1)" },

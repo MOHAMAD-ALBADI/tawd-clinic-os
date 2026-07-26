@@ -10,13 +10,13 @@ export const metadata = { title: "الفواتير — طود" };
 type Invoice = { id: string; total: number; status: string; created_at: string };
 
 const STATUS: Record<string, { label: string; color: string; bg: string }> = {
-  draft:          { label: "مسودة",   color: "#94a3b8", bg: "rgba(148,163,184,0.1)" },
+  draft:          { label: "مسودة",   color: "#94a3b8", bg: "var(--text-4)" },
   sent:           { label: "مُرسلة",  color: "#38bdf8", bg: "rgba(56,189,248,0.1)"  },
   paid:           { label: "مدفوعة",  color: "#34d399", bg: "rgba(52,211,153,0.1)"  },
-  partially_paid: { label: "مدفوعة جزئياً", color: "#2dd4bf", bg: "rgba(45,212,191,0.1)" },
+  partially_paid: { label: "مدفوعة جزئياً", color: "var(--accent-1)", bg: "rgb(var(--accent-1-rgb) / 0.1)" },
   overdue:        { label: "متأخرة",  color: "#f43f5e", bg: "rgba(244,63,94,0.1)"   },
   cancelled:      { label: "ملغاة",   color: "#64748b", bg: "rgba(100,116,139,0.1)" },
-  refunded:       { label: "مستردة",  color: "#5dd9cb", bg: "rgba(45,212,191,0.1)"  },
+  refunded:       { label: "مستردة",  color: "var(--accent-1)", bg: "rgb(var(--accent-1-rgb) / 0.1)"  },
 };
 
 export default async function InvoicesPage() {

@@ -47,7 +47,7 @@ export function ActionCenter({ s }: { s: ActionSignals }) {
     label: string; value: string; hint: string;
   }[];
 
-  const profitColor = s.monthProfit >= 0 ? "#5dd9cb" : "#fda4b4";
+  const profitColor = s.monthProfit >= 0 ? "var(--accent-1)" : "#fda4b4";
 
   return (
     <div className="panel" style={{ padding: "1.25rem" }}>
@@ -67,7 +67,7 @@ export function ActionCenter({ s }: { s: ActionSignals }) {
       </div>
 
       {items.length === 0 ? (
-        <div className="flex items-center gap-2 text-[13px]" style={{ color: "#5dd9cb" }}>
+        <div className="flex items-center gap-2 text-[13px]" style={{ color: "var(--accent-1)" }}>
           <CheckCircle2 className="w-4 h-4" />
           لا شيء عاجل — المخزون والمطالبات والفوترة كلها منتظمة ✓
         </div>
@@ -78,8 +78,8 @@ export function ActionCenter({ s }: { s: ActionSignals }) {
             return (
               <Link key={it.label} href={it.href}
                 className="flex items-center gap-3 px-3.5 py-3 rounded-xl transition-colors"
-                style={{ background: `${it.tone === "warn" ? "rgba(251,191,36,0.06)" : "rgba(45,212,191,0.05)"}`,
-                         border: `1px solid ${it.tone === "warn" ? "rgba(251,191,36,0.2)" : "rgba(45,212,191,0.18)"}` }}>
+                style={{ background: `${it.tone === "warn" ? "rgba(251,191,36,0.06)" : "rgb(var(--accent-1-rgb) / 0.05)"}`,
+                         border: `1px solid ${it.tone === "warn" ? "rgba(251,191,36,0.2)" : "rgb(var(--accent-1-rgb) / 0.18)"}` }}>
                 <it.Icon className="w-4 h-4 shrink-0" style={{ color: c }} />
                 <div className="flex-1 min-w-0">
                   <p className="text-[12.5px] font-bold text-white truncate">{it.label}</p>

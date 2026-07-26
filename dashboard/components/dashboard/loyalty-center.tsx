@@ -46,8 +46,8 @@ type Tab = "loyalty" | "campaigns" | "templates";
 const CAMPAIGN_STATUS: Record<string, { label: string; color: string }> = {
   draft:     { label: "مسودة",    color: "#71717a" },
   scheduled: { label: "مجدول",    color: "#a1a1aa" },
-  running:   { label: "يُرسَل",   color: "#2dd4bf" },
-  completed: { label: "مكتمل",    color: "#5dd9cb" },
+  running:   { label: "يُرسَل",   color: "var(--accent-1)" },
+  completed: { label: "مكتمل",    color: "var(--accent-1)" },
   cancelled: { label: "ملغي",     color: "#fda4b4" },
 };
 
@@ -104,7 +104,7 @@ export function LoyaltyCenter({
             onClick={() => setTab(t.id)}
             className="flex-1 relative flex items-center justify-center gap-1.5 py-3 text-[11px] font-semibold"
             style={{
-              color: tab === t.id ? "#5dd9cb" : "var(--text-4)",
+              color: tab === t.id ? "var(--accent-1)" : "var(--text-4)",
               transition: "color 0.15s",
             }}
           >
@@ -114,8 +114,8 @@ export function LoyaltyCenter({
               <span
                 className="text-[9px] font-black px-1.5 py-0.5 rounded-full ltr-nums"
                 style={{
-                  background: "rgba(20,184,166,0.18)",
-                  color: "#5dd9cb",
+                  background: "rgb(var(--accent-2-rgb) / 0.18)",
+                  color: "var(--accent-1)",
                 }}
               >
                 {t.badge}
@@ -124,7 +124,7 @@ export function LoyaltyCenter({
             {tab === t.id && (
               <span
                 className="absolute bottom-0 inset-x-0 h-[2px] rounded-full"
-                style={{ background: "#14b8a6" }}
+                style={{ background: "var(--accent-2)" }}
               />
             )}
           </button>
@@ -145,9 +145,9 @@ export function LoyaltyCenter({
                 <span
                   className="text-[10px] px-2 py-0.5 rounded-full font-bold"
                   style={{
-                    background: rules.is_active ? "rgba(45,212,191,0.08)" : "rgba(107,114,128,0.08)",
-                    color: rules.is_active ? "#5dd9cb" : "#6B7280",
-                    border: `1px solid ${rules.is_active ? "rgba(45,212,191,0.18)" : "rgba(107,114,128,0.18)"}`,
+                    background: rules.is_active ? "rgb(var(--accent-1-rgb) / 0.08)" : "rgba(107,114,128,0.08)",
+                    color: rules.is_active ? "var(--accent-1)" : "#6B7280",
+                    border: `1px solid ${rules.is_active ? "rgb(var(--accent-1-rgb) / 0.18)" : "rgba(107,114,128,0.18)"}`,
                   }}
                 >
                   {rules.is_active ? "نشط" : "معطّل"}
@@ -157,9 +157,9 @@ export function LoyaltyCenter({
                 href="/clinic-admin/marketing/loyalty"
                 className="flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg"
                 style={{
-                  background: "rgba(20,184,166,0.08)",
-                  color: "#5dd9cb",
-                  border: "1px solid rgba(20,184,166,0.18)",
+                  background: "rgb(var(--accent-2-rgb) / 0.08)",
+                  color: "var(--accent-1)",
+                  border: "1px solid rgb(var(--accent-2-rgb) / 0.18)",
                 }}
               >
                 <Settings2 className="w-3 h-3" /> تعديل
@@ -199,7 +199,7 @@ export function LoyaltyCenter({
               <Link
                 href="/clinic-admin/marketing/campaigns"
                 className="flex items-center gap-1 text-[11px] font-semibold"
-                style={{ color: "#14b8a6" }}
+                style={{ color: "var(--accent-2)" }}
               >
                 إدارة الحملات <ChevronLeft className="w-3 h-3" />
               </Link>
@@ -294,7 +294,7 @@ export function LoyaltyCenter({
               <Link
                 href="/clinic-admin/marketing/templates"
                 className="flex items-center gap-1 text-[11px] font-semibold"
-                style={{ color: "#14b8a6" }}
+                style={{ color: "var(--accent-2)" }}
               >
                 إدارة القوالب <ChevronLeft className="w-3 h-3" />
               </Link>
@@ -322,7 +322,7 @@ export function LoyaltyCenter({
                 >
                   <div
                     className="w-1.5 h-1.5 rounded-full shrink-0"
-                    style={{ background: t.is_active ? "#5dd9cb" : "var(--text-4)" }}
+                    style={{ background: t.is_active ? "var(--accent-1)" : "var(--text-4)" }}
                   />
                   <p
                     className="text-xs font-semibold text-white flex-1 truncate"

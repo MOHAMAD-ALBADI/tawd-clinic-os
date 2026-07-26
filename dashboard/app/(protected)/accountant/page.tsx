@@ -136,7 +136,7 @@ export default async function AccountantPage() {
                     <Link
                       href={`/accountant/checkout/${a.id}`}
                       className="shrink-0 flex items-center gap-1 text-[11px] font-bold px-3 py-1.5 rounded-lg"
-                      style={{ background: "rgba(45,212,191,0.1)", border: "1px solid rgba(45,212,191,0.25)", color: "#5dd9cb" }}
+                      style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", border: "1px solid rgb(var(--accent-1-rgb) / 0.25)", color: "var(--accent-1)" }}
                     >
                       <ReceiptText className="w-3.5 h-3.5" />
                       فوترة وقبض

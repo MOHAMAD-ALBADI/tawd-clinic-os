@@ -12,8 +12,8 @@ export type CommissionRow = {
 
 const STATUS: Record<CommissionRow["status"], { label: string; color: string }> = {
   pending: { label: "بانتظار الاعتماد", color: "#fbbf24" },
-  approved: { label: "معتمدة", color: "#5dd9cb" },
-  paid: { label: "مصروفة", color: "#2dd4bf" },
+  approved: { label: "معتمدة", color: "var(--accent-1)" },
+  paid: { label: "مصروفة", color: "var(--accent-1)" },
 };
 const fmt = (v: number) => new Intl.NumberFormat("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(v);
 
@@ -49,7 +49,7 @@ export function CommissionsBoard({ commissions }: { commissions: CommissionRow[]
         تُحتسب تلقائياً عند إصدار الفاتورة حسب نسبة العمولة في ملف راتب الطبيب — اعتمدها ثم اصرفها (تُسجَّل كمصروف)
       </p>
 
-      {flash && <div className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-xl mb-3" style={{ background: "rgba(45,212,191,0.1)", border: "1px solid rgba(45,212,191,0.25)", color: "#5dd9cb" }}><CheckCircle2 className="w-4 h-4" /> {flash}</div>}
+      {flash && <div className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-xl mb-3" style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", border: "1px solid rgb(var(--accent-1-rgb) / 0.25)", color: "var(--accent-1)" }}><CheckCircle2 className="w-4 h-4" /> {flash}</div>}
       {err && <div className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-xl mb-3" style={{ background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.2)", color: "#fda4b4" }}><AlertTriangle className="w-4 h-4" /> {err}</div>}
 
       {commissions.length === 0 ? (
@@ -60,7 +60,7 @@ export function CommissionsBoard({ commissions }: { commissions: CommissionRow[]
         <>
           <div className="flex items-center gap-5 mb-3 flex-wrap text-[12px]">
             <span style={{ color: "var(--text-3)" }}>بانتظار الاعتماد: <span className="ltr-nums font-bold" style={{ color: "#fbbf24" }}>{fmt(pendingSum)}</span> ر.ع</span>
-            <span style={{ color: "var(--text-3)" }}>معتمدة للصرف: <span className="ltr-nums font-bold" style={{ color: "#5dd9cb" }}>{fmt(approvedSum)}</span> ر.ع</span>
+            <span style={{ color: "var(--text-3)" }}>معتمدة للصرف: <span className="ltr-nums font-bold" style={{ color: "var(--accent-1)" }}>{fmt(approvedSum)}</span> ر.ع</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-[13px]">
@@ -90,7 +90,7 @@ export function CommissionsBoard({ commissions }: { commissions: CommissionRow[]
                             <>
                               <button title="اعتماد" disabled={pending} onClick={() => run(() => approveCommission(c.id), "اعتُمدت العمولة")}
                                 className="w-7 h-7 rounded-lg inline-flex items-center justify-center"
-                                style={{ background: "rgba(45,212,191,0.14)", border: "1px solid rgba(45,212,191,0.33)", color: "#5dd9cb" }}>
+                                style={{ background: "rgb(var(--accent-1-rgb) / 0.14)", border: "1px solid rgb(var(--accent-1-rgb) / 0.33)", color: "var(--accent-1)" }}>
                                 <CheckCircle2 className="w-3.5 h-3.5" />
                               </button>
                               <button title="حذف" disabled={pending} onClick={() => run(() => deleteCommission(c.id), "حُذفت العمولة")}
@@ -103,7 +103,7 @@ export function CommissionsBoard({ commissions }: { commissions: CommissionRow[]
                           {c.status === "approved" && (
                             <button title="صرف" disabled={pending} onClick={() => run(() => payCommission(c.id), "صُرفت العمولة وسُجّلت كمصروف")}
                               className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg"
-                              style={{ background: "rgba(45,212,191,0.14)", border: "1px solid rgba(45,212,191,0.33)", color: "#5dd9cb" }}>
+                              style={{ background: "rgb(var(--accent-1-rgb) / 0.14)", border: "1px solid rgb(var(--accent-1-rgb) / 0.33)", color: "var(--accent-1)" }}>
                               <Banknote className="w-3.5 h-3.5" /> صرف
                             </button>
                           )}

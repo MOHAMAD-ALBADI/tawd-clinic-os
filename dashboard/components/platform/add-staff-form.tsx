@@ -65,8 +65,8 @@ export function AddStaffForm({ clinicId }: { clinicId: string }) {
       </p>
 
       {done && (
-        <div className="rounded-xl px-3 py-2.5 mb-3" style={{ background: "rgba(45,212,191,0.06)", border: "1px solid rgba(45,212,191,0.2)" }}>
-          <p className="text-[12px] font-semibold flex items-center gap-1.5" style={{ color: "#5dd9cb" }}>
+        <div className="rounded-xl px-3 py-2.5 mb-3" style={{ background: "rgb(var(--accent-1-rgb) / 0.06)", border: "1px solid rgb(var(--accent-1-rgb) / 0.2)" }}>
+          <p className="text-[12px] font-semibold flex items-center gap-1.5" style={{ color: "var(--accent-1)" }}>
             <CheckCircle2 className="w-3.5 h-3.5" /> أُنشئ الحساب —
             <span className="ltr-nums">{done.email}</span> / <span className="ltr-nums">{done.password}</span>
           </p>
@@ -96,9 +96,9 @@ export function AddStaffForm({ clinicId }: { clinicId: string }) {
                   onClick={() => toggleRole(r.key)}
                   className="text-[12px] font-bold px-3 py-1.5 rounded-lg transition-colors"
                   style={{
-                    background: on ? "rgba(45,212,191,0.12)" : "rgba(255,255,255,0.03)",
-                    border: `1px solid ${on ? "rgba(45,212,191,0.35)" : "rgba(255,255,255,0.08)"}`,
-                    color: on ? "#5dd9cb" : "var(--text-3)",
+                    background: on ? "rgb(var(--accent-1-rgb) / 0.12)" : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${on ? "rgb(var(--accent-1-rgb) / 0.35)" : "rgba(255,255,255,0.08)"}`,
+                    color: on ? "var(--accent-1)" : "var(--text-3)",
                   }}
                 >
                   {on ? "✓ " : ""}{r.label}

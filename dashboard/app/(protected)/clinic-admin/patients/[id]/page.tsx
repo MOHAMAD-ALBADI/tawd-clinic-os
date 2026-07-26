@@ -13,9 +13,9 @@ import {
 export const metadata = { title: "ملف المريض — طود" };
 
 const APPT_STATUS: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  scheduled:   { label: "مجدول",     color: "#5dd9cb", bg: "rgba(20,184,166,0.1)",  border: "rgba(20,184,166,0.2)"  },
+  scheduled:   { label: "مجدول",     color: "var(--accent-1)", bg: "rgb(var(--accent-2-rgb) / 0.1)",  border: "rgb(var(--accent-2-rgb) / 0.2)"  },
   confirmed:   { label: "مؤكد",      color: "#38bdf8", bg: "rgba(56,189,248,0.1)",  border: "rgba(56,189,248,0.2)"  },
-  checked_in:  { label: "حضر",       color: "#2dd4bf", bg: "rgba(20,184,166,0.1)",  border: "rgba(20,184,166,0.2)"  },
+  checked_in:  { label: "حضر",       color: "var(--accent-1)", bg: "rgb(var(--accent-2-rgb) / 0.1)",  border: "rgb(var(--accent-2-rgb) / 0.2)"  },
   in_progress: { label: "جارٍ",      color: "#38bdf8", bg: "rgba(56,189,248,0.1)",   border: "rgba(56,189,248,0.2)"   },
   completed:   { label: "مكتمل",     color: "#34D399", bg: "rgba(16,185,129,0.1)",  border: "rgba(16,185,129,0.2)"  },
   cancelled:   { label: "ملغي",      color: "#64748B", bg: "rgba(100,116,139,0.08)", border: "rgba(100,116,139,0.15)" },
@@ -24,8 +24,8 @@ const APPT_STATUS: Record<string, { label: string; color: string; bg: string; bo
 
 const INV_STATUS: Record<string, { label: string; color: string }> = {
   paid:      { label: "مدفوعة",  color: "#34D399" },
-  partial:   { label: "جزئي",    color: "#2dd4bf" },
-  sent:      { label: "مرسلة",   color: "#5dd9cb" },
+  partial:   { label: "جزئي",    color: "var(--accent-1)" },
+  sent:      { label: "مرسلة",   color: "var(--accent-1)" },
   draft:     { label: "مسودة",   color: "#94A3B8" },
   overdue:   { label: "متأخرة",  color: "#F87171" },
   cancelled: { label: "ملغاة",   color: "#64748B" },
@@ -132,7 +132,7 @@ export default async function PatientProfilePage({
         <Link
           href="/clinic-admin/patients"
           className="inline-flex items-center gap-1.5 text-sm mb-3"
-          style={{ color: "rgba(148,163,184,0.6)" }}
+          style={{ color: "var(--text-3)" }}
         >
           <ArrowRight className="w-3.5 h-3.5" />
           المرضى
@@ -140,23 +140,23 @@ export default async function PatientProfilePage({
         <div className="flex items-center gap-4">
           <div
             className="w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-black shrink-0"
-            style={{ background: "rgba(20,184,166,0.15)", color: "#5dd9cb", border: "1px solid rgba(20,184,166,0.25)" }}
+            style={{ background: "rgb(var(--accent-2-rgb) / 0.15)", color: "var(--accent-1)", border: "1px solid rgb(var(--accent-2-rgb) / 0.25)" }}
           >
             {displayName.charAt(0)}
           </div>
           <div>
             <h2 className="text-xl font-bold text-white">{displayName}</h2>
             {patient.name_ar && patient.name !== patient.name_ar && (
-              <p className="text-sm" style={{ color: "rgba(148,163,184,0.5)" }}>{patient.name}</p>
+              <p className="text-sm" style={{ color: "var(--text-3)" }}>{patient.name}</p>
             )}
             <div className="flex items-center gap-3 mt-1">
               {patient.phone && (
-                <span className="text-sm flex items-center gap-1 ltr-nums" style={{ color: "rgba(148,163,184,0.65)" }}>
+                <span className="text-sm flex items-center gap-1 ltr-nums" style={{ color: "var(--text-2)" }}>
                   <Phone className="w-3 h-3" /> {patient.phone}
                 </span>
               )}
               {patient.loyalty_points > 0 && (
-                <span className="text-sm flex items-center gap-1 font-semibold ltr-nums" style={{ color: "#2dd4bf" }}>
+                <span className="text-sm flex items-center gap-1 font-semibold ltr-nums" style={{ color: "var(--accent-1)" }}>
                   <Star className="w-3 h-3 fill-amber-400" /> {patient.loyalty_points} نقطة
                 </span>
               )}
@@ -168,7 +168,7 @@ export default async function PatientProfilePage({
       {/* Stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "المواعيد",     value: appts.length, color: "#5dd9cb", Icon: Calendar },
+          { label: "المواعيد",     value: appts.length, color: "var(--accent-1)", Icon: Calendar },
           { label: "مكتملة",      value: completed,    color: "#34D399", Icon: CheckCircle2 },
           { label: "ملغاة",       value: cancelled,    color: "#94A3B8", Icon: XCircle },
           { label: "لم يحضر",    value: noShow,       color: "#F87171", Icon: AlertCircle },
@@ -178,7 +178,7 @@ export default async function PatientProfilePage({
             <s.Icon className="w-4 h-4 shrink-0" style={{ color: s.color }} />
             <div>
               <p className="text-lg font-black ltr-nums" style={{ color: s.color }}>{s.value}</p>
-              <p className="text-[11px]" style={{ color: "rgba(148,163,184,0.5)" }}>{s.label}</p>
+              <p className="text-[11px]" style={{ color: "var(--text-3)" }}>{s.label}</p>
             </div>
           </div>
         ))}
@@ -188,9 +188,9 @@ export default async function PatientProfilePage({
       <div className="grid sm:grid-cols-2 gap-4">
         {/* Demographics */}
         <div className="rounded-2xl p-5 space-y-3"
-          style={{ background: "rgba(6,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(20px)" }}>
+          style={{ background: "rgba(6,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)" }}>
           <h3 className="font-bold text-white flex items-center gap-2 mb-4">
-            <User className="w-4 h-4" style={{ color: "#14b8a6" }} />
+            <User className="w-4 h-4" style={{ color: "var(--accent-2)" }} />
             البيانات الشخصية
           </h3>
           {[
@@ -206,7 +206,7 @@ export default async function PatientProfilePage({
             .filter((r) => r.value)
             .map((row) => (
               <div key={row.label} className="flex items-center justify-between text-sm">
-                <span style={{ color: "rgba(148,163,184,0.5)" }}>{row.label}</span>
+                <span style={{ color: "var(--text-3)" }}>{row.label}</span>
                 <span className="font-semibold text-white ltr-nums">{row.value}</span>
               </div>
             ))}
@@ -214,18 +214,18 @@ export default async function PatientProfilePage({
 
         {/* Financial summary */}
         <div className="rounded-2xl p-5"
-          style={{ background: "rgba(6,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(20px)" }}>
+          style={{ background: "rgba(6,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)" }}>
           <h3 className="font-bold text-white flex items-center gap-2 mb-4">
-            <Banknote className="w-4 h-4" style={{ color: "#14b8a6" }} />
+            <Banknote className="w-4 h-4" style={{ color: "var(--accent-2)" }} />
             الملخص المالي
           </h3>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm" style={{ color: "rgba(148,163,184,0.5)" }}>إجمالي الفواتير</span>
-              <span className="font-bold ltr-nums" style={{ color: "#2dd4bf" }}>{invoices.length}</span>
+              <span className="text-sm" style={{ color: "var(--text-3)" }}>إجمالي الفواتير</span>
+              <span className="font-bold ltr-nums" style={{ color: "var(--accent-1)" }}>{invoices.length}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm" style={{ color: "rgba(148,163,184,0.5)" }}>مجموع المدفوع</span>
+              <span className="text-sm" style={{ color: "var(--text-3)" }}>مجموع المدفوع</span>
               <span className="font-bold ltr-nums" style={{ color: "#34D399" }}>
                 {totalPaid.toLocaleString("ar-SA")} ر.ع
               </span>
@@ -235,11 +235,11 @@ export default async function PatientProfilePage({
               return (
                 <div key={inv.id} className="flex items-center justify-between text-sm py-2"
                   style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-                  <span style={{ color: "rgba(148,163,184,0.55)" }}>
+                  <span style={{ color: "var(--text-3)" }}>
                     {new Date(inv.created_at).toLocaleDateString("ar-SA")}
                   </span>
                   <div className="flex items-center gap-3">
-                    <span className="font-semibold ltr-nums" style={{ color: "#2dd4bf" }}>
+                    <span className="font-semibold ltr-nums" style={{ color: "var(--accent-1)" }}>
                       {inv.total?.toLocaleString("ar-SA")} ر.ع
                     </span>
                     <span className="text-[11px] font-semibold" style={{ color: s.color }}>{s.label}</span>
@@ -248,7 +248,7 @@ export default async function PatientProfilePage({
               );
             })}
             {invoices.length === 0 && (
-              <p className="text-sm text-center py-4" style={{ color: "rgba(148,163,184,0.3)" }}>لا توجد فواتير</p>
+              <p className="text-sm text-center py-4" style={{ color: "var(--text-4)" }}>لا توجد فواتير</p>
             )}
           </div>
         </div>
@@ -256,23 +256,23 @@ export default async function PatientProfilePage({
 
       {/* Appointment history */}
       <div className="rounded-2xl overflow-hidden"
-        style={{ background: "rgba(6,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)", backdropFilter: "blur(20px)" }}>
+        style={{ background: "rgba(6,14,30,0.85)", border: "1px solid rgba(255,255,255,0.07)" }}>
         <div className="flex items-center justify-between px-5 py-4"
           style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
           <h3 className="font-bold text-white flex items-center gap-2">
-            <Activity className="w-4 h-4" style={{ color: "#14b8a6" }} />
+            <Activity className="w-4 h-4" style={{ color: "var(--accent-2)" }} />
             سجل المواعيد
           </h3>
           <span className="text-[11px] px-2.5 py-1 rounded-full ltr-nums"
-            style={{ background: "rgba(20,184,166,0.1)", color: "#5dd9cb", border: "1px solid rgba(20,184,166,0.2)" }}>
+            style={{ background: "rgb(var(--accent-2-rgb) / 0.1)", color: "var(--accent-1)", border: "1px solid rgb(var(--accent-2-rgb) / 0.2)" }}>
             {appts.length} موعد
           </span>
         </div>
 
         {appts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <Calendar className="w-8 h-8" style={{ color: "rgba(148,163,184,0.2)" }} />
-            <p className="text-sm" style={{ color: "rgba(148,163,184,0.4)" }}>لا توجد مواعيد مسجّلة</p>
+            <Calendar className="w-8 h-8" style={{ color: "var(--text-4)" }} />
+            <p className="text-sm" style={{ color: "var(--text-4)" }}>لا توجد مواعيد مسجّلة</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -281,7 +281,7 @@ export default async function PatientProfilePage({
                 <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)" }}>
                   {["التاريخ والوقت", "الطبيب", "الخدمة", "المدة", "الحالة"].map((h) => (
                     <th key={h} className="text-right py-3 px-5 text-[12px] font-semibold"
-                      style={{ color: "rgba(148,163,184,0.5)" }}>
+                      style={{ color: "var(--text-3)" }}>
                       {h}
                     </th>
                   ))}
@@ -301,7 +301,7 @@ export default async function PatientProfilePage({
                             {new Date(appt.slot_time).toLocaleDateString("ar-SA")}
                           </p>
                           <p className="text-[11px] mt-0.5 ltr-nums flex items-center gap-1"
-                            style={{ color: "rgba(148,163,184,0.5)" }}>
+                            style={{ color: "var(--text-3)" }}>
                             <Clock className="w-3 h-3" />
                             {new Date(appt.slot_time).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" })}
                           </p>
@@ -313,12 +313,12 @@ export default async function PatientProfilePage({
                         </span>
                       </td>
                       <td className="py-3.5 px-5">
-                        <span style={{ color: "rgba(148,163,184,0.7)" }}>
+                        <span style={{ color: "var(--text-2)" }}>
                           {service ? (service.name_ar ?? service.name) : "—"}
                         </span>
                       </td>
                       <td className="py-3.5 px-5">
-                        <span className="ltr-nums text-sm" style={{ color: "rgba(148,163,184,0.6)" }}>
+                        <span className="ltr-nums text-sm" style={{ color: "var(--text-3)" }}>
                           {appt.duration_minutes} د
                         </span>
                       </td>

@@ -54,9 +54,9 @@ export function CheckinButton({ appointmentId }: { appointmentId: string }) {
       disabled={pending}
       className="shrink-0 flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-all disabled:opacity-50"
       style={{
-        background: "rgba(45,212,191,0.1)",
-        border: "1px solid rgba(45,212,191,0.25)",
-        color: "#5dd9cb",
+        background: "rgb(var(--accent-1-rgb) / 0.1)",
+        border: "1px solid rgb(var(--accent-1-rgb) / 0.25)",
+        color: "var(--accent-1)",
       }}
     >
       <LogIn className="w-3.5 h-3.5" />

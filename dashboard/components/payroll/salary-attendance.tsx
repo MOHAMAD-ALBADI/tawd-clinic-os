@@ -21,7 +21,7 @@ export type StaffRow = {
 /** every attendance_status the DB allows — a manager needs leave/sick/half-day,
     not just present-or-absent */
 const ATT_OPTIONS: { v: AttendanceStatus; label: string; color: string }[] = [
-  { v: "present",  label: "حاضر",   color: "#5dd9cb" },
+  { v: "present",  label: "حاضر",   color: "var(--accent-1)" },
   { v: "absent",   label: "غائب",   color: "#fda4b4" },
   { v: "leave",    label: "إجازة",  color: "#38bdf8" },
   { v: "sick",     label: "مرضي",   color: "#fbbf24" },
@@ -89,7 +89,7 @@ export function SalaryAndAttendance({ staff, today, attDate }: {
 
       {flash && (
         <div className="flex items-center gap-2 text-[13px] px-4 py-2.5 rounded-xl mb-3"
-          style={{ background: "rgba(45,212,191,0.1)", border: "1px solid rgba(45,212,191,0.25)", color: "#5dd9cb" }}>
+          style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", border: "1px solid rgb(var(--accent-1-rgb) / 0.25)", color: "var(--accent-1)" }}>
           <CheckCircle2 className="w-4 h-4" /> {flash}
         </div>
       )}
@@ -201,7 +201,7 @@ function SalaryModal({ staff, onSave, onClose, pending, err }: {
   const total = (Number(f.basic_salary) || 0) + (Number(f.housing_allowance) || 0) + (Number(f.transport_allowance) || 0) + (Number(f.other_allowance) || 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }} onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.9)" }} onClick={onClose}>
       <div className="w-full max-w-md panel-feature" style={{ padding: "1.5rem" }} onClick={(e) => e.stopPropagation()}>
         <button onClick={onClose} className="float-start" style={{ color: "var(--text-4)" }}><X className="w-4 h-4" /></button>
         <h3 className="font-bold text-white text-lg mb-1">راتب {staff.name}</h3>
@@ -237,9 +237,9 @@ function SalaryModal({ staff, onSave, onClose, pending, err }: {
             <F label="البنك"><input className="field" value={f.bank_name ?? ""} onChange={(e) => set("bank_name", e.target.value)} placeholder="اختياري" /></F>
           </div>
           <F label="IBAN"><input className="field ltr-nums" dir="ltr" value={f.iban ?? ""} onChange={(e) => set("iban", e.target.value)} placeholder="OM.." /></F>
-          <div className="flex items-center justify-between text-[13px] px-3 py-2 rounded-xl" style={{ background: "rgba(45,212,191,0.08)", border: "1px solid rgba(45,212,191,0.2)" }}>
+          <div className="flex items-center justify-between text-[13px] px-3 py-2 rounded-xl" style={{ background: "rgb(var(--accent-1-rgb) / 0.08)", border: "1px solid rgb(var(--accent-1-rgb) / 0.2)" }}>
             <span style={{ color: "var(--text-2)" }}>إجمالي الراتب الشهري</span>
-            <span className="font-black ltr-nums" style={{ color: "#5dd9cb" }}>{fmt(total)} ر.ع</span>
+            <span className="font-black ltr-nums" style={{ color: "var(--accent-1)" }}>{fmt(total)} ر.ع</span>
           </div>
           {err && <p className="text-[12px] flex items-center gap-1.5" style={{ color: "#fda4b4" }}><AlertTriangle className="w-3.5 h-3.5" /> {err}</p>}
           <button className="btn-primary w-full justify-center" disabled={pending} onClick={() => onSave(f)}>{pending ? "…" : "حفظ الراتب"}</button>

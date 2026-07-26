@@ -38,7 +38,7 @@ function LauncherModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
-      style={{ background: "rgba(2,8,18,0.82)", backdropFilter: "blur(8px)" }}
+      style={{ background: "rgba(2,8,18,0.9)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="w-full max-w-lg panel animate-scale-in" style={{ background: "rgba(8,14,24,0.98)", padding: "1.5rem" }}>
         <div className="flex items-center justify-between mb-5">
@@ -81,10 +81,10 @@ function LauncherModal({ onClose }: { onClose: () => void }) {
                     <button key={a.value} onClick={() => setAudience(a.value)}
                       className="rounded-xl px-3 py-2.5 text-right transition-all"
                       style={{
-                        background: active ? "rgba(20,184,166,0.12)" : "var(--surface-2)",
-                        border: `1px solid ${active ? "rgba(45,212,191,0.4)" : "var(--hairline)"}`,
+                        background: active ? "rgb(var(--accent-2-rgb) / 0.12)" : "var(--surface-2)",
+                        border: `1px solid ${active ? "rgb(var(--accent-1-rgb) / 0.4)" : "var(--hairline)"}`,
                       }}>
-                      <p className="text-[13px] font-bold" style={{ color: active ? "#5dd9cb" : "var(--text-1)" }}>{a.label}</p>
+                      <p className="text-[13px] font-bold" style={{ color: active ? "var(--accent-1)" : "var(--text-1)" }}>{a.label}</p>
                       <p className="text-[10px] mt-0.5" style={{ color: "var(--text-3)" }}>{a.hint}</p>
                     </button>
                   );

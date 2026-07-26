@@ -75,7 +75,7 @@ export default async function PatientsPage() {
 
         {patients.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "rgba(45,212,191,0.07)", border: "1px solid rgba(45,212,191,0.14)" }}>
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "rgb(var(--accent-1-rgb) / 0.07)", border: "1px solid rgb(var(--accent-1-rgb) / 0.14)" }}>
               <UserPlus className="w-6 h-6" style={{ color: "var(--color-brand-400)" }} />
             </div>
             <p className="text-sm" style={{ color: "var(--text-3)" }}>لا يوجد مرضى مسجّلون</p>
@@ -96,7 +96,7 @@ export default async function PatientsPage() {
                     <td className="py-3.5 px-6">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-xl flex items-center justify-center text-[13px] font-black shrink-0"
-                          style={{ background: "rgba(45,212,191,0.1)", color: "var(--color-brand-300)", border: "1px solid rgba(45,212,191,0.18)" }}>
+                          style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", color: "var(--color-brand-300)", border: "1px solid rgb(var(--accent-1-rgb) / 0.18)" }}>
                           {p.name.charAt(0)}
                         </div>
                         <span className="font-semibold text-[13.5px] text-white">{p.name}</span>

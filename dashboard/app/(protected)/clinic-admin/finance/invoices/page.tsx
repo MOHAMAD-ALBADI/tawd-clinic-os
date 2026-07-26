@@ -128,7 +128,7 @@ export default async function InvoicesPage() {
 
         {invoices.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "rgba(45,212,191,0.08)", border: "1px solid rgba(45,212,191,0.16)" }}>
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "rgb(var(--accent-1-rgb) / 0.08)", border: "1px solid rgb(var(--accent-1-rgb) / 0.16)" }}>
               <FileText className="w-5 h-5" style={{ color: "var(--color-brand-400)" }} />
             </div>
             <p className="text-sm" style={{ color: "var(--text-3)" }}>لا توجد فواتير بعد — أنشئ أول فاتورة</p>

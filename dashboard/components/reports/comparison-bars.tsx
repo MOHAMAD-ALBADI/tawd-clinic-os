@@ -22,7 +22,7 @@ export function ComparisonBars({ rows }: { rows: BarRow[] }) {
             <div className="flex items-center justify-between mb-2.5">
               <span
                 className="text-[11px] font-bold uppercase tracking-[0.14em]"
-                style={{ color: "rgba(148,163,184,0.4)" }}
+                style={{ color: "var(--text-4)" }}
               >
                 {row.label}
               </span>
@@ -30,7 +30,7 @@ export function ComparisonBars({ rows }: { rows: BarRow[] }) {
                 <span className="text-[12px] font-black ltr-nums" style={{ color: row.color }}>
                   {row.current}
                 </span>
-                <span className="text-[11px] font-medium ltr-nums" style={{ color: "rgba(148,163,184,0.3)" }}>
+                <span className="text-[11px] font-medium ltr-nums" style={{ color: "var(--text-4)" }}>
                   {row.last}
                 </span>
               </div>
@@ -61,7 +61,7 @@ export function ComparisonBars({ rows }: { rows: BarRow[] }) {
                 className="h-full rounded-full"
                 style={{
                   width: `${lasW}%`,
-                  background: "rgba(148,163,184,0.15)",
+                  background: "var(--text-4)",
                   minWidth: row.lastNum > 0 ? 4 : 0,
                 }}
               />
@@ -73,12 +73,12 @@ export function ComparisonBars({ rows }: { rows: BarRow[] }) {
       {/* Legend */}
       <div className="flex items-center gap-5 pt-1">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-1.5 rounded-full" style={{ background: "rgba(20,184,166,0.7)" }} />
-          <span className="text-[10px]" style={{ color: "rgba(148,163,184,0.35)" }}>هذا الشهر</span>
+          <div className="w-6 h-1.5 rounded-full" style={{ background: "rgb(var(--accent-2-rgb) / 0.7)" }} />
+          <span className="text-[10px]" style={{ color: "var(--text-4)" }}>هذا الشهر</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-6 h-1 rounded-full" style={{ background: "rgba(148,163,184,0.18)" }} />
-          <span className="text-[10px]" style={{ color: "rgba(148,163,184,0.35)" }}>الشهر الماضي</span>
+          <div className="w-6 h-1 rounded-full" style={{ background: "var(--text-4)" }} />
+          <span className="text-[10px]" style={{ color: "var(--text-4)" }}>الشهر الماضي</span>
         </div>
       </div>
     </div>

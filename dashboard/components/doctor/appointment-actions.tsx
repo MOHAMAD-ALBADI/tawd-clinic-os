@@ -37,20 +37,20 @@ export function AppointmentActions({ id, status }: { id: string; status: string 
   if (status === "no_show")
     return <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: "rgba(239,68,68,0.1)", color: "#F87171" }}>لم يحضر</span>;
   if (status === "cancelled")
-    return <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: "rgba(148,163,184,0.12)", color: "rgba(148,163,184,0.7)" }}>ملغي</span>;
+    return <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: "var(--text-4)", color: "var(--text-2)" }}>ملغي</span>;
 
   return (
     <div className="flex items-center gap-2">
       {status === "in_progress" ? (
-        <button disabled={pending} onClick={() => run("completed")} style={btn("linear-gradient(135deg,#0d9488,#0f766e)", "transparent", "white")}>
+        <button disabled={pending} onClick={() => run("completed")} style={btn("linear-gradient(135deg,var(--accent-2),var(--accent-3))", "transparent", "white")}>
           {busy === "completed" ? <Spin k="completed" /> : <CheckCircle2 className="w-3.5 h-3.5" />} إنهاء الكشف
         </button>
       ) : PENDING.includes(status) ? (
         <>
-          <button disabled={pending} onClick={() => run("in_progress")} style={btn("rgba(20,184,166,0.14)", "rgba(45,212,191,0.25)", "#5dd9cb")}>
+          <button disabled={pending} onClick={() => run("in_progress")} style={btn("rgb(var(--accent-2-rgb) / 0.14)", "rgb(var(--accent-1-rgb) / 0.25)", "var(--accent-1)")}>
             {busy === "in_progress" ? <Spin k="in_progress" /> : <Play className="w-3.5 h-3.5" />} بدء الكشف
           </button>
-          <button disabled={pending} onClick={() => run("no_show")} style={btn("rgba(255,255,255,0.04)", "rgba(255,255,255,0.1)", "rgba(148,163,184,0.7)")}>
+          <button disabled={pending} onClick={() => run("no_show")} style={btn("rgba(255,255,255,0.04)", "rgba(255,255,255,0.1)", "var(--text-2)")}>
             <UserX className="w-3.5 h-3.5" /> لم يحضر
           </button>
         </>

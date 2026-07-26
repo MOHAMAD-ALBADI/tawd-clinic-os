@@ -30,11 +30,11 @@ export function DeleteServiceTrigger({ id, name }: { id: string; name: string })
   const modal = open ? (
     <div
       className="fixed inset-0 flex items-center justify-center p-4"
-      style={{ background: "rgba(2,8,20,0.85)", backdropFilter: "blur(8px)", zIndex: 9999 }}
+      style={{ background: "rgba(2,8,20,0.9)", zIndex: 9999 }}
     >
       <div
         className="w-full max-w-sm rounded-2xl p-6"
-        style={{ background: "rgba(6,14,30,0.97)", border: "1px solid rgba(239,68,68,0.2)", boxShadow: "0 24px 80px rgba(0,0,0,0.7)" }}
+        style={{ background: "rgba(6,14,30,0.97)", border: "1px solid rgba(239,68,68,0.2)", boxShadow: "0 24px 80px rgba(0,0,0,0.9)" }}
       >
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
@@ -46,13 +46,13 @@ export function DeleteServiceTrigger({ id, name }: { id: string; name: string })
             </div>
             <div>
               <h2 className="text-white font-bold">حذف الخدمة</h2>
-              <p className="text-xs mt-0.5" style={{ color: "rgba(148,163,184,0.5)" }}>هذا الإجراء لا يمكن التراجع عنه</p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--text-3)" }}>هذا الإجراء لا يمكن التراجع عنه</p>
             </div>
           </div>
           <button
             onClick={() => { setOpen(false); setError(null); }}
             className="w-7 h-7 rounded-lg flex items-center justify-center"
-            style={{ color: "rgba(148,163,184,0.4)" }}
+            style={{ color: "var(--text-4)" }}
           >
             <X className="w-4 h-4" />
           </button>
@@ -62,7 +62,7 @@ export function DeleteServiceTrigger({ id, name }: { id: string; name: string })
           <p className="text-sm text-white">
             هل تريد حذف خدمة <span className="font-bold" style={{ color: "#F87171" }}>"{name}"</span> نهائياً؟
           </p>
-          <p className="text-xs mt-1" style={{ color: "rgba(148,163,184,0.5)" }}>
+          <p className="text-xs mt-1" style={{ color: "var(--text-3)" }}>
             إذا كانت مرتبطة بمواعيد سيُعرض عليك تعطيلها بدلاً من الحذف.
           </p>
         </div>
@@ -70,7 +70,7 @@ export function DeleteServiceTrigger({ id, name }: { id: string; name: string })
         {error && (
           <div
             className="text-sm py-2.5 px-3.5 rounded-xl mb-4"
-            style={{ background: "rgba(20,184,166,0.08)", border: "1px solid rgba(20,184,166,0.2)", color: "#2dd4bf" }}
+            style={{ background: "rgb(var(--accent-2-rgb) / 0.08)", border: "1px solid rgb(var(--accent-2-rgb) / 0.2)", color: "var(--accent-1)" }}
           >
             {error}
           </div>
@@ -80,7 +80,7 @@ export function DeleteServiceTrigger({ id, name }: { id: string; name: string })
           <button
             onClick={() => { setOpen(false); setError(null); }}
             className="flex-1 h-11 rounded-xl text-sm font-semibold"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(148,163,184,0.8)" }}
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-2)" }}
           >
             إلغاء
           </button>

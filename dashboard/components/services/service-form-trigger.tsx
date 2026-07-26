@@ -27,11 +27,11 @@ const inputStyle = {
 function FieldLabel({ icon: Icon, label, hint }: { icon: React.ElementType; label: string; hint?: string }) {
   return (
     <div className="mb-2">
-      <label className="flex items-center gap-2 text-xs font-semibold" style={{ color: "rgba(148,163,184,0.7)" }}>
-        <Icon className="w-3.5 h-3.5" style={{ color: "#14b8a6" }} />
+      <label className="flex items-center gap-2 text-xs font-semibold" style={{ color: "var(--text-2)" }}>
+        <Icon className="w-3.5 h-3.5" style={{ color: "var(--accent-2)" }} />
         {label}
       </label>
-      {hint && <p className="text-[11px] mt-0.5" style={{ color: "rgba(148,163,184,0.4)" }}>{hint}</p>}
+      {hint && <p className="text-[11px] mt-0.5" style={{ color: "var(--text-4)" }}>{hint}</p>}
     </div>
   );
 }
@@ -89,8 +89,8 @@ function ServiceForm({ service, categories, onClose }: ServiceFormProps) {
   if (done) {
     return (
       <div className="flex flex-col items-center justify-center py-10 gap-3">
-        <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: "rgba(20,184,166,0.15)" }}>
-          <CheckCircle2 className="w-7 h-7" style={{ color: "#5dd9cb" }} />
+        <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: "rgb(var(--accent-2-rgb) / 0.15)" }}>
+          <CheckCircle2 className="w-7 h-7" style={{ color: "var(--accent-1)" }} />
         </div>
         <p className="text-white font-bold">{service ? "تم تحديث الخدمة" : "تم إضافة الخدمة"}</p>
       </div>
@@ -103,13 +103,13 @@ function ServiceForm({ service, categories, onClose }: ServiceFormProps) {
         <div>
           <FieldLabel icon={Stethoscope} label="الاسم بالعربية *" />
           <input value={form.name_ar} onChange={(e) => field("name_ar", e.target.value)} placeholder="مثال: تنظيف أسنان" style={inputStyle}
-            onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
+            onFocus={(e) => (e.currentTarget.style.borderColor = "rgb(var(--accent-2-rgb) / 0.6)")}
             onBlur={(e)  => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")} />
         </div>
         <div>
           <FieldLabel icon={Stethoscope} label="الاسم بالإنجليزية *" />
           <input value={form.name} onChange={(e) => field("name", e.target.value)} placeholder="Scaling & Polishing" style={inputStyle}
-            onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
+            onFocus={(e) => (e.currentTarget.style.borderColor = "rgb(var(--accent-2-rgb) / 0.6)")}
             onBlur={(e)  => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")} />
         </div>
       </div>
@@ -121,7 +121,7 @@ function ServiceForm({ service, categories, onClose }: ServiceFormProps) {
             imposed on every specialty. */}
         <input list="service-categories" value={form.category} onChange={(e) => field("category", e.target.value)}
           placeholder="مثال: تقويم" style={inputStyle}
-          onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
+          onFocus={(e) => (e.currentTarget.style.borderColor = "rgb(var(--accent-2-rgb) / 0.6)")}
           onBlur={(e)  => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")} />
         <datalist id="service-categories">
           {categories.map((c) => <option key={c} value={c} />)}
@@ -153,9 +153,9 @@ function ServiceForm({ service, categories, onClose }: ServiceFormProps) {
         <button type="button" onClick={() => setVat((v) => !v)}
           className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-[13px] font-semibold transition-colors"
           style={{
-            background: vat ? "rgba(45,212,191,0.1)" : "rgba(255,255,255,0.04)",
-            border: `1px solid ${vat ? "rgba(45,212,191,0.35)" : "rgba(255,255,255,0.1)"}`,
-            color: vat ? "#5dd9cb" : "rgba(148,163,184,0.7)",
+            background: vat ? "rgb(var(--accent-1-rgb) / 0.1)" : "rgba(255,255,255,0.04)",
+            border: `1px solid ${vat ? "rgb(var(--accent-1-rgb) / 0.35)" : "rgba(255,255,255,0.1)"}`,
+            color: vat ? "var(--accent-1)" : "var(--text-2)",
           }}>
           <span>{vat ? "خاضعة لضريبة ٥٪" : "معفاة من الضريبة"}</span>
           <span className="text-[11px]">{vat ? "انقر للإعفاء" : "انقر للإخضاع"}</span>
@@ -165,7 +165,7 @@ function ServiceForm({ service, categories, onClose }: ServiceFormProps) {
       <div>
         <FieldLabel icon={FileText} label="ملاحظة على الخدمة (اختياري)" hint="وصف مختصر يظهر للموظفين فقط" />
         <textarea value={form.description} onChange={(e) => field("description", e.target.value)} placeholder="مثال: تشمل فحص الضغط والسكر..." rows={2} style={{ ...inputStyle, resize: "none" }}
-          onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(20,184,166,0.6)")}
+          onFocus={(e) => (e.currentTarget.style.borderColor = "rgb(var(--accent-2-rgb) / 0.6)")}
           onBlur={(e)  => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)")} />
       </div>
 
@@ -177,11 +177,11 @@ function ServiceForm({ service, categories, onClose }: ServiceFormProps) {
 
       <div className="flex gap-3 pt-1">
         <button onClick={onClose} className="flex-1 h-11 rounded-xl text-sm font-semibold"
-          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(148,163,184,0.8)" }}>
+          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-2)" }}>
           إلغاء
         </button>
         <button onClick={handleSubmit} disabled={pending} className="flex-1 h-11 rounded-xl text-white text-sm font-bold disabled:opacity-50 active:scale-95 transition-all"
-          style={{ background: "linear-gradient(135deg, #0d9488, #0f766e)", boxShadow: "0 4px 16px rgba(20,184,166,0.3)" }}>
+          style={{ background: "linear-gradient(135deg, var(--accent-2), var(--accent-3))", boxShadow: "0 4px 16px rgb(var(--accent-2-rgb) / 0.3)" }}>
           {pending ? "جارٍ الحفظ..." : service ? "حفظ التعديلات ←" : "إضافة الخدمة ←"}
         </button>
       </div>
@@ -194,23 +194,23 @@ function ServiceModal({ service, categories, onClose }: { service?: Service; cat
   const content = (
     <div
       className="fixed inset-0 flex items-center justify-center p-4"
-      style={{ background: "rgba(2,8,20,0.8)", backdropFilter: "blur(8px)", zIndex: 9999 }}
+      style={{ background: "rgba(2,8,20,0.9)", zIndex: 9999 }}
     >
       <div
         className="w-full max-w-md rounded-2xl p-6"
-        style={{ background: "rgba(6,14,30,0.97)", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 24px 80px rgba(0,0,0,0.7)" }}
+        style={{ background: "rgba(6,14,30,0.97)", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 24px 80px rgba(0,0,0,0.9)" }}
       >
         <div className="flex items-center justify-between mb-5">
           <div>
             <h2 className="text-white font-bold text-lg">{service ? "تعديل الخدمة" : "إضافة خدمة جديدة"}</h2>
-            <p className="text-xs mt-0.5" style={{ color: "rgba(148,163,184,0.5)" }}>
+            <p className="text-xs mt-0.5" style={{ color: "var(--text-3)" }}>
               {service ? `تعديل: ${service.name_ar || service.name}` : "الخدمات تظهر فوراً في نموذج الحجز"}
             </p>
           </div>
           <button
             onClick={onClose}
             className="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:bg-white/[0.06]"
-            style={{ color: "rgba(148,163,184,0.5)" }}
+            style={{ color: "var(--text-3)" }}
           >
             <X className="w-4 h-4" />
           </button>
@@ -232,9 +232,9 @@ export function AddServiceTrigger({ categories = [] }: { categories?: string[] }
       <button
         onClick={() => setOpen(true)}
         className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-semibold transition-all active:scale-95"
-        style={{ background: "linear-gradient(135deg, #0d9488, #0f766e)", boxShadow: "0 4px 16px rgba(20,184,166,0.3)" }}
-        onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 6px 24px rgba(20,184,166,0.45)"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 4px 16px rgba(20,184,166,0.3)"; }}
+        style={{ background: "linear-gradient(135deg, var(--accent-2), var(--accent-3))", boxShadow: "0 4px 16px rgb(var(--accent-2-rgb) / 0.3)" }}
+        onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 6px 24px rgb(var(--accent-2-rgb) / 0.45)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 4px 16px rgb(var(--accent-2-rgb) / 0.3)"; }}
       >
         <Plus className="w-4 h-4" />
         إضافة خدمة
@@ -252,9 +252,9 @@ export function EditServiceTrigger({ service, categories = [] }: { service: Serv
       <button
         onClick={() => setOpen(true)}
         className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all"
-        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", color: "rgba(148,163,184,0.7)" }}
-        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(20,184,166,0.35)"; e.currentTarget.style.color = "#5dd9cb"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; e.currentTarget.style.color = "rgba(148,163,184,0.7)"; }}
+        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", color: "var(--text-2)" }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgb(var(--accent-2-rgb) / 0.35)"; e.currentTarget.style.color = "var(--accent-1)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)"; e.currentTarget.style.color = "var(--text-2)"; }}
       >
         <Edit2 className="w-3 h-3" />
         تعديل
