@@ -45,11 +45,12 @@ export default async function PlatformAdminPage() {
   const today = clinicToday();
   const { startUtc } = clinicDayRange(today);
   const monthStart = `${today.slice(0, 7)}-01T00:00:00`;
+  const weekAgoIso = new Date(Date.now() - 7 * 86_400_000).toISOString();
 
   /* Counts are counted by the database. None of these transfer rows. */
   const [
     { data: overview }, { data: costs }, { data: alerts },
-    hitlRes, msgsRes, errRes, suraBookRes,
+    hitlRes, msgsRes, errRes, lastErrRes, suraBookRes,
   ] = await Promise.all([
     sb.rpc("platform_clinic_overview"),
     sb.from("platform_costs").select("monthly_omr"),
@@ -61,7 +62,14 @@ export default async function PlatformAdminPage() {
       .eq("status", "open").order("created_at", { ascending: false }).limit(5),
     sb.from("ai_review_queue").select("id", { count: "exact", head: true }).eq("status", "pending"),
     sb.from("chat_messages").select("id", { count: "exact", head: true }).gte("created_at", startUtc),
-    sb.from("sura_errors").select("id", { count: "exact", head: true }).gte("created_at", monthStart),
+    /* Errors are counted over 7 days, not the calendar month.
+       A month-to-date total is a number that only grows: 52 errors from the
+       first week of July still read as "52" on the 27th, three weeks after every
+       one of them was fixed, and there is no way to tell a live outage from
+       ancient history. Seven days is the window where an error is still
+       something to act on — and the age of the most recent one says the rest. */
+    sb.from("sura_errors").select("id", { count: "exact", head: true }).gte("created_at", weekAgoIso),
+    sb.from("sura_errors").select("created_at").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     sb.from("appointments").select("id", { count: "exact", head: true })
       .eq("source_channel", "whatsapp").gte("created_at", monthStart).is("deleted_at", null),
   ]);
@@ -150,11 +158,22 @@ export default async function PlatformAdminPage() {
     { label: "الصافي (ر.ع)", value: fmt(net), Icon: Activity, color: net >= 0 ? "#34d399" : "#fda4b4", href: "/platform-admin/economy" },
   ];
 
+  /* "no errors this week" is the useful headline; how long it has been clean is
+     the reassurance that goes with it. */
+  const recentErrors = errRes.count ?? 0;
+  const lastErrorAgeDays = lastErrRes.data?.created_at
+    ? Math.floor((Date.now() - new Date(lastErrRes.data.created_at as string).getTime()) / 86_400_000)
+    : null;
+
   const context = [
     { label: "رسائل سُرى اليوم", value: int(msgsRes.count ?? 0), Icon: MessageSquare },
     { label: "حجوزات سُرى هذا الشهر", value: int(suraBookRes.count ?? 0), Icon: Bot },
     { label: "بانتظار مراجعة بشرية", value: int(hitlRes.count ?? 0), Icon: Hourglass },
-    { label: "أخطاء سُرى هذا الشهر", value: int(errRes.count ?? 0), Icon: AlertTriangle },
+    {
+      label: recentErrors > 0 ? "أخطاء سُرى — ٧ أيام" : "محرك سُرى",
+      value: recentErrors > 0 ? int(recentErrors) : (lastErrorAgeDays === null ? "سليم" : `سليم منذ ${lastErrorAgeDays} يوم`),
+      Icon: AlertTriangle,
+    },
   ];
 
   return (
