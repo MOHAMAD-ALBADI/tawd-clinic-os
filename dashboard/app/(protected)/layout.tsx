@@ -18,9 +18,9 @@ export default async function ProtectedLayout({
   const [{ data: staffData }, { data: clinicData }] = await Promise.all([
     supabase
       .from("tawd_staff_users")
-      .select("name")
+      .select("name, name_ar, avatar_url")
       .eq("id", claims.sub)
-      .single(),
+      .maybeSingle(),
     supabase
       .from("tawd_clinics")
       .select("name")
@@ -29,13 +29,17 @@ export default async function ProtectedLayout({
   ]);
 
   return (
-    <div className="min-h-screen" style={{ background: "#0A0D16" }}>
+    /* No background here. This used to hardcode #0A0D16 — a blue-black left
+       over from an older theme — which sat under every page fighting the warm
+       stone canvas that body already paints. */
+    <div className="min-h-screen">
       {/* Dark sidebar — fixed on end (RTL = right) */}
       <AppSidebar
         role={claims.role}
         allRoles={claims.all_roles}
-        userName={staffData?.name ?? claims.email.split("@")[0]}
+        userName={staffData?.name_ar || staffData?.name || claims.email.split("@")[0]}
         clinicName={clinicData?.name}
+        avatarUrl={staffData?.avatar_url ?? null}
       />
 
       {/* Main content — offset by sidebar width */}

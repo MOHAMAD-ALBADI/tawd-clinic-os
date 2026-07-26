@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, UserCog } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS } from "./nav-config";
 import { TawdLogoMark } from "./tawd-logo";
@@ -15,9 +15,10 @@ interface AppSidebarProps {
   allRoles?: Role[];
   userName: string;
   clinicName?: string;
+  avatarUrl?: string | null;
 }
 
-export function AppSidebar({ role, allRoles, userName, clinicName }: AppSidebarProps) {
+export function AppSidebar({ role, allRoles, userName, clinicName, avatarUrl }: AppSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -169,24 +170,35 @@ export function AppSidebar({ role, allRoles, userName, clinicName }: AppSidebarP
         className="px-4 py-4 shrink-0"
         style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
       >
-        <div className="flex items-center gap-3 mb-3">
+        {/* The whole identity block is the way into the profile — that is where
+            people already look for their own account, so it needs no extra
+            nav item. */}
+        <Link
+          href="/profile"
+          className="flex items-center gap-3 mb-3 w-full rounded-xl p-1.5 -m-1.5 transition-colors"
+          style={{ background: pathname === "/profile" ? "rgba(255,255,255,0.05)" : "transparent" }}
+        >
           <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
+            className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center text-sm font-bold shrink-0"
             style={{
               background: "rgba(255,255,255,0.08)",
               border: "1px solid rgba(255,255,255,0.1)",
               color: "#ffffff",
             }}
           >
-            {initial}
+            {avatarUrl
+              /* eslint-disable-next-line @next/next/no-img-element */
+              ? <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+              : initial}
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 text-start">
             <div className="text-white text-[13px] font-semibold truncate">{userName}</div>
             <div className="text-[11px] truncate" style={{ color: "var(--text-4)" }}>
               {roles.map((r) => ROLE_LABELS[r]).join(" + ")}
             </div>
           </div>
-        </div>
+          <UserCog className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--text-4)" }} />
+        </Link>
         <button
           onClick={handleSignOut}
           className="flex items-center gap-2 text-xs w-full py-1.5 px-2 rounded-lg transition-all"
