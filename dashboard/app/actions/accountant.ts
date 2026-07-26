@@ -6,6 +6,7 @@ import { hasRole } from "@/lib/auth/role-redirect";
 import { consumeServiceMaterials } from "@/app/actions/inventory";
 import { logClaimForInvoice } from "@/app/actions/insurance";
 import { logCommissionForInvoice } from "@/app/actions/commissions";
+import { clinicToday, clinicDayRange } from "@/lib/clinic-time";
 import { revalidatePath } from "next/cache";
 
 async function requireAccountant() {
@@ -334,14 +335,21 @@ export async function closeDay(input: DayCloseInput) {
   const claims = await requireAccountant();
   const sb = await createServerSupabaseClient();
 
-  const today = new Date().toISOString().split("T")[0];
+  /* The day being closed is the CLINIC's day, not UTC's. Oman is +4, so a
+     UTC-dated window starts at 04:00 Muscat and ends at 03:59 the next morning:
+     money taken between midnight and 4am fell outside the close for its own day
+     and outside the next one too — it simply never got reconciled, and the
+     drawer came up short with no explanation. */
+  const today = clinicToday();
+  const { startUtc, endUtc } = clinicDayRange(today);
+
   const { data: pays } = await sb
     .from("payments")
     .select("gateway, amount")
     .eq("clinic_id", claims.clinic_id)
     .eq("status", "completed")
-    .gte("paid_at", `${today}T00:00:00`)
-    .lte("paid_at", `${today}T23:59:59`);
+    .gte("paid_at", startUtc)
+    .lt("paid_at", endUtc);
 
   let cash = 0, card = 0, other = 0;
   for (const p of pays ?? []) {

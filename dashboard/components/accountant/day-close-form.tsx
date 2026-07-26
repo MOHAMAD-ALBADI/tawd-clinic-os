@@ -10,9 +10,13 @@ const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 3,
 export function DayCloseForm({
   systemCash,
   systemCard,
+  systemOther = 0,
 }: {
   systemCash: number;
   systemCard: number;
+  /** insurance settlements and anything else that is neither notes nor card —
+      shown so the on-screen total matches the close that gets saved */
+  systemOther?: number;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -52,8 +56,9 @@ export function DayCloseForm({
         عُدّ الكاش في الدرج وأدخله — النظام يحسب الفرق تلقائياً
       </p>
 
-      {/* system side */}
-      <div className="grid grid-cols-2 gap-3 mb-5">
+      {/* system side — the three buckets the saved close records, so what is on
+          screen and what lands in the record are the same numbers */}
+      <div className={`grid gap-3 mb-5 ${systemOther > 0 ? "grid-cols-3" : "grid-cols-2"}`}>
         <div className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
           <p className="text-[10px] mb-1" style={{ color: "var(--text-4)" }}>كاش النظام اليوم</p>
           <p className="text-base font-bold ltr-nums text-white">{fmt(systemCash)}</p>
@@ -62,6 +67,12 @@ export function DayCloseForm({
           <p className="text-[10px] mb-1" style={{ color: "var(--text-4)" }}>شبكة/تحويل النظام</p>
           <p className="text-base font-bold ltr-nums text-white">{fmt(systemCard)}</p>
         </div>
+        {systemOther > 0 && (
+          <div className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <p className="text-[10px] mb-1" style={{ color: "var(--text-4)" }}>تأمين/أخرى</p>
+            <p className="text-base font-bold ltr-nums text-white">{fmt(systemOther)}</p>
+          </div>
+        )}
       </div>
 
       <div className="space-y-3">

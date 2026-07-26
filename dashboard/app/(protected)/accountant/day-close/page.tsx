@@ -4,9 +4,11 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { DayCloseForm } from "@/components/accountant/day-close-form";
+import { clinicToday, clinicDayRange } from "@/lib/clinic-time";
 import { ArrowRight, History } from "lucide-react";
 
 export const metadata = { title: "إغلاق اليوم — طود" };
+export const dynamic = "force-dynamic";
 
 const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 
@@ -15,22 +17,31 @@ export default async function DayClosePage() {
   if (!claims || !(hasRole(claims, "accountant") || claims.role === "clinic_admin")) redirect("/login");
 
   const sb = await createServerSupabaseClient();
-  const today = new Date().toISOString().split("T")[0];
+  /* Must use the same clinic-local window as closeDay(), or the totals the
+     cashier is shown before closing differ from the ones actually recorded. */
+  const today = clinicToday();
+  const { startUtc, endUtc } = clinicDayRange(today);
 
   const [{ data: pays }, { data: history }] = await Promise.all([
     sb.from("payments").select("gateway, amount")
       .eq("clinic_id", claims.clinic_id).eq("status", "completed")
-      .gte("paid_at", `${today}T00:00:00`).lte("paid_at", `${today}T23:59:59`),
+      .gte("paid_at", startUtc).lt("paid_at", endUtc),
     sb.from("cashier_day_closes")
       .select("close_date, opening_float, counted_cash, system_cash, system_card, variance, notes")
       .eq("clinic_id", claims.clinic_id)
       .order("close_date", { ascending: false }).limit(10),
   ]);
 
-  let cash = 0, card = 0;
+  /* Same three buckets closeDay() writes. The preview used to fold everything
+     non-cash into "card", so an insurance settlement was shown as card takings
+     and then recorded as "other" — the cashier saw one figure on screen and a
+     different one in the saved close. */
+  let cash = 0, card = 0, other = 0;
   for (const p of pays ?? []) {
-    if (p.gateway === "cash") cash += Number(p.amount ?? 0);
-    else card += Number(p.amount ?? 0);
+    const amt = Number(p.amount ?? 0);
+    if (p.gateway === "cash") cash += amt;
+    else if (p.gateway === "bank_transfer" || p.gateway === "thawani") card += amt;
+    else other += amt;
   }
 
   const fmtDate = (d: string) =>
@@ -48,7 +59,7 @@ export default async function DayClosePage() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4 items-start">
-        <DayCloseForm systemCash={cash} systemCard={card} />
+        <DayCloseForm systemCash={cash} systemCard={card} systemOther={other} />
 
         {/* history */}
         <div className="panel" style={{ padding: "1.25rem" }}>
