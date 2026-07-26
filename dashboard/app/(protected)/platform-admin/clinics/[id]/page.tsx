@@ -5,6 +5,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { AddStaffForm } from "@/components/platform/add-staff-form";
 import { ClinicStatusToggle } from "@/components/platform/clinic-status-toggle";
+import { ClinicSuraPanel } from "@/components/platform/clinic-sura-panel";
 import { SubscriptionCard, ClinicWhatsApp, ImpersonateButton } from "@/components/platform/manage-widgets";
 import { ImportTrigger } from "@/components/patients/import-trigger";
 import { BookingLink } from "@/components/platform/booking-link";
@@ -31,12 +32,23 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
   if (!claims || !hasRole(claims, "platform_admin")) redirect("/login");
 
   const sb = await createServiceRoleClient();
-  const [{ data: clinic }, { data: staff }, { data: services }, { data: wa }, { data: sub }] = await Promise.all([
+  const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const [
+    { data: clinic }, { data: staff }, { data: services }, { data: wa }, { data: sub },
+    { data: settings }, msgRes, errRes,
+  ] = await Promise.all([
     sb.from("tawd_clinics").select("id, name, name_ar, clinic_type, status, plan, phone, created_at, vat_number, slug").eq("id", id).maybeSingle(),
     sb.from("tawd_staff_users").select("id, name, name_ar, email, role, is_active").eq("clinic_id", id).is("deleted_at", null).order("created_at"),
     sb.from("services").select("id").eq("clinic_id", id).eq("is_active", true),
     sb.from("channel_configs").select("is_active").eq("clinic_id", id).eq("channel", "whatsapp").limit(1).maybeSingle(),
     sb.from("tawd_subscriptions").select("plan, status, trial_ends_at, price_omr, current_period_end").eq("clinic_id", id).maybeSingle(),
+    sb.from("tawd_clinic_settings")
+      .select("sura_system_message, languages, channel_toggles, is_in_maintenance, maintenance_msg_ar")
+      .eq("clinic_id", id).maybeSingle(),
+    sb.from("chat_messages").select("id", { count: "exact", head: true })
+      .eq("clinic_id", id).gte("created_at", weekAgo),
+    sb.from("sura_errors").select("id", { count: "exact", head: true })
+      .eq("clinic_id", id).gte("created_at", weekAgo),
   ]);
   if (!clinic) notFound();
 
@@ -135,6 +147,25 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
           <AddStaffForm clinicId={clinic.id} />
         </div>
       </div>
+
+      {/* Sura for THIS clinic. Every one of these fields already existed in
+          tawd_clinic_settings and none of them was reachable outside Supabase —
+          supporting a clinic whose receptionist was misbehaving meant editing a
+          database row by hand. */}
+      <ClinicSuraPanel
+        sura={{
+          clinicId: clinic.id as string,
+          clinicName: (clinic.name_ar ?? clinic.name) as string,
+          systemMessage: (settings?.sura_system_message as string) ?? "",
+          languages: (settings?.languages as string[]) ?? ["ar"],
+          channels: (settings?.channel_toggles as Record<string, boolean>) ?? {},
+          inMaintenance: !!settings?.is_in_maintenance,
+          maintenanceMsg: (settings?.maintenance_msg_ar as string) ?? "",
+          whatsappLinked: !!wa?.is_active,
+          messages7d: msgRes.count ?? 0,
+          errors7d: errRes.count ?? 0,
+        }}
+      />
     </div>
   );
 }
