@@ -4,6 +4,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { CostsCard } from "@/components/platform/manage-widgets";
 import { n8nGet } from "@/lib/n8n";
+import { AlertTriangle } from "lucide-react";
 
 export const metadata = { title: "اقتصاد المنصة — طود" };
 export const dynamic = "force-dynamic";
@@ -23,9 +24,11 @@ export default async function EconomyPage() {
     return (res.data.data ?? []).filter((e) => new Date(e.startedAt).getTime() > dayAgo).length;
   }
 
-  const [{ data: costs }, { data: tokenRows }, waRes, { data: subs }, dbSizeRes, convRes, runs24h] = await Promise.all([
+  const [{ data: costs }, tokensRes, waRes, { data: subs }, dbSizeRes, convRes, runs24h] = await Promise.all([
     sb.from("platform_costs").select("id, name, monthly_omr").order("created_at"),
-    sb.from("ai_usage_metrics").select("tokens_total").gte("recorded_at", monthStart).limit(100000),
+    /* Summed in Postgres. This used to pull up to 100,000 rows and add them in
+       JS, which silently truncated — downward — once a month exceeded that. */
+    sb.rpc("platform_tokens_since", { p_since: monthStart }),
     sb.from("chat_messages").select("id", { count: "exact", head: true }).gte("created_at", monthStart),
     sb.from("tawd_subscriptions").select("price_omr, status"),
     sb.rpc("platform_db_size_mb"),
@@ -33,8 +36,20 @@ export default async function EconomyPage() {
     n8nRuns(),
   ]);
 
-  const mrr = (subs ?? []).filter((s) => s.status === "active").reduce((s, x) => s + Number(x.price_omr ?? 0), 0);
+  /* MRR counted only `active`, so the moment a clinic's payment failed its
+     revenue vanished from the dashboard — indistinguishable from that clinic
+     having cancelled. Those two need opposite responses: one is a phone call
+     about a card, the other is a lost customer. Split, not merged. */
+  const committed = (subs ?? [])
+    .filter((s) => s.status === "active")
+    .reduce((t, x) => t + Number(x.price_omr ?? 0), 0);
+  const atRisk = (subs ?? [])
+    .filter((s) => s.status === "past_due")
+    .reduce((t, x) => t + Number(x.price_omr ?? 0), 0);
+  const atRiskCount = (subs ?? []).filter((s) => s.status === "past_due").length;
+
   const dbSizeMb = typeof dbSizeRes.data === "number" ? dbSizeRes.data : Number(dbSizeRes.data ?? NaN);
+  const tokensMonth = Number(tokensRes.data ?? 0) || 0;
 
   return (
     <div className="space-y-4 animate-fade-in pb-20">
@@ -43,11 +58,23 @@ export default async function EconomyPage() {
         <p className="text-[12px] mt-1.5" style={{ color: "var(--text-4)" }}>دخلك، تكاليفك، واستهلاكك — بمكان واحد</p>
       </div>
 
+      {atRiskCount > 0 && (
+        <div className="panel flex items-center gap-3 flex-wrap"
+          style={{ padding: "1rem 1.2rem", borderColor: "rgba(251,191,36,0.28)" }}>
+          <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: "#fbbf24" }} />
+          <span className="text-[12.5px]" style={{ color: "var(--text-2)" }}>
+            <span className="font-black ltr-nums text-white">{atRiskCount}</span> عيادة متأخرة السداد —
+            دخل معرّض للخطر <span className="font-black ltr-nums" style={{ color: "#fbbf24" }}>{atRisk.toFixed(3)}</span> ر.ع شهرياً.
+            غير محسوب في الدخل الشهري أدناه.
+          </span>
+        </div>
+      )}
+
       <CostsCard
         costs={(costs ?? []) as { id: string; name: string; monthly_omr: number }[]}
-        geminiTokensMonth={(tokenRows ?? []).reduce((s, r) => s + Number(r.tokens_total ?? 0), 0)}
+        geminiTokensMonth={tokensMonth}
         waMessagesMonth={waRes.count ?? 0}
-        mrr={mrr}
+        mrr={committed}
         dbSizeMb={Number.isFinite(dbSizeMb) ? dbSizeMb : null}
         waConversationsMonth={convRes.count ?? 0}
         n8nRuns24h={runs24h}

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, CheckCircle2, AlertCircle, Copy, KeyRound, Wand2, Stethoscope, Plus, Trash2 } from "lucide-react";
+import { Building2, CheckCircle2, AlertCircle, AlertTriangle, Copy, KeyRound, Wand2, Stethoscope, Plus, Trash2 } from "lucide-react";
 import { createClinic } from "@/app/actions/platform";
 
 const TYPES = [
@@ -40,6 +40,13 @@ export function NewClinicForm() {
   const [withFrontdesk, setWithFrontdesk] = useState(false);
   const [frontdesk, setFrontdesk] = useState({ email: "", password: genPassword() });
   const [teamInfo, setTeamInfo] = useState<{ doctors: number; frontdesk: boolean }>({ doctors: 0, frontdesk: false });
+  /* createClinic seeds eight tables and returns a `warnings` list for the parts
+     that failed — a doctor account rejected for a duplicate email, a service
+     template that did not insert. Nothing read that list, so a half-built clinic
+     reported success and the gap surfaced later as "why does this clinic have no
+     services". Handing over credentials for an incomplete clinic is worse than
+     an outright failure, because nobody goes looking. */
+  const [warnings, setWarnings] = useState<string[]>([]);
 
   const addDoctor = () => setDoctors((d) => [...d, { name: "", email: "", password: genPassword() }]);
   const patchDoctor = (i: number, p: Partial<{ name: string; email: string; password: string }>) =>
@@ -57,6 +64,7 @@ export function NewClinicForm() {
         });
         if (!r.ok) { setErr(r.reason); return; }
         setTeamInfo({ doctors: r.doctorsCreated ?? 0, frontdesk: !!r.frontdeskCreated });
+        setWarnings(r.warnings ?? []);
         setDone({ clinicId: r.clinicId, email: r.adminEmail, password: form.adminPassword, services: r.servicesSeeded });
         router.refresh();
       } catch {
@@ -77,14 +85,30 @@ export function NewClinicForm() {
   if (done) {
     return (
       <div className="panel-feature text-center" style={{ padding: "2.25rem", maxWidth: 640 }}>
-        <CheckCircle2 className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--accent-1)" }} />
-        <p className="text-xl font-bold text-white mb-2">عيادة «{form.nameAr}» جاهزة 🎉</p>
+        <CheckCircle2 className="w-12 h-12 mx-auto mb-4"
+          style={{ color: warnings.length ? "#fbbf24" : "var(--accent-1)" }} />
+        <p className="text-xl font-bold text-white mb-2">
+          {warnings.length ? `عيادة «${form.nameAr}» أُنشئت — مع ملاحظات` : `عيادة «${form.nameAr}» جاهزة 🎉`}
+        </p>
         <p className="text-sm mb-5" style={{ color: "var(--text-2)" }}>
-          أُنشئت بكل شيء: الإعدادات، دوام افتراضي، نظام الولاء الذكي، اشتراك تجريبي 14 يوماً،
+          الإعدادات، دوام افتراضي، نظام الولاء الذكي، اشتراك تجريبي 14 يوماً،
           {done.services} خدمات حسب التخصص
           {teamInfo.doctors > 0 && `، ${teamInfo.doctors} حساب طبيب`}
           {teamInfo.frontdesk && "، وحساب استقبال+محاسبة"}
         </p>
+
+        {warnings.length > 0 && (
+          <div className="rounded-2xl p-4 text-start mx-auto mb-5"
+            style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.28)", maxWidth: 420 }}>
+            <p className="flex items-center gap-2 text-[12.5px] font-bold mb-2" style={{ color: "#fbbf24" }}>
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              لم يكتمل كل شيء — عالجها قبل تسليم العيادة
+            </p>
+            <ul className="space-y-1 text-[11.5px]" style={{ color: "var(--text-2)" }}>
+              {warnings.map((w, i) => <li key={i}>• {w}</li>)}
+            </ul>
+          </div>
+        )}
 
         <div className="rounded-2xl p-4 text-start mx-auto" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.09)", maxWidth: 420 }}>
           <p className="eyebrow mb-3">بيانات دخول مدير العيادة — سلّمها له</p>
