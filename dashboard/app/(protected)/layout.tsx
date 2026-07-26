@@ -4,6 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { AppSidebar } from "@/components/shell/app-sidebar";
 import { TopBar } from "@/components/shell/top-bar";
 import { SuraWidget } from "@/components/sura-widget/sura-widget";
+import { getEntitlements } from "@/lib/entitlements";
 
 export default async function ProtectedLayout({
   children,
@@ -28,6 +29,12 @@ export default async function ProtectedLayout({
       .single(),
   ]);
 
+  /* The operator supports every clinic and is not bound by any one contract, so
+     their menu is never filtered. */
+  const entitlements = claims.role === "platform_admin"
+    ? null
+    : await getEntitlements(claims.clinic_id);
+
   return (
     /* No background here. This used to hardcode #0A0D16 — a blue-black left
        over from an older theme — which sat under every page fighting the warm
@@ -40,6 +47,7 @@ export default async function ProtectedLayout({
         userName={staffData?.name_ar || staffData?.name || claims.email.split("@")[0]}
         clinicName={clinicData?.name}
         avatarUrl={staffData?.avatar_url ?? null}
+        modules={entitlements?.modules}
       />
 
       {/* Main content — offset by sidebar width */}

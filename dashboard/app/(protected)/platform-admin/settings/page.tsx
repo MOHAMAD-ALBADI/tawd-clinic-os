@@ -46,17 +46,22 @@ export default async function PlatformSettingsPage() {
     subsPerPlan.set(k, (subsPerPlan.get(k) ?? 0) + 1);
   }
 
+  const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
   const rows: PlanRow[] = (plans ?? []).map((p) => ({
     code: p.code as string,
     name_ar: p.name_ar as string,
+    description_ar: (p.description_ar as string | null) ?? "",
     price_omr: Number(p.price_omr ?? 0),
-    max_staff: p.max_staff === null ? null : Number(p.max_staff),
-    max_patients: p.max_patients === null ? null : Number(p.max_patients),
-    has_sura: !!p.has_sura,
-    has_inventory: !!p.has_inventory,
-    has_payroll: !!p.has_payroll,
-    has_insurance: !!p.has_insurance,
+    per_doctor_omr: Number(p.per_doctor_omr ?? 0),
+    setup_fee_omr: Number(p.setup_fee_omr ?? 0),
+    max_doctors: num(p.max_doctors),
+    max_staff: num(p.max_staff),
+    max_patients: num(p.max_patients),
+    max_whatsapp_msgs: num(p.max_whatsapp_msgs),
+    modules: (p.modules as string[] | null) ?? [],
     is_active: !!p.is_active,
+    is_default: !!p.is_default,
+    sort_order: Number(p.sort_order ?? 0),
     subscriberCount: subsPerPlan.get(p.code as string) ?? 0,
   }));
 

@@ -12,18 +12,21 @@ import { PieChart, CreditCard, Receipt, Wallet, Percent, Smartphone } from "luci
 const TABS = [
   { href: "/clinic-admin/finance",             label: "نظرة عامة",  Icon: PieChart,   exact: true },
   { href: "/clinic-admin/finance/invoices",    label: "الفواتير",   Icon: CreditCard },
-  { href: "/clinic-admin/finance/expenses",    label: "المصروفات",  Icon: Receipt },
-  { href: "/clinic-admin/finance/payroll",     label: "الرواتب",    Icon: Wallet },
-  { href: "/clinic-admin/finance/commissions", label: "العمولات",   Icon: Percent },
-  { href: "/clinic-admin/finance/online",      label: "ثواني",      Icon: Smartphone },
+  { href: "/clinic-admin/finance/expenses",    label: "المصروفات",  Icon: Receipt,    module: "expenses" },
+  { href: "/clinic-admin/finance/payroll",     label: "الرواتب",    Icon: Wallet,     module: "payroll" },
+  { href: "/clinic-admin/finance/commissions", label: "العمولات",   Icon: Percent,    module: "commissions" },
+  { href: "/clinic-admin/finance/online",      label: "ثواني",      Icon: Smartphone, module: "online_payments" },
 ];
 
-export function FinanceTabs() {
+/* A tab leading to a locked screen is worse than no tab: it advertises the
+   module, then refuses it. Unsold tabs are simply not rendered. */
+export function FinanceTabs({ modules }: { modules?: string[] }) {
   const pathname = usePathname();
+  const tabs = TABS.filter((t) => !t.module || !modules || modules.includes(t.module));
 
   return (
     <div className="flex items-center gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
-      {TABS.map((t) => {
+      {tabs.map((t) => {
         const active = t.exact ? pathname === t.href : pathname.startsWith(t.href);
         return (
           <Link

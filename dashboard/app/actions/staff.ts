@@ -3,6 +3,7 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { APP_ROLES, toDbRole as toDb, toAppRole as toApp, type AppRole } from "@/lib/staff-roles";
+import { checkLimit } from "@/lib/entitlements";
 
 /* Team administration for the clinic manager.
 
@@ -86,6 +87,16 @@ export async function createStaffMember(input: StaffInput) {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false as const, reason: "البريد غير صالح" };
   if (!roles.length) return { ok: false as const, reason: "اختر دوراً واحداً على الأقل" };
   if (input.password && input.password.length < 8) return { ok: false as const, reason: "كلمة المرور 8 أحرف على الأقل" };
+
+  /* Checked before the auth user is created, not after. Creating the login and
+     then refusing the staff row leaves an account that can sign in and belongs
+     to nobody. */
+  const seats = await checkLimit(claims.clinic_id, "staff");
+  if (!seats.ok) return { ok: false as const, reason: seats.reason };
+  if (roles.includes("doctor")) {
+    const docs = await checkLimit(claims.clinic_id, "doctors");
+    if (!docs.ok) return { ok: false as const, reason: docs.reason };
+  }
 
   const primary = roles[0];
   const meta = {

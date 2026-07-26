@@ -172,7 +172,9 @@ export async function createClinic(input: NewClinicInput) {
      trial" no matter what was chosen. */
   const planCode = (input.plan ?? "starter").trim();
   const { data: planRow } = await sb
-    .from("platform_plans").select("code, price_omr").eq("code", planCode).maybeSingle();
+    .from("platform_plans")
+    .select("code, price_omr, per_doctor_omr, setup_fee_omr, modules, max_doctors, max_staff, max_patients, max_whatsapp_msgs")
+    .eq("code", planCode).maybeSingle();
   const planPrice = Number(planRow?.price_omr ?? 0);
   const resolvedPlan = (planRow?.code as string) ?? "starter";
   const trialDays = Math.max(0, Math.min(90, Math.floor(Number(input.trialDays ?? 14))));
@@ -202,7 +204,13 @@ export async function createClinic(input: NewClinicInput) {
      clinic already on it — what a customer agreed to is a fact about them, not
      a lookup. */
   const trialEnd = new Date(Date.now() + Math.max(trialDays, 1) * 86_400_000).toISOString();
-  const [s1, s2, s3] = await Promise.all([
+  /* The contract, copied from the template. Without this row the clinic falls
+     back to everything-unlimited — safe, but not what was sold. The operator
+     tunes it from the clinic file after the consultation. */
+  const contractedDoctors = Math.max(
+    1, (input.staff ?? []).filter((m) => (m.roles ?? []).includes("doctor")).length,
+  );
+  const [s1, s2, s3, s4] = await Promise.all([
     sb.from("tawd_clinic_settings").insert({ clinic_id: clinicId, working_hours: WH_DEFAULT }),
     sb.from("loyalty_settings").insert({
       clinic_id: clinicId,
@@ -226,8 +234,22 @@ export async function createClinic(input: NewClinicInput) {
         ? trialEnd
         : new Date(Date.now() + 30 * 86_400_000).toISOString(),
     }),
+    sb.from("clinic_entitlements").insert({
+      clinic_id: clinicId,
+      source_plan: resolvedPlan,
+      modules: (planRow?.modules as string[] | null) ?? [],
+      max_doctors: planRow?.max_doctors ?? null,
+      max_staff: planRow?.max_staff ?? null,
+      max_patients: planRow?.max_patients ?? null,
+      max_whatsapp_msgs: planRow?.max_whatsapp_msgs ?? null,
+      base_price_omr: planPrice,
+      per_doctor_omr: Number(planRow?.per_doctor_omr ?? 0),
+      setup_fee_omr: Number(planRow?.setup_fee_omr ?? 0),
+      contracted_doctors: contractedDoctors,
+      notes: "مُنشأة من القالب عند التسجيل — تُعدَّل من ملف العيادة بعد الاستشارة",
+    }),
   ]);
-  const seedErr = s1.error ?? s2.error ?? s3.error;
+  const seedErr = s1.error ?? s2.error ?? s3.error ?? s4.error;
 
   /* 3 — specialty service template */
   const tpl = SERVICE_TEMPLATES[input.clinicType] ?? SERVICE_TEMPLATES.general;

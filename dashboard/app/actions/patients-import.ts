@@ -4,6 +4,7 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { revalidatePath } from "next/cache";
+import { checkLimit } from "@/lib/entitlements";
 
 export type ImportRow = {
   name: string;
@@ -89,6 +90,28 @@ export async function importPatients(rows: ImportRow[], targetClinicId?: string)
     });
   }
 
+  /* A bulk import is the one place a clinic can blow past its patient cap in a
+     single click, so it is checked against remaining room rather than refused
+     outright — importing 480 of 500 and being told why beats importing nothing.
+     The platform operator importing on a clinic's behalf is not capped. */
+  let capped = 0;
+  if (!hasRole(claims, "platform_admin")) {
+    const room = await checkLimit(clinicId, "patients");
+    if (room.limit != null) {
+      const free = Math.max(0, room.limit - room.used);
+      if (toInsert.length > free) {
+        capped = toInsert.length - free;
+        toInsert.length = free;
+      }
+    }
+  }
+  if (toInsert.length === 0 && capped > 0) {
+    return {
+      ok: false as const,
+      reason: `وصلت عيادتكم للحد المتفق عليه من المرضى. للتوسعة تواصلوا مع فريق طود.`,
+    };
+  }
+
   let inserted = 0;
   const errors: string[] = [];
   for (let i = 0; i < toInsert.length; i += 500) {
@@ -104,6 +127,7 @@ export async function importPatients(rows: ImportRow[], targetClinicId?: string)
     ok: true as const,
     inserted,
     skipped,
+    capped,
     total: rows?.length ?? 0,
     errors: errors.slice(0, 3),
   };

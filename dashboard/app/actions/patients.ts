@@ -2,6 +2,7 @@
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { checkLimit } from "@/lib/entitlements";
 
 type PatientInput = {
   name: string;
@@ -21,6 +22,13 @@ export async function createPatient(data: PatientInput) {
   const claims = assertAdmin(await getUserClaims());
   if (!data.name?.trim()) throw new Error("اسم المريض مطلوب");
   if (!data.phone?.trim()) throw new Error("رقم الجوال مطلوب");
+
+  /* Only the manager's own "add patient" and the bulk import are capped.
+     Reception, the booking page and Sura are not — a patient standing at the
+     desk is never turned away because a contract line is full. The overage
+     shows on the operator's side instead. */
+  const room = await checkLimit(claims.clinic_id, "patients");
+  if (!room.ok) throw new Error(room.reason);
 
   const supabase = await createServerSupabaseClient();
   const { error } = await supabase.from("patients").insert({

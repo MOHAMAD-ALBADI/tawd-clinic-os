@@ -1,12 +1,15 @@
 import { redirect } from "next/navigation";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { FinanceTabs } from "@/components/finance/finance-tabs";
+import { getEntitlements } from "@/lib/entitlements";
 
 /* Guarding here means every finance tab is behind the same check — a new tab
    cannot be added without it. */
 export default async function FinanceLayout({ children }: { children: React.ReactNode }) {
   const claims = await getUserClaims();
   if (!claims || claims.role !== "clinic_admin") redirect("/login");
+
+  const { modules } = await getEntitlements(claims.clinic_id);
 
   return (
     <div className="space-y-5 animate-fade-in pb-20">
@@ -18,7 +21,7 @@ export default async function FinanceLayout({ children }: { children: React.Reac
         </p>
       </div>
 
-      <FinanceTabs />
+      <FinanceTabs modules={modules} />
       {children}
     </div>
   );

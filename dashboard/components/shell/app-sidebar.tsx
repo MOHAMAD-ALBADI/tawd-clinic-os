@@ -16,9 +16,12 @@ interface AppSidebarProps {
   userName: string;
   clinicName?: string;
   avatarUrl?: string | null;
+  /** Modules the clinic's contract includes. Undefined = do not filter, which is
+      what the platform operator gets — they are not bound by a clinic's plan. */
+  modules?: string[];
 }
 
-export function AppSidebar({ role, allRoles, userName, clinicName, avatarUrl }: AppSidebarProps) {
+export function AppSidebar({ role, allRoles, userName, clinicName, avatarUrl, modules }: AppSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -27,11 +30,24 @@ export function AppSidebar({ role, allRoles, userName, clinicName, avatarUrl }: 
      the nav is the union of its roles' menus */
   const roles = [...new Set([role, ...(allRoles ?? [])])];
   const seen = new Set<string>();
-  const navItems = roles.flatMap((r) => NAV_ITEMS[r] ?? []).filter((item) => {
-    if (seen.has(item.href)) return false;
-    seen.add(item.href);
-    return true;
-  });
+  /* `section` marks the START of a group and the items after it inherit the
+     heading implicitly. Hiding an unsold module could therefore delete a heading
+     its surviving neighbours still need, so the heading is resolved for every
+     item first and re-derived after filtering. */
+  let carried: string | undefined;
+  const navItems = roles
+    .flatMap((r) => NAV_ITEMS[r] ?? [])
+    .map((item) => {
+      if (item.section) carried = item.section;
+      return { ...item, group: carried };
+    })
+    .filter((item) => {
+      if (seen.has(item.href)) return false;
+      // items tied to a module the clinic did not buy simply are not there
+      if (item.module && modules && !modules.includes(item.module)) return false;
+      seen.add(item.href);
+      return true;
+    });
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -99,7 +115,7 @@ export function AppSidebar({ role, allRoles, userName, clinicName, avatarUrl }: 
             /* print a group heading the first time a section appears — keeps a long
                menu scannable; menus without sections stay flat */
             const heading =
-              item.section && item.section !== navItems[i - 1]?.section ? item.section : null;
+              item.group && item.group !== navItems[i - 1]?.group ? item.group : null;
             const isActive = item.exact
               ? pathname === item.href
               : pathname === item.href ||

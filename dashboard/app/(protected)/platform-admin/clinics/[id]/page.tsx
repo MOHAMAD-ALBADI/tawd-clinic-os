@@ -6,6 +6,8 @@ import { hasRole } from "@/lib/auth/role-redirect";
 import { AddStaffForm } from "@/components/platform/add-staff-form";
 import { ClinicStatusToggle } from "@/components/platform/clinic-status-toggle";
 import { ClinicSuraPanel } from "@/components/platform/clinic-sura-panel";
+import { ClinicContract, type PlanTemplate } from "@/components/platform/clinic-contract";
+import { getEntitlementsAsPlatform } from "@/lib/entitlements";
 import { SubscriptionCard, ClinicWhatsApp, ImpersonateButton } from "@/components/platform/manage-widgets";
 import { ImportTrigger } from "@/components/patients/import-trigger";
 import { BookingLink } from "@/components/platform/booking-link";
@@ -51,6 +53,18 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
       .eq("clinic_id", id).gte("created_at", weekAgo),
   ]);
   if (!clinic) notFound();
+
+  /* The contract, the templates to build one from, and what the clinic is
+     actually using — the three things the pricing conversation needs. */
+  const [entitlements, { data: templates }, { count: patientCount }] = await Promise.all([
+    getEntitlementsAsPlatform(id),
+    sb.from("platform_plans")
+      .select("code, name_ar, description_ar, price_omr, per_doctor_omr, setup_fee_omr, max_doctors, max_staff, max_patients, max_whatsapp_msgs, modules")
+      .eq("is_active", true).order("sort_order"),
+    sb.from("patients").select("id", { count: "exact", head: true })
+      .eq("clinic_id", id).is("deleted_at", null),
+  ]);
+  const activeStaff = (staff ?? []).filter((s) => s.is_active);
 
   const st = STATUS_META[clinic.status] ?? STATUS_META.trial;
   const created = new Intl.DateTimeFormat("ar", { day: "numeric", month: "long", year: "numeric" }).format(new Date(clinic.created_at));
@@ -147,6 +161,35 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
           <AddStaffForm clinicId={clinic.id} />
         </div>
       </div>
+
+      {/* What this clinic bought — and the only thing the app enforces. */}
+      <ClinicContract
+        clinicId={clinic.id as string}
+        clinicName={(clinic.name_ar ?? clinic.name) as string}
+        entitlements={entitlements}
+        templates={((templates ?? []) as unknown[]).map((t) => {
+          const p = t as Record<string, unknown>;
+          const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+          return {
+            code: p.code as string,
+            name_ar: p.name_ar as string,
+            description_ar: (p.description_ar as string | null) ?? null,
+            price_omr: Number(p.price_omr ?? 0),
+            per_doctor_omr: Number(p.per_doctor_omr ?? 0),
+            setup_fee_omr: Number(p.setup_fee_omr ?? 0),
+            max_doctors: num(p.max_doctors),
+            max_staff: num(p.max_staff),
+            max_patients: num(p.max_patients),
+            max_whatsapp_msgs: num(p.max_whatsapp_msgs),
+            modules: (p.modules as string[] | null) ?? [],
+          } satisfies PlanTemplate;
+        })}
+        usage={{
+          doctors: activeStaff.filter((s) => s.role === "doctor").length,
+          staff: activeStaff.length,
+          patients: patientCount ?? 0,
+        }}
+      />
 
       {/* Sura for THIS clinic. Every one of these fields already existed in
           tawd_clinic_settings and none of them was reachable outside Supabase —
