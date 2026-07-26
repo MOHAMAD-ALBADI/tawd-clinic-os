@@ -343,6 +343,36 @@ export async function updateSubscription(
   return { ok: true as const };
 }
 
+/** Give a trial more time.
+
+    Operators need this constantly — a clinic is mid-onboarding when the 14 days
+    run out, and the alternative was either charging them or letting the trial
+    lapse and losing them. Extends from whichever is later, now or the current
+    end, so extending twice does not shorten anything. */
+export async function extendTrial(clinicId: string, days: number) {
+  await requirePlatform();
+  const add = Math.min(90, Math.max(1, Math.floor(Number(days) || 0)));
+
+  const sb = await createServiceRoleClient();
+  const { data: sub } = await sb
+    .from("tawd_subscriptions").select("trial_ends_at").eq("clinic_id", clinicId).maybeSingle();
+
+  const from = Math.max(Date.now(), sub?.trial_ends_at ? new Date(sub.trial_ends_at).getTime() : 0);
+  const newEnd = new Date(from + add * 86_400_000).toISOString();
+
+  const { error } = await sb.from("tawd_subscriptions")
+    .update({ status: "trial", trial_ends_at: newEnd, updated_at: new Date().toISOString() })
+    .eq("clinic_id", clinicId);
+  if (error) return { ok: false as const, reason: error.message };
+
+  await sb.from("tawd_clinics").update({ status: "trial" }).eq("id", clinicId);
+
+  revalidatePath("/platform-admin/subscriptions");
+  revalidatePath("/platform-admin/clinics");
+  revalidatePath("/platform-admin");
+  return { ok: true as const, until: newEnd };
+}
+
 /** Renew: extend the period one month from max(now, current end) and activate. */
 export async function renewSubscriptionMonth(clinicId: string) {
   await requirePlatform();
