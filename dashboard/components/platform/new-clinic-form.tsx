@@ -71,6 +71,9 @@ export function NewClinicForm({ plans }: { plans: { code: string; name_ar: strin
      services". Handing over credentials for an incomplete clinic is worse than
      an outright failure, because nobody goes looking. */
   const [warnings, setWarnings] = useState<string[]>([]);
+  /* Passwords are generated server-side and shown once, here. Creating logins
+     and never revealing them makes every staff account unusable. */
+  const [creds, setCreds] = useState<{ name: string; email: string; password: string; roles: string[] }[]>([]);
 
   const addStaff = (roles: string[]) =>
     setStaff((d) => [...d, { name: "", email: "", password: genPassword(), roles, specialty: "" }]);
@@ -99,6 +102,7 @@ export function NewClinicForm({ plans }: { plans: { code: string; name_ar: strin
         if (!r.ok) { setErr(r.reason); return; }
         setTeamInfo({ doctors: r.doctorsCreated ?? 0, frontdesk: !!r.frontdeskCreated });
         setWarnings(r.warnings ?? []);
+        setCreds(r.staffCreds ?? []);
         setDone({ clinicId: r.clinicId, email: r.adminEmail, password: form.adminPassword, services: r.servicesSeeded });
         router.refresh();
       } catch {
@@ -107,11 +111,21 @@ export function NewClinicForm({ plans }: { plans: { code: string; name_ar: strin
     });
   }
 
+  /* Copies every account, not just the manager's. The staff passwords are
+     generated server-side and shown exactly once — if they are not carried out
+     of this screen, those logins are unusable and have to be reset one by one. */
   function copyCreds() {
     if (!done) return;
-    navigator.clipboard.writeText(
-      `منصة طود — بيانات دخول عيادة ${form.nameAr}\nhttps://tawd-clinic-os.vercel.app\nالبريد: ${done.email}\nكلمة المرور: ${done.password}`
-    );
+    const lines = [
+      `منصة طود — بيانات دخول عيادة ${form.nameAr}`,
+      "https://tawd-clinic-os.vercel.app",
+      "",
+      "مدير العيادة",
+      `البريد: ${done.email}`,
+      `كلمة المرور: ${done.password}`,
+      ...creds.flatMap((c) => ["", c.name, `البريد: ${c.email}`, `كلمة المرور: ${c.password}`]),
+    ];
+    navigator.clipboard.writeText(lines.join("\n"));
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   }
@@ -147,16 +161,45 @@ export function NewClinicForm({ plans }: { plans: { code: string; name_ar: strin
           </div>
         )}
 
-        <div className="rounded-2xl p-4 text-start mx-auto" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.09)", maxWidth: 420 }}>
-          <p className="eyebrow mb-3">بيانات دخول مدير العيادة — سلّمها له</p>
-          <div className="space-y-1.5 text-[13px]">
-            <p style={{ color: "var(--text-2)" }}>البريد: <span className="font-bold ltr-nums text-white">{done.email}</span></p>
-            <p style={{ color: "var(--text-2)" }}>كلمة المرور: <span className="font-bold ltr-nums text-white">{done.password}</span></p>
+        <div className="rounded-2xl p-4 text-start mx-auto" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.09)", maxWidth: 460 }}>
+          <p className="eyebrow mb-3">بيانات الدخول — تظهر مرة واحدة فقط</p>
+
+          <div className="rounded-xl px-3 py-2.5 mb-2"
+            style={{ background: "rgb(var(--accent-1-rgb) / 0.07)", border: "1px solid rgb(var(--accent-1-rgb) / 0.2)" }}>
+            <p className="text-[11px] font-bold mb-1" style={{ color: "var(--accent-1)" }}>مدير العيادة</p>
+            <p className="text-[12.5px]" style={{ color: "var(--text-2)" }}>
+              <span className="font-bold ltr-nums text-white">{done.email}</span>
+            </p>
+            <p className="text-[12.5px]" style={{ color: "var(--text-2)" }}>
+              كلمة المرور: <span className="font-bold ltr-nums text-white">{done.password}</span>
+            </p>
           </div>
-          <button onClick={copyCreds} className="btn-ghost w-full mt-3">
+
+          {/* Every generated password, shown once. Creating logins and never
+              revealing them leaves accounts nobody can sign into. */}
+          {creds.map((c) => (
+            <div key={c.email} className="rounded-xl px-3 py-2.5 mb-2"
+              style={{ background: "rgba(255,255,255,0.025)", border: "1px solid var(--hairline)" }}>
+              <p className="text-[11px] font-bold mb-1 text-white">
+                {c.name}
+                <span className="font-normal" style={{ color: "var(--text-4)" }}>
+                  {" · "}{c.roles.map((r) => ROLE_CHOICES.find((x) => x.key === r)?.label ?? r).join(" + ")}
+                </span>
+              </p>
+              <p className="text-[12.5px] ltr-nums" style={{ color: "var(--text-2)" }}>{c.email}</p>
+              <p className="text-[12.5px]" style={{ color: "var(--text-2)" }}>
+                كلمة المرور: <span className="font-bold ltr-nums text-white">{c.password}</span>
+              </p>
+            </div>
+          ))}
+
+          <button onClick={copyCreds} className="btn-primary w-full mt-2">
             <Copy className="w-3.5 h-3.5" />
-            {copied ? "نُسخت ✓" : "نسخ البيانات"}
+            {copied ? "نُسخت كل البيانات ✓" : `نسخ كل البيانات (${creds.length + 1} حساب)`}
           </button>
+          <p className="text-[10.5px] mt-2 text-center" style={{ color: "#fbbf24" }}>
+            انسخها الآن — لا يمكن استرجاعها بعد إغلاق هذه الشاشة
+          </p>
         </div>
 
         <div className="flex items-center justify-center gap-2 mt-6 flex-wrap">

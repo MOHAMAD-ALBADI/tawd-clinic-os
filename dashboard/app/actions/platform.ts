@@ -100,9 +100,66 @@ export async function createClinic(input: NewClinicInput) {
   const nameAr = input.nameAr.trim();
   const email = input.adminEmail.trim().toLowerCase();
   if (!name || !nameAr) return { ok: false as const, reason: "اسم العيادة مطلوب بالعربية والإنجليزية" };
+  /* The clinic name ends up on invoices and on the public booking page, so a
+     two-letter placeholder typed while testing becomes a real customer's
+     letterhead. Three characters is the shortest genuine clinic name. */
+  if (nameAr.length < 3) return { ok: false as const, reason: "الاسم العربي قصير جداً — اكتب اسم العيادة كاملاً" };
+  if (name.length < 3 || !/[a-zA-Z]/.test(name)) {
+    return { ok: false as const, reason: "الاسم الإنجليزي قصير جداً أو ليس بحروف إنجليزية" };
+  }
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false as const, reason: "بريد المدير غير صالح" };
   if (input.adminPassword.length < 8) return { ok: false as const, reason: "كلمة المرور 8 أحرف على الأقل" };
-  if (!input.adminName.trim()) return { ok: false as const, reason: "اسم المدير مطلوب" };
+  if (!input.adminName.trim() || input.adminName.trim().length < 3) {
+    return { ok: false as const, reason: "اسم المدير مطلوب — الاسم الكامل" };
+  }
+
+  /* Oman mobile numbers: 8 digits starting 7 or 9, with or without +968.
+     Sura sends the clinic's own reminders from this number. */
+  const rawPhone = (input.phone ?? "").replace(/[\s-]/g, "");
+  if (rawPhone && !/^(\+?968)?[79]\d{7}$/.test(rawPhone)) {
+    return { ok: false as const, reason: "رقم الهاتف غير صالح — رقم عُماني من ٨ أرقام يبدأ بـ ٧ أو ٩" };
+  }
+
+  /* Two clinics with the same Arabic name are indistinguishable everywhere the
+     operator sees them — the clinics list, the revenue table, the support view. */
+  const { data: sameName } = await sb
+    .from("tawd_clinics").select("id").eq("name_ar", nameAr).limit(1);
+  if (sameName?.length) {
+    return { ok: false as const, reason: `توجد عيادة بنفس الاسم «${nameAr}» — اختر اسماً مميزاً` };
+  }
+
+  /* ── PRE-FLIGHT ──
+     Nothing is created until every email is known to be usable.
+
+     This function used to insert the clinic, seed six tables, and only then try
+     to create the manager's login. A duplicate email at that point returned an
+     error while leaving behind a clinic with no manager and no staff — a tenant
+     nobody can log into, which is worse than an outright failure because it
+     looks like a customer. One such clinic was created this way before this fix.
+
+     Checking first costs one query and makes the whole operation safe to retry. */
+  const staffList = (input.staff ?? []).filter((m) => m.name.trim() && m.email.trim());
+  const wanted = [email, ...staffList.map((m) => m.email.trim().toLowerCase())];
+
+  const dupInForm = wanted.find((e, i) => wanted.indexOf(e) !== i);
+  if (dupInForm) {
+    return { ok: false as const, reason: `البريد ${dupInForm} مكرَّر في النموذج — كل حساب يحتاج بريداً خاصاً به` };
+  }
+  for (const m of staffList) {
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m.email.trim().toLowerCase())) {
+      return { ok: false as const, reason: `بريد غير صالح: ${m.email}` };
+    }
+    if (!m.roles?.length) {
+      return { ok: false as const, reason: `اختر دوراً واحداً على الأقل لـ ${m.name || m.email}` };
+    }
+  }
+
+  const { data: existing } = await sb
+    .from("tawd_staff_users").select("email").in("email", wanted).limit(wanted.length);
+  if (existing?.length) {
+    const taken = existing.map((r) => r.email).join("، ");
+    return { ok: false as const, reason: `هذه الحسابات مسجّلة مسبقاً: ${taken}` };
+  }
 
   /* unique url slug from the english name (fallback → arabic → random) */
   const base = (name || nameAr).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-+|-+$)/g, "");
@@ -128,7 +185,7 @@ export async function createClinic(input: NewClinicInput) {
       name_ar: nameAr,
       slug,
       clinic_type: SERVICE_TEMPLATES[input.clinicType] ? input.clinicType : "general",
-      phone: input.phone?.trim() || null,
+      phone: rawPhone ? (rawPhone.startsWith("+") ? rawPhone : `+968${rawPhone.replace(/^968/, "")}`) : null,
       vat_enabled: true,
       plan: resolvedPlan,
       status: trialDays > 0 ? "trial" : "active",
@@ -187,10 +244,14 @@ export async function createClinic(input: NewClinicInput) {
     app_metadata: meta,
   });
   if (created.error) {
+    /* Pre-flight should have caught this, but a race or an auth-side rejection
+       can still land here. A clinic with no manager is unusable, so it is
+       removed rather than left behind — every seeded row cascades off the
+       clinic id, so deleting the clinic cleans up the lot. */
+    await sb.from("tawd_clinics").delete().eq("id", clinicId);
     return {
       ok: false as const,
-      reason: `العيادة أُنشئت لكن تعذّر إنشاء حساب المدير: ${created.error.message}`,
-      clinicId,
+      reason: `تعذّر إنشاء حساب المدير — أُلغيت العيادة ولم يُحفظ شيء: ${created.error.message}`,
     };
   }
   const adminId = created.data.user.id;
@@ -216,6 +277,7 @@ export async function createClinic(input: NewClinicInput) {
      manager can edit afterwards. */
   const teamWarnings: string[] = [];
   const roleCounts = { doctor: 0, receptionist: 0, accountant: 0, clinic_admin: 0 };
+  const staffCreds: { name: string; email: string; password: string; roles: string[] }[] = [];
 
   for (const m of (input.staff ?? []).slice(0, 40)) {
     const mEmail = m.email.trim().toLowerCase();
@@ -255,6 +317,9 @@ export async function createClinic(input: NewClinicInput) {
     if (mse) { teamWarnings.push(`${mEmail}: ${mse.message}`); continue; }
 
     for (const r of roles) roleCounts[r as keyof typeof roleCounts] += 1;
+    /* The operator has to hand these over. Generating a password and never
+       showing it creates accounts nobody can sign into. */
+    staffCreds.push({ name: mName, email: mEmail, password: m.password, roles });
   }
 
   const doctorsCreated = roleCounts.doctor;
@@ -269,6 +334,7 @@ export async function createClinic(input: NewClinicInput) {
     servicesSeeded: sverr ? 0 : tpl.length,
     doctorsCreated,
     frontdeskCreated,
+    staffCreds,
     warnings: [seedErr?.message, sverr?.message, sterr?.message, ...teamWarnings].filter(Boolean) as string[],
     createdBy: claims.sub,
   };
@@ -553,6 +619,80 @@ export async function impersonateClinic(clinicId: string) {
     return { ok: false as const, reason: error?.message ?? "تعذّر توليد الرابط" };
   }
   return { ok: true as const, link: data.properties.action_link, email: admin.email };
+}
+
+/** Delete a clinic and everything under it.
+
+    Guarded three ways, because this is the one irreversible action in the
+    product:
+
+    1. The clinic must be suspended first. Deleting a live tenant mid-consultation
+       is never right, and suspending is the reversible half of the same decision
+       — if suspension turns out to be enough, nothing else has to happen.
+    2. The caller types the clinic's own name. A confirm dialog is muscle memory;
+       typing the name is not.
+    3. If the clinic holds real records — patients, invoices — the counts come
+       back and the delete is refused until the operator explicitly acknowledges
+       them. Medical and financial records are not discarded because a row looked
+       untidy in a list.
+
+    Everything else cascades off clinic_id. Staff logins live in auth, outside
+    that cascade, so they are removed separately. */
+export async function deleteClinic(input: {
+  clinicId: string;
+  /** must match the clinic's Arabic or English name exactly */
+  confirmName: string;
+  /** set only after the operator has seen what will be destroyed */
+  acknowledgeDataLoss?: boolean;
+}) {
+  await requirePlatform();
+  const sb = await createServiceRoleClient();
+
+  const { data: clinic } = await sb
+    .from("tawd_clinics").select("id, name, name_ar, status").eq("id", input.clinicId).maybeSingle();
+  if (!clinic) return { ok: false as const, reason: "العيادة غير موجودة" };
+
+  if (clinic.status !== "suspended" && clinic.status !== "cancelled") {
+    return { ok: false as const, reason: "أوقف العيادة أولاً — الحذف لا يكون لعيادة تعمل" };
+  }
+
+  const typed = input.confirmName.trim();
+  if (typed !== String(clinic.name_ar ?? "").trim() && typed !== String(clinic.name ?? "").trim()) {
+    return { ok: false as const, reason: "اسم العيادة غير مطابق" };
+  }
+
+  const [{ count: patients }, { count: invoices }] = await Promise.all([
+    sb.from("patients").select("id", { count: "exact", head: true }).eq("clinic_id", input.clinicId),
+    sb.from("invoices").select("id", { count: "exact", head: true }).eq("clinic_id", input.clinicId),
+  ]);
+
+  if (((patients ?? 0) + (invoices ?? 0)) > 0 && !input.acknowledgeDataLoss) {
+    return {
+      ok: false as const,
+      needsAcknowledge: true as const,
+      patients: patients ?? 0,
+      invoices: invoices ?? 0,
+      reason: `تحتفظ هذه العيادة بـ ${patients ?? 0} مريض و ${invoices ?? 0} فاتورة — صدّرها أو أكّد فقدانها`,
+    };
+  }
+
+  /* Logins live in auth.users, outside any cascade, so they go first. Doing it
+     the other way round would leave accounts that can sign in and land nowhere. */
+  const { data: staff } = await sb
+    .from("tawd_staff_users").select("id").eq("clinic_id", input.clinicId);
+  for (const m of staff ?? []) {
+    try { await sb.auth.admin.deleteUser(m.id as string); } catch { /* already gone */ }
+  }
+
+  /* One transaction, in dependency order — several of the clinic's foreign keys
+     are ON DELETE RESTRICT, so a plain delete of the clinic row only works for
+     an empty clinic. See delete_clinic_cascade(). */
+  const { error } = await sb.rpc("delete_clinic_cascade", { p_clinic_id: input.clinicId });
+  if (error) return { ok: false as const, reason: `تعذّر حذف العيادة: ${error.message}` };
+
+  revalidatePath("/platform-admin");
+  revalidatePath("/platform-admin/clinics");
+  return { ok: true as const, deletedStaff: (staff ?? []).length };
 }
 
 /** Activate / suspend a clinic — the operator's kill switch.

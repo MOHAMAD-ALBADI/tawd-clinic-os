@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Building2, Search, Power, LogIn, ChevronLeft, MessageCircle,
-  CheckCircle2, AlertTriangle, Copy, ShieldQuestion, X,
+  CheckCircle2, AlertTriangle, Copy, ShieldQuestion, X, Trash2, Users, FileText,
 } from "lucide-react";
-import { setClinicStatus, impersonateClinic, requestClinicAccess } from "@/app/actions/platform";
+import { setClinicStatus, impersonateClinic, requestClinicAccess, deleteClinic } from "@/app/actions/platform";
 
 export type ClinicRow = {
   id: string; name: string; name_ar: string | null;
@@ -47,6 +47,18 @@ export function ClinicsManager({ clinics }: { clinics: ClinicRow[] }) {
   const [flash, setFlash] = useState<string | null>(null);
   const [confirmSuspend, setConfirmSuspend] = useState<ClinicRow | null>(null);
   const [link, setLink] = useState<{ clinic: string; url: string; email: string } | null>(null);
+
+  /* Deletion state. `held` is what the server found in the clinic once it
+     refused — the operator sees the real counts before the second attempt. */
+  const [confirmDelete, setConfirmDelete] = useState<ClinicRow | null>(null);
+  const [typedName, setTypedName] = useState("");
+  const [held, setHeld] = useState<{ patients: number; invoices: number } | null>(null);
+  const [ack, setAck] = useState(false);
+  const [delErr, setDelErr] = useState<string | null>(null);
+
+  function openDelete(c: ClinicRow) {
+    setConfirmDelete(c); setTypedName(""); setHeld(null); setAck(false); setDelErr(null);
+  }
 
   function ok(m: string) { setFlash(m); setTimeout(() => setFlash(null), 4000); }
 
@@ -94,6 +106,28 @@ export function ClinicsManager({ clinics }: { clinics: ClinicRow[] }) {
           : `أُعيد تفعيل ${c.name_ar ?? c.name}`);
         router.refresh();
       } catch { setErr("تعذّر الاتصال"); }
+    });
+  }
+
+  function runDelete(c: ClinicRow) {
+    setDelErr(null);
+    start(async () => {
+      try {
+        const r = await deleteClinic({
+          clinicId: c.id, confirmName: typedName, acknowledgeDataLoss: ack,
+        });
+        if (!r.ok) {
+          /* First refusal carries the counts — show them and require the tick. */
+          if ("needsAcknowledge" in r && r.needsAcknowledge) {
+            setHeld({ patients: r.patients, invoices: r.invoices });
+          }
+          setDelErr(r.reason);
+          return;
+        }
+        setConfirmDelete(null);
+        ok(`حُذفت ${c.name_ar ?? c.name} نهائياً — و${r.deletedStaff} حساب دخول معها`);
+        router.refresh();
+      } catch { setDelErr("تعذّر الاتصال"); }
     });
   }
 
@@ -254,6 +288,10 @@ export function ClinicsManager({ clinics }: { clinics: ClinicRow[] }) {
                             <Power className="w-3.5 h-3.5"
                               style={{ color: c.status === "suspended" ? "#34d399" : "#fbbf24" }} />
                           </button>
+                          <button className="btn-ghost" disabled={pending} title="حذف العيادة نهائياً"
+                            onClick={() => openDelete(c)}>
+                            <Trash2 className="w-3.5 h-3.5" style={{ color: "#fda4b4" }} />
+                          </button>
                           <Link href={`/platform-admin/clinics/${c.id}`} className="btn-ghost" title="ملف العيادة">
                             <ChevronLeft className="w-3.5 h-3.5" />
                           </Link>
@@ -287,6 +325,97 @@ export function ClinicsManager({ clinics }: { clinics: ClinicRow[] }) {
           </div>
         </Overlay>
       )}
+
+      {/* Deletion. The only irreversible action in the product, so it is
+          deliberately slow: suspend first, type the name, and see the record
+          counts before agreeing to lose them. */}
+      {confirmDelete && (() => {
+        const c = confirmDelete;
+        const label = c.name_ar ?? c.name;
+        const live = c.status !== "suspended" && c.status !== "cancelled";
+        const nameOk = typedName.trim() === (c.name_ar ?? "").trim() || typedName.trim() === c.name.trim();
+        const blocked = live || !nameOk || (!!held && !ack);
+
+        return (
+          <Overlay onClose={() => setConfirmDelete(null)} title={`حذف ${label}`}>
+            <div className="rounded-xl px-3.5 py-3 mb-4"
+              style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)" }}>
+              <p className="text-[12.5px]" style={{ color: "#fda4b4" }}>
+                يُحذف كل شيء: لوحات المدير والأطباء والاستقبال والمحاسبة، حسابات الدخول،
+                المرضى والمواعيد والفواتير والمخزون والتقارير. لا تراجع بعد التأكيد.
+              </p>
+            </div>
+
+            {/* Step 1 — suspension is the reversible half of the same decision. */}
+            {live ? (
+              <div className="rounded-xl px-3.5 py-3 mb-3"
+                style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.28)" }}>
+                <p className="text-[12.5px] mb-2.5" style={{ color: "#fbbf24" }}>
+                  العيادة ما زالت تعمل. أوقفها أولاً — إن كان الإيقاف كافياً فلا داعي للحذف أصلاً.
+                </p>
+                <button className="btn-ghost" disabled={pending}
+                  onClick={() => { setConfirmDelete(null); setConfirmSuspend(c); }}>
+                  <Power className="w-3.5 h-3.5" style={{ color: "#fbbf24" }} /> إيقاف العيادة أولاً
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* Step 2 — what will be lost, straight from the database. */}
+                {held && (
+                  <div className="rounded-xl px-3.5 py-3 mb-3"
+                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--hairline)" }}>
+                    <p className="eyebrow mb-2">ما تحتفظ به هذه العيادة</p>
+                    <div className="flex items-center gap-5 mb-3">
+                      <span className="flex items-center gap-1.5 text-[12.5px]" style={{ color: "var(--text-2)" }}>
+                        <Users className="w-3.5 h-3.5" style={{ color: "var(--text-3)" }} />
+                        <span className="font-black ltr-nums text-white">{held.patients}</span> مريض
+                      </span>
+                      <span className="flex items-center gap-1.5 text-[12.5px]" style={{ color: "var(--text-2)" }}>
+                        <FileText className="w-3.5 h-3.5" style={{ color: "var(--text-3)" }} />
+                        <span className="font-black ltr-nums text-white">{held.invoices}</span> فاتورة
+                      </span>
+                    </div>
+                    <p className="text-[11.5px] mb-2.5" style={{ color: "var(--text-4)" }}>
+                      سجلات طبية ومالية. صدّرها للعيادة قبل الحذف —
+                      <Link href={`/platform-admin/clinics/${c.id}`} className="underline mx-1"
+                        style={{ color: "var(--accent-1)" }}>افتح ملف العيادة</Link>
+                      إن لم تفعل بعد.
+                    </p>
+                    <label className="flex items-start gap-2 text-[12.5px] cursor-pointer" style={{ color: "var(--text-2)" }}>
+                      <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)}
+                        className="mt-0.5" style={{ accentColor: "#f87171" }} />
+                      أؤكد أنني صدّرت البيانات أو أوافق على فقدانها نهائياً
+                    </label>
+                  </div>
+                )}
+
+                {/* Step 3 — typing the name is not muscle memory; a confirm click is. */}
+                <label className="block text-[12px] mb-1.5" style={{ color: "var(--text-3)" }}>
+                  اكتب اسم العيادة للتأكيد: <span className="font-bold text-white">{label}</span>
+                </label>
+                <input className="field" value={typedName} onChange={(e) => setTypedName(e.target.value)}
+                  placeholder={label} autoComplete="off" />
+              </>
+            )}
+
+            {delErr && !held && (
+              <div className="flex items-start gap-2 text-[12.5px] px-3.5 py-2.5 rounded-xl mt-3"
+                style={{ background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.25)", color: "#fda4b4" }}>
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> {delErr}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 mt-4">
+              <button className="btn-ghost" onClick={() => setConfirmDelete(null)}>إلغاء</button>
+              <button className="btn-danger" disabled={pending || blocked} onClick={() => runDelete(c)}
+                style={blocked ? { opacity: 0.45, cursor: "not-allowed" } : undefined}>
+                <Trash2 className="w-3.5 h-3.5" />
+                {pending ? "جارٍ الحذف…" : "حذف نهائي"}
+              </button>
+            </div>
+          </Overlay>
+        );
+      })()}
 
       {/* the impersonation link, once the clinic has approved */}
       {link && (
