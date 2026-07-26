@@ -3,309 +3,234 @@ import Link from "next/link";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
-import { TawdBarsGlyph } from "@/components/shell/tawd-logo";
-import { CostsCard } from "@/components/platform/manage-widgets";
-import { n8nGet, n8nErrorMessage } from "@/lib/n8n";
+import { clinicToday, clinicDayRange } from "@/lib/clinic-time";
 import {
-  Building2, Plus, ChevronLeft, Workflow, AlertTriangle,
-  MessageCircle, Bot, Timer, Wallet,
+  Building2, Coins, TrendingDown, AlertTriangle, Hourglass, Bot,
+  ChevronLeft, Activity, MessageSquare, Users,
 } from "lucide-react";
 
-export const metadata = { title: "مركز قيادة المنصة — طود" };
+export const metadata = { title: "نظرة المنصة — طود" };
 export const dynamic = "force-dynamic";
 
-const STATUS_META: Record<string, { label: string; color: string }> = {
-  trial:     { label: "تجريبي",  color: "#fcd34d" },
-  active:    { label: "نشطة",    color: "var(--accent-1)" },
-  suspended: { label: "موقوفة",  color: "#fda4b4" },
-  cancelled: { label: "ملغاة",   color: "#71717a" },
-};
-const TYPE_LABEL: Record<string, string> = {
-  dental: "أسنان", cosmetic: "تجميل", dermatology: "جلدية",
-  pediatric: "أطفال", ophthalmology: "عيون", general: "عام",
-};
 const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+const int = (v: number) => v.toLocaleString("en-US");
 
-/** Live n8n automation health. Returns the real failure reason so the UI can
-    say whether the key is missing, rejected, or the server is unreachable. */
-async function getAutomationHealth() {
-  const [wf, ex] = await Promise.all([
-    n8nGet<{ data: { active: boolean; name: string }[] }>("workflows?limit=100", 4000),
-    n8nGet<{ data: { status: string; startedAt: string; workflowId: string }[] }>("executions?limit=100", 4000),
-  ]);
-  if (!wf.ok) return { error: n8nErrorMessage(wf.reason) };
-  if (!ex.ok) return { error: n8nErrorMessage(ex.reason) };
+/* Rebuilt around decisions rather than around what happened to be queryable.
+ *
+ * The old page ran seventeen queries and rendered everything that came back, so
+ * nothing was ranked: token counts sat beside revenue, and a clinic about to
+ * churn looked exactly like one that signed yesterday. Four of those queries
+ * pulled up to 100,000 rows to count them in JavaScript — the same truncation
+ * that was already fixed twice elsewhere, waiting to under-report as the
+ * platform grew.
+ *
+ * An operator's home page answers one question: what do I do today. So it opens
+ * with the four numbers the business turns on, then ONE worklist ranked by the
+ * revenue each item threatens, then quiet context.
+ */
+type Row = {
+  id: string; name: string; name_ar: string | null; status: string;
+  staff_count: number; patient_count: number; appts_30d: number;
+  last_activity: string | null; sub_status: string | null;
+  mrr: number; period_end: string | null; whatsapp_linked: boolean;
+};
 
-  const wfs = wf.data.data ?? [];
-  const exs = ex.data.data ?? [];
-  const dayAgo = Date.now() - 86_400_000;
-  const recent = exs.filter((e) => new Date(e.startedAt).getTime() > dayAgo);
-  return {
-    total: wfs.length,
-    active: wfs.filter((w) => w.active).length,
-    runs24h: recent.length,
-    errors24h: recent.filter((e) => e.status === "error").length,
-  };
-}
+type Task = { id: string; clinic: string; text: string; bad: boolean; weight: number };
 
 export default async function PlatformAdminPage() {
   const claims = await getUserClaims();
   if (!claims || !hasRole(claims, "platform_admin")) redirect("/login");
 
   const sb = await createServiceRoleClient();
-  const now = new Date();
-  const today = now.toISOString().split("T")[0];
+  const today = clinicToday();
+  const { startUtc } = clinicDayRange(today);
   const monthStart = `${today.slice(0, 7)}-01T00:00:00`;
-  const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
 
+  /* Counts are counted by the database. None of these transfer rows. */
   const [
-    { data: clinics }, { data: subs }, { data: patients },
-    { data: monthAppts }, { data: monthPaid },
-    msgsTodayRes, { data: msgs7d },
-    suraBookRes, { data: recovered },
-    { data: openAlerts }, hitlRes, { data: sysErrors }, { data: channels },
-    automation,
-    { data: costs }, { data: tokenRows }, waMsgsMonthRes,
-    dbSizeRes, convMonthRes,
+    { data: overview }, { data: costs }, { data: alerts },
+    hitlRes, msgsRes, errRes, suraBookRes,
   ] = await Promise.all([
-    sb.from("tawd_clinics").select("id, name, name_ar, clinic_type, status, plan, created_at").order("created_at", { ascending: false }),
-    sb.from("tawd_subscriptions").select("clinic_id, plan, status, price_omr, trial_ends_at"),
-    sb.from("patients").select("clinic_id").is("deleted_at", null).limit(100000),
-    sb.from("appointments").select("clinic_id, slot_time").gte("slot_time", monthStart).is("deleted_at", null).limit(100000),
-    sb.from("invoices").select("clinic_id, total").eq("status", "paid").gte("created_at", monthStart).is("deleted_at", null).limit(100000),
-    sb.from("chat_messages").select("id", { count: "exact", head: true }).gte("created_at", `${today}T00:00:00`),
-    sb.from("chat_messages").select("clinic_id").gte("created_at", weekAgo).limit(100000),
-    sb.from("appointments").select("id", { count: "exact", head: true }).eq("source_channel", "whatsapp").gte("created_at", monthStart).is("deleted_at", null),
-    sb.from("automation_recovery_ledger").select("amount").gte("occurred_at", monthStart),
-    sb.from("sura_alerts").select("clinic_id, kind").eq("status", "open"),
+    sb.rpc("platform_clinic_overview"),
+    sb.from("platform_costs").select("monthly_omr"),
+    sb.from("sura_alerts")
+      .select("id, patient_name, message")
+      .eq("status", "open").order("created_at", { ascending: false }).limit(5),
     sb.from("ai_review_queue").select("id", { count: "exact", head: true }).eq("status", "pending"),
-    sb.from("sura_errors").select("workflow_name, error_message, created_at").order("created_at", { ascending: false }).limit(5),
-    sb.from("channel_configs").select("clinic_id, is_active").eq("channel", "whatsapp"),
-    getAutomationHealth(),
-    sb.from("platform_costs").select("id, name, monthly_omr").order("created_at"),
-    sb.from("ai_usage_metrics").select("tokens_total").gte("recorded_at", monthStart).limit(100000),
-    sb.from("chat_messages").select("id", { count: "exact", head: true }).gte("created_at", monthStart),
-    sb.rpc("platform_db_size_mb"),
-    sb.from("chat_sessions").select("id", { count: "exact", head: true }).gte("created_at", monthStart),
+    sb.from("chat_messages").select("id", { count: "exact", head: true }).gte("created_at", startUtc),
+    sb.from("sura_errors").select("id", { count: "exact", head: true }).gte("created_at", monthStart),
+    sb.from("appointments").select("id", { count: "exact", head: true })
+      .eq("source_channel", "whatsapp").gte("created_at", monthStart).is("deleted_at", null),
   ]);
 
-  // PostgREST returns NUMERIC as a string — coerce, then treat non-numeric as unknown
-  const dbSizeMb = typeof dbSizeRes.data === "number" ? dbSizeRes.data : Number(dbSizeRes.data ?? NaN);
+  const clinics = (overview ?? []) as unknown as Row[];
+  const live = clinics.filter((c) => c.status === "active");
+  const mrr = live.reduce((s, c) => s + Number(c.mrr ?? 0), 0);
+  const monthlyCost = (costs ?? []).reduce((s, c) => s + Number(c.monthly_omr ?? 0), 0);
+  const net = mrr - monthlyCost;
 
-  const list = clinics ?? [];
-  const by = <T extends { clinic_id: string }>(rows: T[] | null) => {
-    const m: Record<string, number> = {};
-    for (const r of rows ?? []) m[r.clinic_id] = (m[r.clinic_id] ?? 0) + 1;
-    return m;
-  };
-  const patientsBy = by(patients);
-  const apptsBy = by(monthAppts);
-  const msgsBy = by(msgs7d as { clinic_id: string }[]);
-  const revenueBy: Record<string, number> = {};
-  for (const r of monthPaid ?? []) revenueBy[r.clinic_id] = (revenueBy[r.clinic_id] ?? 0) + Number(r.total ?? 0);
-  const waLinked = new Set((channels ?? []).filter((c) => c.is_active).map((c) => c.clinic_id));
+  const daysLeft = (c: Row) =>
+    c.period_end ? Math.ceil((new Date(c.period_end).getTime() - Date.now()) / 86_400_000) : null;
+  const idleFor = (c: Row) =>
+    c.last_activity ? Math.floor((Date.now() - new Date(c.last_activity).getTime()) / 86_400_000) : null;
 
-  const mrr = (subs ?? []).filter((s) => s.status === "active").reduce((s, x) => s + Number(x.price_omr ?? 0), 0);
-  const trialsEnding = (subs ?? [])
-    .filter((s) => s.status === "trial" && s.trial_ends_at)
-    .map((s) => ({
-      clinic: list.find((c) => c.id === s.clinic_id),
-      days: Math.ceil((new Date(s.trial_ends_at!).getTime() - Date.now()) / 86_400_000),
-    }))
-    .filter((t) => t.clinic)
-    .sort((a, b) => a.days - b.days)
-    .slice(0, 5);
+  /* Ranked by what each item threatens, not by when it happened. A clinic that
+     has never opened the product is the likeliest to leave, so it outranks a
+     renewal that is merely near. The clinic's own MRR breaks ties, because
+     losing a 249 hurts more than losing a 49. */
+  const tasks: Task[] = [];
+  for (const c of clinics) {
+    const label = c.name_ar ?? c.name;
+    const money = Number(c.mrr ?? 0);
+    const d = daysLeft(c);
+    const i = idleFor(c);
 
-  const totalRevenue = Object.values(revenueBy).reduce((s, v) => s + v, 0);
-  const recoveredTotal = (recovered ?? []).reduce((s, r) => s + Number(r.amount ?? 0), 0);
-  const emergencies = (openAlerts ?? []).filter((a) => a.kind === "emergency").length;
-  const complaints = (openAlerts ?? []).filter((a) => a.kind === "complaint").length;
-  const errAgo = (iso: string) => {
-    const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3_600_000);
-    return h < 1 ? "الآن" : h < 24 ? `منذ ${h} س` : `منذ ${Math.floor(h / 24)} يوم`;
-  };
+    if (c.status === "suspended") {
+      tasks.push({ id: c.id + "s", clinic: label, text: "موقوفة — لا تدفع ولا تستخدم", bad: true, weight: 100 });
+    } else if (i === null) {
+      tasks.push({ id: c.id + "n", clinic: label, text: "لم تُستخدم إطلاقاً منذ إنشائها", bad: true, weight: 90 + money });
+    } else if (i >= 14) {
+      tasks.push({ id: c.id + "i", clinic: label, text: `صامتة منذ ${i} يوم`, bad: true, weight: 80 + money });
+    } else if (i >= 7) {
+      tasks.push({ id: c.id + "q", clinic: label, text: `هدوء غير معتاد — ${i} أيام`, bad: false, weight: 40 + money });
+    }
+
+    if (d !== null && d <= 0) {
+      tasks.push({ id: c.id + "x", clinic: label, text: `اشتراكها منتهٍ منذ ${Math.abs(d)} يوم`, bad: true, weight: 95 + money });
+    } else if (d !== null && d <= 7) {
+      tasks.push({ id: c.id + "r", clinic: label, text: `يُجدَّد خلال ${d} أيام`, bad: false, weight: 50 });
+    }
+
+    if (!c.whatsapp_linked && c.status !== "suspended") {
+      tasks.push({ id: c.id + "w", clinic: label, text: "واتساب غير مربوط — سُرى معطّلة عندها", bad: false, weight: 60 });
+    }
+  }
+  tasks.sort((a, b) => b.weight - a.weight);
+
+  const kpis = [
+    { label: "عيادات نشطة", value: int(live.length), Icon: Building2, color: "var(--accent-1)", href: "/platform-admin/clinics" },
+    { label: "الدخل الشهري (ر.ع)", value: fmt(mrr), Icon: Coins, color: "var(--accent-1)", href: "/platform-admin/subscriptions" },
+    { label: "التكاليف (ر.ع)", value: fmt(monthlyCost), Icon: TrendingDown, color: "#fbbf24", href: "/platform-admin/economy" },
+    { label: "الصافي (ر.ع)", value: fmt(net), Icon: Activity, color: net >= 0 ? "#34d399" : "#fda4b4", href: "/platform-admin/economy" },
+  ];
+
+  const context = [
+    { label: "رسائل سُرى اليوم", value: int(msgsRes.count ?? 0), Icon: MessageSquare },
+    { label: "حجوزات سُرى هذا الشهر", value: int(suraBookRes.count ?? 0), Icon: Bot },
+    { label: "بانتظار مراجعة بشرية", value: int(hitlRes.count ?? 0), Icon: Hourglass },
+    { label: "أخطاء سُرى هذا الشهر", value: int(errRes.count ?? 0), Icon: AlertTriangle },
+  ];
 
   return (
-    <div className="space-y-4 animate-fade-in pb-20">
-      {/* ══ نبض المنصة ══ */}
-      <div className="panel-feature" style={{ padding: "1.5rem 1.75rem" }}>
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <p className="eyebrow" style={{ color: "var(--accent-2)" }}>مركز قيادة طود</p>
-            <div className="flex items-end gap-2 mt-2">
-              <span className="ltr-nums font-bold leading-none text-white" style={{ fontSize: "clamp(2rem, 4vw, 3rem)" }}>{fmt(mrr)}</span>
-              <span className="text-xs mb-1" style={{ color: "var(--text-3)" }}>ر.ع MRR — اشتراكات شهرية نشطة</span>
+    <div className="space-y-5 animate-fade-in pb-20">
+      <div>
+        <p className="eyebrow">PLATFORM</p>
+        <h1 className="text-2xl font-black text-white tracking-tight leading-none mt-1">نظرة المنصة</h1>
+        <p className="text-[12px] mt-1.5" style={{ color: "var(--text-4)" }}>
+          حالة طَود كشركة — ما تكسبه، ما تدفعه، وما يحتاج تدخّلك اليوم
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {kpis.map((k) => (
+          <Link key={k.label} href={k.href} className="panel panel-hover" style={{ padding: "1.1rem 1.2rem" }}>
+            <div className="flex items-center justify-between mb-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: "var(--text-4)" }}>{k.label}</p>
+              <k.Icon className="w-3.5 h-3.5" style={{ color: k.color }} />
             </div>
+            <p className="font-black ltr-nums leading-none" style={{ fontSize: "1.7rem", color: k.color }}>{k.value}</p>
+          </Link>
+        ))}
+      </div>
+
+      {/* An unanswered emergency in someone's clinic outranks every business
+          number on this page, so it sits above them. */}
+      {(alerts ?? []).length > 0 && (
+        <div className="panel" style={{ padding: "1.25rem", borderColor: "rgba(248,113,113,0.3)" }}>
+          <div className="section-title mb-3">
+            <AlertTriangle className="w-3.5 h-3.5" style={{ color: "#fda4b4" }} />
+            <h2>تنبيهات طوارئ مفتوحة في العيادات</h2>
           </div>
-          <Link href="/platform-admin/clinics/new" className="btn-primary shrink-0">
-            <Plus className="w-4 h-4" /> إضافة عيادة
+          <div className="space-y-1.5">
+            {(alerts ?? []).map((a) => (
+              <div key={a.id as string} className="px-3 py-2 rounded-xl"
+                style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.16)" }}>
+                <p className="text-[12.5px] font-bold text-white">{(a.patient_name as string) ?? "مريض"}</p>
+                <p className="text-[11px] mt-0.5" style={{ color: "var(--text-3)" }}>
+                  {String(a.message ?? "").slice(0, 110)}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="panel" style={{ padding: "1.25rem" }}>
+        <div className="flex items-center justify-between gap-3 mb-1 flex-wrap">
+          <div className="section-title">
+            <Hourglass className="w-3.5 h-3.5" style={{ color: tasks.length ? "#fbbf24" : "var(--accent-1)" }} />
+            <h2>يحتاج تدخّلك</h2>
+          </div>
+          <Link href="/platform-admin/clinics" className="btn-ghost">
+            كل العيادات <ChevronLeft className="w-3 h-3" />
           </Link>
         </div>
-        <div className="flex items-center gap-5 mt-5 flex-wrap">
-          {[
-            { l: "عيادة", v: list.length },
-            { l: "نشطة", v: list.filter((c) => c.status === "active").length },
-            { l: "تجريبية", v: list.filter((c) => c.status === "trial").length },
-            { l: "إيراد العيادات هذا الشهر", v: `${fmt(totalRevenue)} ر.ع` },
-            { l: "استردّته سُرى للعيادات", v: `${fmt(recoveredTotal)} ر.ع` },
-            { l: "رسالة سُرى اليوم", v: msgsTodayRes.count ?? 0 },
-            { l: "حجز واتساب هذا الشهر", v: suraBookRes.count ?? 0 },
-          ].map((s, i) => (
-            <div key={s.l} className="flex items-baseline gap-2">
-              {i > 0 && <span className="w-px h-4 -ms-2.5" style={{ background: "rgba(255,255,255,0.08)" }} />}
-              <span className="text-lg font-bold ltr-nums text-white">{s.v}</span>
-              <span className="text-[10px]" style={{ color: "var(--text-4)" }}>{s.l}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+        <p className="text-[11px] mb-4" style={{ color: "var(--text-4)" }}>
+          مرتّبة بحسب ما يهدّده كل بند من دخلك — لا بحسب تاريخه
+        </p>
 
-      {/* ══ صحة النظام ══ */}
-      <div className="grid grid-cols-12 gap-4">
-        {/* الأتمتة الحية */}
-        <div className="col-span-12 lg:col-span-4 panel" style={{ padding: "1.25rem" }}>
-          <div className="section-title mb-3">
-            <Workflow className="w-4 h-4" style={{ color: "var(--accent-1)" }} />
-            <h2>الأتمتة (n8n)</h2>
-            {automation && !("error" in automation) && automation.errors24h === 0 && <span className="live-dot" />}
-          </div>
-          {automation && !("error" in automation) ? (
-            <div className="space-y-2 text-[13px]">
-              <div className="flex justify-between"><span style={{ color: "var(--text-3)" }}>ووركفلو مفعّل</span><span className="font-bold ltr-nums text-white">{automation.active} / {automation.total}</span></div>
-              <div className="flex justify-between"><span style={{ color: "var(--text-3)" }}>تشغيلة آخر 24 ساعة</span><span className="font-bold ltr-nums text-white">{automation.runs24h}</span></div>
-              <div className="flex justify-between">
-                <span style={{ color: "var(--text-3)" }}>أخطاء آخر 24 ساعة</span>
-                <span className="font-bold ltr-nums" style={{ color: automation.errors24h > 0 ? "#fda4b4" : "var(--accent-1)" }}>{automation.errors24h}</span>
-              </div>
-            </div>
-          ) : (
-            <p className="text-[12px]" style={{ color: "var(--text-4)" }}>
-              {automation?.error ?? "الحالة الحية غير متاحة"}
-            </p>
-          )}
-          <div className="mt-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-            <p className="eyebrow mb-2" style={{ fontSize: 9 }}>آخر أخطاء سُرى المسجّلة</p>
-            {(sysErrors ?? []).length === 0 ? (
-              <p className="text-[12px]" style={{ color: "var(--accent-1)" }}>لا أخطاء ✓</p>
-            ) : (
-              <div className="space-y-1.5">
-                {(sysErrors ?? []).map((e, i) => (
-                  <p key={i} className="text-[11px] truncate" style={{ color: "var(--text-3)" }}>
-                    <span style={{ color: "#fda4b4" }}>●</span> {e.workflow_name} — {e.error_message?.slice(0, 40)} · {errAgo(e.created_at)}
-                  </p>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* تنبيهات العيادات */}
-        <div className="col-span-12 lg:col-span-4 panel" style={{ padding: "1.25rem" }}>
-          <div className="section-title mb-3">
-            <AlertTriangle className="w-4 h-4" style={{ color: emergencies > 0 ? "#fda4b4" : "var(--accent-1)" }} />
-            <h2>عمليات سُرى عبر المنصة</h2>
-          </div>
-          <div className="space-y-2 text-[13px]">
-            <div className="flex justify-between"><span style={{ color: "var(--text-3)" }}>طوارئ مفتوحة</span><span className="font-bold ltr-nums" style={{ color: emergencies > 0 ? "#fda4b4" : "#fff" }}>{emergencies}</span></div>
-            <div className="flex justify-between"><span style={{ color: "var(--text-3)" }}>شكاوى مفتوحة</span><span className="font-bold ltr-nums" style={{ color: complaints > 0 ? "#fcd34d" : "#fff" }}>{complaints}</span></div>
-            <div className="flex justify-between"><span style={{ color: "var(--text-3)" }}>محادثات تنتظر مراجعة</span><span className="font-bold ltr-nums text-white">{hitlRes.count ?? 0}</span></div>
-            <div className="flex justify-between"><span style={{ color: "var(--text-3)" }}>واتساب مربوط</span><span className="font-bold ltr-nums text-white">{waLinked.size} / {list.length} عيادة</span></div>
-          </div>
-        </div>
-
-        {/* التجارب المنتهية */}
-        <div className="col-span-12 lg:col-span-4 panel" style={{ padding: "1.25rem" }}>
-          <div className="section-title mb-3">
-            <Timer className="w-4 h-4" style={{ color: "var(--accent-1)" }} />
-            <h2>تجارب تنتهي قريباً</h2>
-          </div>
-          {trialsEnding.length === 0 ? (
-            <p className="text-[12px]" style={{ color: "var(--text-4)" }}>لا اشتراكات تجريبية حالياً</p>
-          ) : (
-            <div className="space-y-1.5">
-              {trialsEnding.map((t) => (
-                <Link key={t.clinic!.id} href={`/platform-admin/clinics/${t.clinic!.id}`}
-                  className="flex items-center justify-between px-3 py-2 rounded-xl row-hover"
-                  style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                  <span className="text-[12px] font-semibold text-white truncate">{t.clinic!.name_ar ?? t.clinic!.name}</span>
-                  <span className="text-[11px] font-bold ltr-nums" style={{ color: t.days <= 3 ? "#fda4b4" : "#fcd34d" }}>
-                    {t.days <= 0 ? "انتهت!" : `${t.days} يوم`}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          )}
-          <p className="text-[10px] mt-3" style={{ color: "var(--text-4)" }}>
-            <Wallet className="w-3 h-3 inline" /> فرصة تحويلهم لاشتراك مدفوع
+        {tasks.length === 0 ? (
+          <p className="text-sm text-center py-8" style={{ color: "var(--accent-1)" }}>
+            كل العيادات نشطة ومحدَّثة ✓
           </p>
-        </div>
-      </div>
-
-      {/* ══ اقتصاد المنصة ══ */}
-      <CostsCard
-        costs={(costs ?? []) as { id: string; name: string; monthly_omr: number }[]}
-        geminiTokensMonth={(tokenRows ?? []).reduce((s, r) => s + Number(r.tokens_total ?? 0), 0)}
-        waMessagesMonth={waMsgsMonthRes.count ?? 0}
-        mrr={mrr}
-        dbSizeMb={Number.isFinite(dbSizeMb) ? dbSizeMb : null}
-        waConversationsMonth={convMonthRes.count ?? 0}
-        n8nRuns24h={automation && !("error" in automation) ? automation.runs24h : null}
-      />
-
-      {/* ══ العيادات — صحة كل مستأجر ══ */}
-      <div className="panel" style={{ padding: "1.25rem" }}>
-        <div className="section-title mb-4">
-          <TawdBarsGlyph size={13} />
-          <h2>العيادات — صحة كل عيادة</h2>
-        </div>
-        {list.length === 0 ? (
-          <div className="text-center py-12">
-            <Building2 className="w-9 h-9 mx-auto mb-3" style={{ color: "var(--text-4)" }} />
-            <p className="text-sm" style={{ color: "var(--text-3)" }}>أضف أول عيادة للمنصة</p>
-          </div>
         ) : (
           <div className="space-y-1.5">
-            {list.map((c) => {
-              const st = STATUS_META[c.status] ?? STATUS_META.trial;
-              return (
-                <Link key={c.id} href={`/platform-admin/clinics/${c.id}`}
-                  className="flex items-center gap-4 px-4 py-3 rounded-xl flex-wrap row-hover"
-                  style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                    <Building2 style={{ color: "var(--text-2)", width: 18, height: 18 }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[14px] font-bold text-white truncate">{c.name_ar ?? c.name}</p>
-                    <p className="text-[11px]" style={{ color: "var(--text-4)" }}>
-                      {TYPE_LABEL[c.clinic_type] ?? c.clinic_type} · باقة {c.plan}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4 text-[11px] ltr-nums flex-wrap" style={{ color: "var(--text-3)" }}>
-                    <span><span className="font-bold text-white">{patientsBy[c.id] ?? 0}</span> مريض</span>
-                    <span><span className="font-bold text-white">{apptsBy[c.id] ?? 0}</span> موعد/شهر</span>
-                    <span><span className="font-bold text-white">{fmt(revenueBy[c.id] ?? 0)}</span> ر.ع</span>
-                    <span className="flex items-center gap-1">
-                      <MessageCircle className="w-3 h-3" style={{ color: waLinked.has(c.id) ? "var(--accent-1)" : "var(--text-4)" }} />
-                      <span className="font-bold text-white">{msgsBy[c.id] ?? 0}</span> رسالة/7أيام
-                    </span>
-                  </div>
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1"
-                    style={{ background: "rgba(255,255,255,0.045)", border: "1px solid rgba(255,255,255,0.08)", color: st.color }}>
-                    <span className="w-1 h-1 rounded-full" style={{ background: st.color }} />
-                    {st.label}
-                  </span>
-                  <ChevronLeft className="w-4 h-4 shrink-0" style={{ color: "var(--text-4)" }} />
-                </Link>
-              );
-            })}
+            {tasks.slice(0, 10).map((t) => (
+              <div key={t.id} className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl flex-wrap"
+                style={{
+                  background: "rgba(255,255,255,0.02)",
+                  border: `1px solid ${t.bad ? "rgba(248,113,113,0.22)" : "rgba(251,191,36,0.2)"}`,
+                }}>
+                <span className="font-bold text-white text-[13px]">{t.clinic}</span>
+                <span className="text-[12px]" style={{ color: t.bad ? "#fda4b4" : "#fbbf24" }}>{t.text}</span>
+              </div>
+            ))}
+            {tasks.length > 10 && (
+              <p className="text-[11px] pt-1" style={{ color: "var(--text-4)" }}>
+                و<span className="ltr-nums">{tasks.length - 10}</span> بنداً آخر — افتح العيادات وفلتر «تحتاج متابعة»
+              </p>
+            )}
           </div>
         )}
       </div>
 
-      <p className="text-[10px] text-center flex items-center justify-center gap-1.5" style={{ color: "var(--text-4)" }}>
-        <Bot className="w-3 h-3" /> كل الأرقام حية من قاعدة البيانات والأتمتة — واسأل سُرى عن أي تفصيل
-      </p>
+      {/* Context, kept quiet: real usage of the thing you sell, not vanity. */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {context.map((s) => (
+          <div key={s.label} className="panel" style={{ padding: "0.95rem 1.1rem" }}>
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-[10px]" style={{ color: "var(--text-4)" }}>{s.label}</p>
+              <s.Icon className="w-3 h-3" style={{ color: "var(--text-4)" }} />
+            </div>
+            <p className="font-black ltr-nums text-white" style={{ fontSize: "1.15rem" }}>{s.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        {[
+          ["إضافة عيادة", "/platform-admin/clinics/new"],
+          ["الأتمتة", "/platform-admin/automation"],
+          ["الحملات", "/platform-admin/broadcast"],
+          ["الإعدادات", "/platform-admin/settings"],
+        ].map(([label, href]) => (
+          <Link key={href} href={href} className="btn-ghost">{label}</Link>
+        ))}
+        <span className="flex items-center gap-1.5 text-[11px] ms-auto" style={{ color: "var(--text-4)" }}>
+          <Users className="w-3 h-3" />
+          <span className="ltr-nums">{int(clinics.reduce((s, c) => s + Number(c.patient_count ?? 0), 0))}</span> مريض في كل العيادات
+        </span>
+      </div>
     </div>
   );
 }
