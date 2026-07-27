@@ -1,6 +1,7 @@
 "use server";
 
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { isSlotTaken, SLOT_TAKEN_AR } from "@/lib/booking-errors";
 
 /* Public, unauthenticated booking — LOCKED to the clinic resolved from the
    slug. Validates service ownership + availability (doctor schedules,
@@ -128,6 +129,7 @@ export async function publicBook(input: PublicBookInput) {
     slot_time: slotISO, duration_minutes: dur, status: "scheduled", type: "consultation",
     source_channel: "web_chat", notes: "حجز إلكتروني عبر صفحة العيادة",
   }).select("id").single();
+  if (isSlotTaken(ierr)) return { ok: false as const, reason: SLOT_TAKEN_AR };
   if (ierr || !appt) return { ok: false as const, reason: "تعذّر إنشاء الحجز" };
 
   /* Sura WhatsApp confirmation (best-effort) */

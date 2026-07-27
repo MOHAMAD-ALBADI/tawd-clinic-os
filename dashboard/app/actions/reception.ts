@@ -1,6 +1,7 @@
 "use server";
 
 import { getUserClaims } from "@/lib/auth/get-user-claims";
+import { isSlotTaken, SLOT_TAKEN_AR } from "@/lib/booking-errors";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { revalidatePath } from "next/cache";
@@ -127,6 +128,10 @@ export async function walkIn(input: WalkInInput) {
     })
     .select("id")
     .single();
+  if (isSlotTaken(aerr)) {
+    /* A walk-in lands on "now", so a clash means the doctor is mid-appointment. */
+    return { ok: false as const, reason: "الطبيب مشغول بموعد الآن — اختر طبيباً آخر أو انتظر" };
+  }
   if (aerr || !appt) return { ok: false as const, reason: "تعذّر إنشاء الزيارة" };
 
   const position = await nextQueuePosition(sb, claims.clinic_id);
@@ -350,6 +355,8 @@ export async function bookQuick(input: QuickBookInput) {
     source_channel: "reception",
     notes: "حجز عبر الاستقبال",
   });
+  /* Lost the race for this slot — a real outcome, not a failure. */
+  if (isSlotTaken(ierr)) return { ok: false as const, reason: SLOT_TAKEN_AR };
   if (ierr) return { ok: false as const, reason: "تعذّر إنشاء الحجز — حاول مجدداً" };
 
   revalidatePath("/reception");
