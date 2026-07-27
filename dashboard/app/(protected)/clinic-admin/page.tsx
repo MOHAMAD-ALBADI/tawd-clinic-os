@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { clinicToday, clinicDayRange } from "@/lib/clinic-time";
 import { Activity, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { getUserClaims }             from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -23,10 +24,13 @@ export default async function ClinicAdminPage() {
 
   const sb         = await createServerSupabaseClient();
   const now        = new Date();
-  const today      = now.toISOString().split("T")[0];
-  const todayStart = `${today}T00:00:00`;
-  const todayEnd   = `${today}T23:59:59`;
-  const weekAgo    = new Date(Date.now() - 6 * 86_400_000).toISOString().split("T")[0];
+  /* Muscat, not UTC — the manager's "today" must be the same day the cashier
+     and the day-close screen mean, or the three disagree about revenue. */
+  const today      = clinicToday();
+  const dayRange   = clinicDayRange(today);
+  const todayStart = dayRange.startUtc;
+  const todayEnd   = dayRange.endUtc;
+  const weekAgo    = clinicToday(new Date(Date.now() - 6 * 86_400_000));
 
   const [
     apptRes, clinicRes, patientsNewRes,
@@ -85,8 +89,8 @@ export default async function ClinicAdminPage() {
     // yesterday's takings, on the same basis as today's so the % is comparable
     sb.from("payments").select("amount")
       .eq("clinic_id", claims.clinic_id).eq("status", "completed")
-      .gte("paid_at", new Date(Date.now() - 86_400_000).toISOString().split("T")[0] + "T00:00:00")
-      .lte("paid_at", new Date(Date.now() - 86_400_000).toISOString().split("T")[0] + "T23:59:59"),
+      .gte("paid_at", clinicDayRange(clinicToday(new Date(Date.now() - 86_400_000))).startUtc)
+      .lte("paid_at", clinicDayRange(clinicToday(new Date(Date.now() - 86_400_000))).endUtc),
 
     sb.from("automation_recovery_ledger").select("amount")
       .eq("clinic_id", claims.clinic_id)

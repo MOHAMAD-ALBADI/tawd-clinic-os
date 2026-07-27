@@ -4,6 +4,7 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { revalidatePath } from "next/cache";
+import { clinicToday, clinicDayRange } from "@/lib/clinic-time";
 
 async function requireReception() {
   const claims = await getUserClaims();
@@ -13,15 +14,18 @@ async function requireReception() {
   return claims;
 }
 
-/** Next queue position for today (1-based). */
+/** Next queue position for today (1-based).
+
+    "Today" is the clinic's day, not UTC. setUTCHours(0) made the window start at
+    04:00 Muscat, so anyone checked in before that carried on from yesterday's
+    numbering instead of starting the queue at 1. */
 async function nextQueuePosition(sb: Awaited<ReturnType<typeof createServerSupabaseClient>>, clinicId: string) {
-  const dayStart = new Date();
-  dayStart.setUTCHours(0, 0, 0, 0);
+  const { startUtc } = clinicDayRange(clinicToday());
   const { data } = await sb
     .from("waiting_queue")
     .select("queue_position")
     .eq("clinic_id", clinicId)
-    .gte("check_in_at", dayStart.toISOString())
+    .gte("check_in_at", startUtc)
     .order("queue_position", { ascending: false })
     .limit(1);
   return ((data?.[0]?.queue_position as number | undefined) ?? 0) + 1;

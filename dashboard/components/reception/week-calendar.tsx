@@ -54,10 +54,12 @@ const weekdayOf = (key: string) => new Date(`${key}T12:00:00Z`).getUTCDay();
     between them. Empty working time is drawn as clickable space: click it and
     the booking form opens on that doctor at that minute. */
 export function WeekCalendar({
-  appts, doctors, shifts, startKey, todayKey,
+  appts, doctors, shifts, startKey, todayKey, loadedFrom, loadedTo,
 }: {
   appts: CalAppt[]; doctors: CalDoctor[]; shifts: CalShift[];
   startKey: string; todayKey: string;
+  /** the range actually fetched — paging past it must not look like an empty week */
+  loadedFrom: string; loadedTo: string;
 }) {
   const [weekStart, setWeekStart] = useState(startKey);
   const [doctorFilter, setDoctorFilter] = useState<string>("");
@@ -66,6 +68,10 @@ export function WeekCalendar({
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
     [weekStart],
   );
+  /* Outside the fetched window the grid would render empty, which reads as "no
+     appointments" rather than "not loaded" — the difference between an empty
+     clinic and a lie. */
+  const outOfRange = days[0] < loadedFrom || days[6] > loadedTo;
   const shown = doctorFilter ? doctors.filter((d) => d.id === doctorFilter) : doctors;
 
   /* The rendered hour range covers every shift in the week plus anything booked
@@ -124,6 +130,14 @@ export function WeekCalendar({
           </select>
         )}
       </div>
+
+      {outOfRange && (
+        <div className="flex items-center gap-2 text-[12.5px] px-4 py-2.5 rounded-xl"
+          style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.28)", color: "#fbbf24" }}>
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          هذا الأسبوع خارج النطاق المحمَّل — قد لا تظهر كل المواعيد. ارجع لـ«هذا الأسبوع».
+        </div>
+      )}
 
       <div className="panel overflow-x-auto" style={{ padding: "1rem" }}>
         <div className="flex gap-2" style={{ minWidth: 900 }}>

@@ -92,7 +92,12 @@ export default async function ReceptionCalendarPage() {
         </p>
       </div>
 
-      <WeekCalendar appts={rows} doctors={doctors} shifts={shifts} startKey={startKey} todayKey={todayKey} />
+      <WeekCalendar
+        appts={rows} doctors={doctors} shifts={shifts}
+        startKey={startKey} todayKey={todayKey}
+        loadedFrom={from.toISOString().slice(0, 10)}
+        loadedTo={to.toISOString().slice(0, 10)}
+      />
     </div>
   );
 }

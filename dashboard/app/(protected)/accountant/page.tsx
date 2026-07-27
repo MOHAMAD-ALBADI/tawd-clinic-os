@@ -4,6 +4,8 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { TawdBarsGlyph } from "@/components/shell/tawd-logo";
+import { clinicToday, clinicDayRange } from "@/lib/clinic-time";
+import { arTime } from "@/lib/ar-format";
 import { Banknote, CreditCard, ReceiptText, AlertCircle, ChevronLeft, Lock } from "lucide-react";
 
 export const metadata = { title: "لوحة المالية — طود" };
@@ -15,13 +17,17 @@ export default async function AccountantPage() {
   if (!claims || !(hasRole(claims, "accountant") || claims.role === "clinic_admin")) redirect("/login");
 
   const sb = await createServerSupabaseClient();
-  const today = new Date().toISOString().split("T")[0];
-  const monthStart = `${today.slice(0, 7)}-01T00:00:00`;
+  /* Muscat, not UTC. This page computed the day itself while the day-close
+     screen used clinicDayRange, so the two disagreed about which payments
+     belong to today — the same figure, two answers, on money. */
+  const today = clinicToday();
+  const { startUtc, endUtc } = clinicDayRange(today);
+  const monthStart = `${today.slice(0, 7)}-01T00:00:00+04:00`;
 
   const [paysTodayRes, monthPaidRes, pendingRes, readyRes, recentPaysRes, closedRes] = await Promise.all([
     sb.from("payments").select("gateway, amount")
       .eq("clinic_id", claims.clinic_id).eq("status", "completed")
-      .gte("paid_at", `${today}T00:00:00`).lte("paid_at", `${today}T23:59:59`),
+      .gte("paid_at", startUtc).lte("paid_at", endUtc),
     sb.from("invoices").select("total")
       .eq("clinic_id", claims.clinic_id).eq("status", "paid").gte("created_at", monthStart).is("deleted_at", null),
     sb.from("invoices").select("total, status")
@@ -29,7 +35,7 @@ export default async function AccountantPage() {
     sb.from("appointments")
       .select("id, slot_time, patients!patient_id(name), services!service_id(name_ar, price), invoices!appt_id(id)")
       .eq("clinic_id", claims.clinic_id).eq("status", "completed")
-      .gte("slot_time", `${today}T00:00:00`).lte("slot_time", `${today}T23:59:59`)
+      .gte("slot_time", startUtc).lte("slot_time", endUtc)
       .is("deleted_at", null).order("slot_time", { ascending: false }),
     sb.from("payments")
       .select("id, gateway, amount, paid_at, invoices!invoice_id(invoice_number, patients!patient_id(name))")
@@ -52,8 +58,7 @@ export default async function AccountantPage() {
   const ready = (readyRes.data ?? []).filter((a) => !(a.invoices as unknown as { id: string }[] | null)?.length);
   const dayClosed = (closedRes.data ?? []).length > 0;
 
-  const fmtTime = (iso: string) =>
-    new Intl.DateTimeFormat("ar", { timeZone: "Asia/Muscat", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(iso));
+  const fmtTime = (iso: string) => arTime.format(new Date(iso));
 
   return (
     <div className="space-y-4 animate-fade-in pb-20">
