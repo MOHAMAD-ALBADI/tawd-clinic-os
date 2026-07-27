@@ -1,6 +1,7 @@
 "use server";
 
 import { getUserClaims } from "@/lib/auth/get-user-claims";
+import { loadAvailability, freeSlots } from "@/lib/availability";
 import { isSlotTaken, SLOT_TAKEN_AR } from "@/lib/booking-errors";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
@@ -361,4 +362,36 @@ export async function bookQuick(input: QuickBookInput) {
 
   revalidatePath("/reception");
   return { ok: true as const, doctor: pick.label, service: svc.name_ar as string | null };
+}
+
+/** Bookable start times for a service on a date — what the picker renders.
+
+    Deliberately reuses loadAvailability/freeSlots, the same helpers bookQuick
+    checks against, so a time shown as free is a time the booking accepts. Two
+    implementations of "free" would drift, and the drift shows up as a green
+    button that errors. */
+export async function getAvailableSlots(input: {
+  serviceId: string;
+  doctorId: string;
+  date: string;
+}) {
+  const claims = await requireReception();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) {
+    return { ok: false as const, reason: "تاريخ غير صالح" };
+  }
+  const sb = await createServerSupabaseClient();
+  const loaded = await loadAvailability(
+    sb, claims.clinic_id, input.serviceId, input.doctorId, input.date,
+  );
+  if (!loaded.ok) return { ok: false as const, reason: loaded.reason };
+
+  const slots = freeSlots(loaded.ctx);
+  return {
+    ok: true as const,
+    slots,
+    durationMinutes: loaded.ctx.durationMinutes,
+    /* Told apart on purpose: "the clinic is closed" and "the day is fully
+       booked" look identical as an empty list and need different answers. */
+    closed: loaded.ctx.holidays.length > 0,
+  };
 }

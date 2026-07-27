@@ -1,9 +1,13 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarPlus, CheckCircle2, Search, AlertCircle, Clock } from "lucide-react";
-import { bookQuick } from "@/app/actions/reception";
+import {
+  CalendarPlus, CheckCircle2, Search, AlertCircle, Clock, Loader2, CalendarX2,
+} from "lucide-react";
+import { bookQuick, getAvailableSlots } from "@/app/actions/reception";
+
+type Slot = { time: string; doctorId: string; doctorLabel: string };
 
 type PatientOpt = { id: string; name: string; phone: string | null };
 type Opt = { id: string; label: string };
@@ -43,6 +47,32 @@ export function QuickBook({
     date: prefill?.date ?? new Date(Date.now() + 86_400_000).toISOString().split("T")[0],
     time: prefill?.time ?? "10:00",
   });
+
+  /* The free times for the chosen service, doctor and day.
+
+     Typing a time and finding out afterwards that it clashes is the wrong way
+     round — the desk is asked "when can he be seen?", not "is 10:15 free?". The
+     list comes from the same helpers bookQuick validates with, so a time shown
+     here is a time the booking accepts. */
+  const [slots, setSlots] = useState<Slot[] | null>(null);
+  const [slotsBusy, setSlotsBusy] = useState(false);
+  const [closed, setClosed] = useState(false);
+
+  useEffect(() => {
+    if (!form.serviceId || !form.date) { setSlots(null); return; }
+    let alive = true;
+    setSlotsBusy(true);
+    getAvailableSlots({ serviceId: form.serviceId, doctorId: form.doctorId, date: form.date })
+      .then((r) => {
+        if (!alive) return;
+        if (!r.ok) { setSlots([]); setClosed(false); return; }
+        setSlots(r.slots);
+        setClosed(r.closed);
+      })
+      .catch(() => { if (alive) setSlots([]); })
+      .finally(() => { if (alive) setSlotsBusy(false); });
+    return () => { alive = false; };
+  }, [form.serviceId, form.doctorId, form.date]);
 
   const filtered = useMemo(() => {
     const q = search.trim();
@@ -229,6 +259,68 @@ export function QuickBook({
           <input type="time" value={form.time}
             onChange={(e) => setForm((p) => ({ ...p, time: e.target.value }))} className="field ltr-nums" />
         </div>
+      </div>
+
+      {/* ── available times ── */}
+      <div className="mt-4">
+        <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+          <p className="text-[11px] font-semibold flex items-center gap-1.5" style={{ color: "var(--text-3)" }}>
+            <Clock className="w-3 h-3" /> الأوقات المتاحة
+          </p>
+          {slotsBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "var(--text-4)" }} />}
+          {!slotsBusy && slots && slots.length > 0 && (
+            <span className="text-[10.5px] ltr-nums" style={{ color: "var(--text-4)" }}>
+              {slots.length} وقت
+            </span>
+          )}
+        </div>
+
+        {slots === null ? (
+          <p className="text-[11px]" style={{ color: "var(--text-4)" }}>اختر الخدمة والتاريخ</p>
+        ) : slots.length === 0 ? (
+          /* "closed" and "fully booked" are the same empty list and need
+             different answers from the desk, so they are told apart. */
+          <div className="flex items-start gap-2 text-[12px] px-3.5 py-2.5 rounded-xl"
+            style={{ background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.24)", color: "#fbbf24" }}>
+            <CalendarX2 className="w-4 h-4 shrink-0 mt-0.5" />
+            {closed
+              ? "العيادة مغلقة هذا اليوم — اختر تاريخاً آخر"
+              : "لا وقت متاح في هذا اليوم — جرّب يوماً آخر أو طبيباً آخر"}
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {slots.map((sl) => {
+              const on = form.time === sl.time;
+              return (
+                <button
+                  key={sl.time}
+                  type="button"
+                  onClick={() => { setForm((p) => ({ ...p, time: sl.time })); setErr(null); setAlts([]); }}
+                  title={form.doctorId === "any" ? sl.doctorLabel : undefined}
+                  className="text-[12px] font-bold ltr-nums px-2.5 py-1.5 rounded-lg transition-colors"
+                  style={{
+                    background: on ? "rgb(var(--accent-1-rgb) / 0.16)" : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${on ? "rgb(var(--accent-1-rgb) / 0.4)" : "var(--hairline)"}`,
+                    color: on ? "var(--accent-1)" : "var(--text-2)",
+                  }}
+                >
+                  {sl.time}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* With "first available doctor" the desk should know who it landed on
+            before the patient is told a name. */}
+        {form.doctorId === "any" && slots && slots.length > 0 && (() => {
+          const match = slots.find((sl) => sl.time === form.time);
+          return match ? (
+            <p className="text-[11px] mt-2" style={{ color: "var(--text-4)" }}>
+              الطبيب في هذا الوقت: <span className="font-bold" style={{ color: "var(--accent-1)" }}>{match.doctorLabel}</span>
+            </p>
+          ) : null;
+        })()}
       </div>
 
       {/* in-app feedback */}
