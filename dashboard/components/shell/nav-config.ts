@@ -4,6 +4,8 @@ import {
   LayoutDashboard,
   Calendar,
   CalendarPlus,
+  CalendarClock,
+  Lock,
   PhoneCall,
   Users,
   UserCircle,
@@ -68,52 +70,67 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { section: "النظام",
       label: "الإعدادات",   href: "/clinic-admin/settings",      icon: Settings },
   ],
-  doctor: [
-    { label: "جدولي اليوم",    href: "/doctor",              icon: Stethoscope, exact: true },
-    { label: "مواعيدي",        href: "/doctor/appointments",  icon: Calendar },
-    { label: "مرضاي",          href: "/doctor/patients",      icon: UserCircle },
-    { label: "خطط علاجي",      href: "/doctor/treatment-plans", icon: ClipboardList, module: "treatment_plans" },
-    { label: "دوامي وإجازاتي", href: "/doctor/schedule",      icon: ClipboardList },
-    { label: "إحصائياتي",      href: "/doctor/stats",         icon: BarChart3 },
+  /* No role menu carries "ملفي الشخصي".
 
+     The sidebar footer already makes the whole identity block — avatar, name,
+     roles — a link to /profile, which is where people look for their own
+     account anyway. Repeating it as a nav item was redundant on a single-role
+     menu and actively wrong on a merged one: the menus concatenate, so the
+     duplicate landed in the MIDDLE of the list, between the reception block and
+     the finance block. Whoever holds both roles saw their profile filed under
+     nothing, halfway down. */
+  doctor: [
+    { section: "عملي اليوم",
+      label: "جدولي اليوم",    href: "/doctor",                 icon: Stethoscope, exact: true },
+    { label: "مواعيدي",        href: "/doctor/appointments",    icon: Calendar },
+    { label: "مرضاي",          href: "/doctor/patients",        icon: UserCircle },
+    { label: "خطط علاجي",      href: "/doctor/treatment-plans", icon: ClipboardList, module: "treatment_plans" },
+
+    { section: "أنا",
+      label: "دوامي وإجازاتي", href: "/doctor/schedule",        icon: CalendarClock },
+    { label: "إحصائياتي",      href: "/doctor/stats",           icon: BarChart3 },
     /* A gear labelled "ملفي الشخصي" reads as Settings and sent doctors looking
-       for settings into a profile form. They are two things and now look like
-       two things. */
-    { label: "إعداداتي",        href: "/doctor/settings",      icon: Settings },
-    // the shared profile — every role edits itself in the same place
-    { label: "ملفي الشخصي",    href: "/profile",              icon: UserCircle },
+       for settings into a profile form. They are two things now. */
+    { label: "إعداداتي",       href: "/doctor/settings",        icon: Settings },
   ],
-  /* Two entries for a role that runs the whole front of the clinic. Research
-     on dental front-office workflow is consistent about what the desk actually
-     does all day, and none of it beyond the day board and a booking form was
-     reachable: looking a patient up, seeing the week, confirming tomorrow,
-     rebooking no-shows, working the recall list. */
+
+  /* Sections earn their keep here. Reception and finance were flat lists, which
+     is fine alone and unreadable merged — ten unlabelled rows. Headed, a
+     front-desk-plus-cashier account reads as the two jobs it actually is. */
   receptionist: [
-    { label: "لوحة اليوم",     href: "/reception",           icon: ClipboardList, exact: true },
-    { label: "التقويم",         href: "/reception/calendar",  icon: Calendar },
-    { label: "حجز موعد",       href: "/reception/book",      icon: CalendarPlus },
-    { label: "المرضى",          href: "/reception/patients",  icon: UserCircle },
-    { label: "المتابعة",        href: "/reception/followups", icon: PhoneCall },
-    { label: "ملفي الشخصي",    href: "/profile",             icon: Settings },
+    { section: "الاستقبال",
+      label: "لوحة اليوم",     href: "/reception",           icon: ClipboardList, exact: true },
+    { label: "التقويم",        href: "/reception/calendar",   icon: Calendar },
+    { label: "حجز موعد",       href: "/reception/book",       icon: CalendarPlus },
+    { label: "المرضى",         href: "/reception/patients",   icon: UserCircle },
+    { label: "المتابعة",       href: "/reception/followups",  icon: PhoneCall },
   ],
   accountant: [
-    { label: "لوحة المالية",  href: "/accountant",           icon: CreditCard, exact: true },
-    { label: "الفواتير",      href: "/accountant/invoices",  icon: Receipt },
+    { section: "المالية",
+      label: "لوحة المالية",   href: "/accountant",           icon: CreditCard, exact: true },
+    { label: "الفواتير",       href: "/accountant/invoices",  icon: Receipt },
     /* Oman VAT is quarterly with a 500–5000 r.o. penalty for filing late, and
        the product charged the tax without ever reporting it. */
     { label: "الضريبة",        href: "/accountant/vat",       icon: Scale },
-    { label: "إغلاق اليوم",  href: "/accountant/day-close", icon: ClipboardList },
-    { label: "نقاط الولاء",  href: "/accountant/loyalty",   icon: Star, module: "loyalty" },
-    { label: "ملفي الشخصي",  href: "/profile",              icon: Settings },
+    { label: "إغلاق اليوم",    href: "/accountant/day-close", icon: Lock },
+    { label: "نقاط الولاء",    href: "/accountant/loyalty",   icon: Star, module: "loyalty" },
   ],
   platform_admin: [
     { label: "نظرة المنصة",  href: "/platform-admin",               icon: LayoutDashboard, exact: true },
-    { label: "العيادات",      href: "/platform-admin/clinics",       icon: Building2 },
+
+    { section: "العملاء",
+      label: "العيادات",      href: "/platform-admin/clinics",       icon: Building2 },
     { label: "الاشتراكات",   href: "/platform-admin/subscriptions", icon: CreditCard },
-    { label: "التحصيل",       href: "/platform-admin/billing",       icon: Receipt },
+
+    { section: "المال",
+      label: "التحصيل",       href: "/platform-admin/billing",       icon: Receipt },
     { label: "اقتصاد المنصة", href: "/platform-admin/economy",       icon: Wallet },
-    { label: "الأتمتة",       href: "/platform-admin/automation",    icon: Workflow },
+
+    { section: "التشغيل",
+      label: "الأتمتة",       href: "/platform-admin/automation",    icon: Workflow },
     { label: "حملات المنصة", href: "/platform-admin/broadcast",     icon: Megaphone },
-    { label: "الإعدادات",     href: "/platform-admin/settings",      icon: Settings },
+
+    { section: "النظام",
+      label: "الإعدادات",     href: "/platform-admin/settings",      icon: Settings },
   ],
 };
