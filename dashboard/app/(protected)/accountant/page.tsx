@@ -24,7 +24,11 @@ export default async function AccountantPage() {
   const { startUtc, endUtc } = clinicDayRange(today);
   const monthStart = `${today.slice(0, 7)}-01T00:00:00+04:00`;
 
-  const [paysTodayRes, monthPaidRes, pendingRes, readyRes, recentPaysRes, closedRes] = await Promise.all([
+  /* Current quarter, clinic time — the VAT period. */
+  const qMonth = Math.floor((Number(today.slice(5, 7)) - 1) / 3) * 3 + 1;
+  const quarterStart = `${today.slice(0, 4)}-${String(qMonth).padStart(2, "0")}-01`;
+
+  const [paysTodayRes, monthPaidRes, pendingRes, readyRes, recentPaysRes, closedRes, agingRes, vatRes] = await Promise.all([
     sb.from("payments").select("gateway, amount")
       .eq("clinic_id", claims.clinic_id).eq("status", "completed")
       .gte("paid_at", startUtc).lte("paid_at", endUtc),
@@ -49,6 +53,17 @@ export default async function AccountantPage() {
       .order("paid_at", { ascending: false }).limit(8),
     sb.from("cashier_day_closes").select("close_date")
       .eq("clinic_id", claims.clinic_id).eq("close_date", today).limit(1),
+    /* Receivables need an age to be actionable — "50 outstanding" is a number,
+       "50 outstanding, 30 of it past ninety days" is a decision. */
+    sb.from("invoices").select("total, created_at, status")
+      .eq("clinic_id", claims.clinic_id).is("deleted_at", null)
+      .in("status", ["sent", "partially_paid", "overdue"]).limit(2000),
+    /* The quarter's output VAT, so the filing position is visible before the
+       deadline rather than discovered at it. */
+    sb.from("invoices").select("vat_amount")
+      .eq("clinic_id", claims.clinic_id).is("deleted_at", null)
+      .neq("status", "draft").neq("status", "cancelled").neq("status", "refunded")
+      .gte("created_at", `${quarterStart}T00:00:00+04:00`).limit(5000),
   ]);
 
   let cashToday = 0, cardToday = 0;
@@ -67,6 +82,22 @@ export default async function AccountantPage() {
   const readyValue = ready.reduce(
     (s, a) => s + Number((a.services as unknown as { price?: number } | null)?.price ?? 0), 0);
   const dayClosed = (closedRes.data ?? []).length > 0;
+
+  const aging = { d30: 0, d60: 0, d90: 0, over: 0 };
+  for (const inv of agingRes.data ?? []) {
+    const age = Math.floor((Date.now() - new Date(inv.created_at as string).getTime()) / 86_400_000);
+    const v = Number(inv.total ?? 0);
+    if (age <= 30) aging.d30 += v;
+    else if (age <= 60) aging.d60 += v;
+    else if (age <= 90) aging.d90 += v;
+    else aging.over += v;
+  }
+  const vatQuarter = (vatRes.data ?? []).reduce((s, i) => s + Number(i.vat_amount ?? 0), 0);
+  /* Billed vs collected this month is where revenue leaks, and neither number
+     meant anything alone. */
+  const collectionRate = monthPaid > 0 || pendingTotal > 0
+    ? Math.round((monthPaid / (monthPaid + pendingTotal)) * 100)
+    : null;
 
   const fmtTime = (iso: string) => arTime.format(new Date(iso));
 
@@ -97,8 +128,13 @@ export default async function AccountantPage() {
               {dayClosed ? "اليوم مُغلق ✓" : "إغلاق اليوم"}
             </Link>
             <div className="text-end">
-              <p className="text-[10px]" style={{ color: "var(--text-4)" }}>إيراد الشهر</p>
+              <p className="text-[10px]" style={{ color: "var(--text-4)" }}>محصّل الشهر</p>
               <p className="text-lg font-bold ltr-nums text-white">{fmt(monthPaid)}</p>
+              {collectionRate !== null && (
+                <p className="text-[10px] ltr-nums" style={{ color: collectionRate >= 80 ? "var(--accent-1)" : "#fbbf24" }}>
+                  نسبة التحصيل {collectionRate}%
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -120,6 +156,30 @@ export default async function AccountantPage() {
             <p className="text-[11px] mt-1.5" style={{ color: "var(--text-3)" }}>{k.sub}</p>
           </div>
         ))}
+      </div>
+
+      {/* Aged receivables and the VAT position — the two figures a finance
+          screen exists to answer and neither was anywhere. */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        {[
+          { l: "حتى ٣٠ يوم", v: fmt(aging.d30), tone: "plain" as const },
+          { l: "٣١–٦٠", v: fmt(aging.d60), tone: aging.d60 > 0 ? "warn" as const : "plain" as const },
+          { l: "٦١–٩٠", v: fmt(aging.d90), tone: aging.d90 > 0 ? "warn" as const : "plain" as const },
+          { l: "أكثر من ٩٠", v: fmt(aging.over), tone: aging.over > 0 ? "bad" as const : "plain" as const },
+        ].map((b) => (
+          <div key={b.l} className="panel" style={{ padding: "0.9rem 1.1rem" }}>
+            <p className="text-[10px] mb-1.5" style={{ color: "var(--text-4)" }}>{b.l}</p>
+            <p className="font-black ltr-nums" style={{
+              fontSize: "1.15rem",
+              color: b.tone === "bad" ? "#fda4b4" : b.tone === "warn" ? "#fbbf24" : "#ffffff",
+            }}>{b.v}</p>
+          </div>
+        ))}
+        <Link href="/accountant/vat" className="panel panel-hover" style={{ padding: "0.9rem 1.1rem" }}>
+          <p className="text-[10px] mb-1.5" style={{ color: "var(--text-4)" }}>ضريبة الربع</p>
+          <p className="font-black ltr-nums" style={{ fontSize: "1.15rem", color: "var(--accent-1)" }}>{fmt(vatQuarter)}</p>
+          <p className="text-[9.5px] mt-0.5" style={{ color: "var(--text-4)" }}>الإقرار ←</p>
+        </Link>
       </div>
 
       <div className="grid grid-cols-12 gap-4 items-start">
