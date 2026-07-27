@@ -3,6 +3,8 @@ import type { ModuleKey } from "@/lib/modules";
 import {
   LayoutDashboard,
   Calendar,
+  CalendarPlus,
+  PhoneCall,
   Users,
   UserCircle,
   BarChart3,
@@ -81,9 +83,18 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     // the shared profile — every role edits itself in the same place
     { label: "ملفي الشخصي",    href: "/profile",              icon: UserCircle },
   ],
+  /* Two entries for a role that runs the whole front of the clinic. Research
+     on dental front-office workflow is consistent about what the desk actually
+     does all day, and none of it beyond the day board and a booking form was
+     reachable: looking a patient up, seeing the week, confirming tomorrow,
+     rebooking no-shows, working the recall list. */
   receptionist: [
-    { label: "لوحة الاستقبال", href: "/reception",       icon: ClipboardList, exact: true },
-    { label: "حجز موعد",       href: "/reception/book",  icon: Calendar },
+    { label: "لوحة اليوم",     href: "/reception",           icon: ClipboardList, exact: true },
+    { label: "التقويم",         href: "/reception/calendar",  icon: Calendar },
+    { label: "حجز موعد",       href: "/reception/book",      icon: CalendarPlus },
+    { label: "المرضى",          href: "/reception/patients",  icon: UserCircle },
+    { label: "المتابعة",        href: "/reception/followups", icon: PhoneCall },
+    { label: "ملفي الشخصي",    href: "/profile",             icon: Settings },
   ],
   accountant: [
     { label: "لوحة المالية",  href: "/accountant",           icon: CreditCard, exact: true },
