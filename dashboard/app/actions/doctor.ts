@@ -145,6 +145,13 @@ export type WeekDayInput = {
   end: string;   // "18:00"
 };
 
+/* One entry per WINDOW, not per day.
+
+   A split shift — 09:00 to 13:00 then 17:00 to 21:00 — is the normal working day
+   here and could not be expressed: the type carried one start and one end, so the
+   editor had to pretend the doctor works straight through the afternoon and Sura
+   booked patients into a closed clinic. Several entries may now share a day. */
+
 /** Replace the doctor's weekly working hours (feeds Sura's booking availability). */
 export async function saveWeeklySchedule(days: WeekDayInput[]) {
   const claims = await getUserClaims();
@@ -157,6 +164,22 @@ export async function saveWeeklySchedule(days: WeekDayInput[]) {
       d.start < d.end
   );
 
+  /* Overlapping windows on the same day are caught here so the doctor reads a
+     sentence rather than the name of a database constraint. */
+  const activeRows = valid.filter((d) => d.active);
+  for (const day of new Set(activeRows.map((d) => d.day))) {
+    const wins = activeRows
+      .filter((d) => d.day === day)
+      .sort((a, b) => a.start.localeCompare(b.start));
+    for (let i = 1; i < wins.length; i++) {
+      if (wins[i].start < wins[i - 1].end) {
+        throw new Error(
+          `فترتان متعارضتان في اليوم نفسه: ${wins[i - 1].start}–${wins[i - 1].end} و ${wins[i].start}–${wins[i].end}`
+        );
+      }
+    }
+  }
+
   const supabase = await createServerSupabaseClient();
 
   // replace-all for this doctor: delete then insert active days
@@ -167,8 +190,7 @@ export async function saveWeeklySchedule(days: WeekDayInput[]) {
     .eq("clinic_id", claims.clinic_id);
   if (del.error) throw new Error(del.error.message);
 
-  const rows = valid
-    .filter((d) => d.active)
+  const rows = activeRows
     .map((d) => ({
       clinic_id: claims.clinic_id,
       doctor_id: claims.sub,

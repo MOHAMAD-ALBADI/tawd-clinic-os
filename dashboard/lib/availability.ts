@@ -140,26 +140,40 @@ export type Slot = { time: string; doctorId: string; doctorLabel: string };
     gets evening slots instead of a hardcoded 09:00–18:00. Past times are
     dropped: offering a slot that has already gone is worse than showing none. */
 export function freeSlots(ctx: Availability, gridMinutes = 15): Slot[] {
-  let from = 24 * 60, to = 0;
-  for (const s of ctx.schedules) {
-    if (s.day_of_week !== ctx.dayKey) continue;
-    from = Math.min(from, toMin(s.start_time));
-    to = Math.max(to, toMin(s.end_time));
-  }
+  /* Each shift window walked separately, never min(start)…max(end).
+
+     A doctor working 09:00–13:00 and 17:00–21:00 is the normal shape of a day
+     here. Spanning the whole range would generate slots across the closed
+     afternoon, and because a slot is only offered when SOME candidate is free,
+     a second doctor working through lunch would make those look bookable under
+     the first one's name. Two windows, two loops. */
+  const windows = ctx.schedules
+    .filter((s) => s.day_of_week === ctx.dayKey)
+    .map((s) => ({ from: toMin(s.start_time), to: toMin(s.end_time) }))
+    .sort((a, b) => a.from - b.from);
+
   /* Nobody has a rota for this weekday: fall back to a normal clinic day rather
      than returning nothing, since freeAt() treats "no schedule" as unrestricted
      and would otherwise accept a booking the picker never offered. */
-  if (to <= from) { from = 9 * 60; to = 18 * 60; }
+  const ranges = windows.length ? windows : [{ from: 9 * 60, to: 18 * 60 }];
 
   const out: Slot[] = [];
+  const seen = new Set<string>();
   const now = Date.now();
-  for (let m = from; m + ctx.durationMinutes <= to; m += gridMinutes) {
-    const hh = String(Math.floor(m / 60)).padStart(2, "0");
-    const mm = String(m % 60).padStart(2, "0");
-    const startMs = new Date(`${ctx.date}T${hh}:${mm}:00+04:00`).getTime();
-    if (startMs <= now) continue;
-    const doc = ctx.candidates.find((c) => freeAt(ctx, c.id, m, startMs));
-    if (doc) out.push({ time: `${hh}:${mm}`, doctorId: doc.id, doctorLabel: doc.label });
+
+  for (const w of ranges) {
+    for (let m = w.from; m + ctx.durationMinutes <= w.to; m += gridMinutes) {
+      const hh = String(Math.floor(m / 60)).padStart(2, "0");
+      const mm = String(m % 60).padStart(2, "0");
+      const time = `${hh}:${mm}`;
+      /* Windows belonging to different doctors can overlap, so the same minute
+         can be reached twice — offer it once. */
+      if (seen.has(time)) continue;
+      const startMs = new Date(`${ctx.date}T${time}:00+04:00`).getTime();
+      if (startMs <= now) continue;
+      const doc = ctx.candidates.find((c) => freeAt(ctx, c.id, m, startMs));
+      if (doc) { out.push({ time, doctorId: doc.id, doctorLabel: doc.label }); seen.add(time); }
+    }
   }
-  return out;
+  return out.sort((a, b) => a.time.localeCompare(b.time));
 }
