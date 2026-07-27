@@ -2,65 +2,73 @@ import { redirect } from "next/navigation";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { Star } from "lucide-react";
+import {
+  LoyaltyManager, type LoyaltyHolder, type LoyaltyTxn, type LoyaltyConfig,
+} from "@/components/accountant/loyalty-manager";
 
 export const metadata = { title: "نقاط الولاء — طود" };
-
-type Patient = { id: string; name: string; loyalty_points: number };
+export const dynamic = "force-dynamic";
 
 export default async function LoyaltyPage() {
   const claims = await getUserClaims();
   if (!claims || !(hasRole(claims, "accountant") || claims.role === "clinic_admin")) redirect("/login");
 
-  const supabase = await createServerSupabaseClient();
-  const { data } = await supabase
-    .from("patients")
-    .select("id, name, loyalty_points")
-    .eq("clinic_id", claims.clinic_id)
-    .gt("loyalty_points", 0)
-    .order("loyalty_points", { ascending: false })
-    .limit(100);
+  const sb = await createServerSupabaseClient();
 
-  const patients = (data ?? []) as Patient[];
+  const [{ data: people }, { data: txns }, { data: settings }] = await Promise.all([
+    sb.from("patients").select("id, name, phone, loyalty_points")
+      .eq("clinic_id", claims.clinic_id).is("deleted_at", null)
+      .gt("loyalty_points", 0).order("loyalty_points", { ascending: false }).limit(500),
+    /* The ledger the page never showed. Points are redeemable against a bill,
+       so a movement is a financial event and needs a visible history. */
+    sb.from("loyalty_transactions")
+      .select("id, patient_id, type, points, balance_after, note, created_at, patients!patient_id(name)")
+      .eq("clinic_id", claims.clinic_id)
+      .order("created_at", { ascending: false }).limit(60),
+    sb.from("loyalty_settings")
+      .select("is_active, points_per_omr, redemption_rate, min_redeem_points, max_redeem_pct, expiry_months")
+      .eq("clinic_id", claims.clinic_id).maybeSingle(),
+  ]);
+
+  const holders: LoyaltyHolder[] = (people ?? []).map((p) => ({
+    id: p.id as string,
+    name: (p.name as string) ?? "مريض",
+    phone: (p.phone as string | null) ?? null,
+    points: Number(p.loyalty_points ?? 0),
+  }));
+
+  const recent: LoyaltyTxn[] = (txns ?? []).map((t) => ({
+    id: t.id as string,
+    patientName: (t.patients as unknown as { name?: string } | null)?.name ?? "مريض",
+    type: t.type as string,
+    points: Number(t.points ?? 0),
+    balanceAfter: Number(t.balance_after ?? 0),
+    note: (t.note as string | null) ?? null,
+    createdAt: t.created_at as string,
+  }));
+
+  /* No settings row means the loop is off — the same "absent row = disabled"
+     rule the earn/redeem code already follows. */
+  const config: LoyaltyConfig = {
+    active: !!settings?.is_active,
+    pointsPerOmr: Number(settings?.points_per_omr ?? 0),
+    redemptionRate: Number(settings?.redemption_rate ?? 0),
+    minRedeem: Number(settings?.min_redeem_points ?? 0),
+    maxRedeemPct: Number(settings?.max_redeem_pct ?? 0),
+    expiryMonths: settings?.expiry_months ? Number(settings.expiry_months) : null,
+  };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-5 animate-fade-in pb-20">
       <div>
-        <h2 className="text-xl font-bold" style={{ color: "hsl(var(--foreground))" }}>نقاط الولاء</h2>
-        <p className="text-sm mt-0.5" style={{ color: "hsl(var(--muted-foreground))" }}>{patients.length} مريض لديهم نقاط</p>
+        <p className="eyebrow">LOYALTY</p>
+        <h1 className="text-2xl font-black text-white tracking-tight leading-none mt-1">نقاط الولاء</h1>
+        <p className="text-[12px] mt-1.5" style={{ color: "var(--text-4)" }}>
+          الأرصدة والتزامها المالي وسجل الحركات — والتعديل اليدوي عند الحاجة
+        </p>
       </div>
 
-      <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}>
-        {patients.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-3">
-            <Star className="w-10 h-10" style={{ color: "hsl(var(--muted-foreground))" }} />
-            <p className="text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>لا يوجد مرضى لديهم نقاط ولاء</p>
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ background: "hsl(var(--muted) / 0.4)", borderBottom: "1px solid hsl(var(--border))" }}>
-                {["المريض", "النقاط"].map((h) => (
-                  <th key={h} className="text-right py-3 px-5 text-[12px] font-semibold" style={{ color: "hsl(var(--muted-foreground))" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {patients.map((p, i) => (
-                <tr key={p.id} style={{ borderBottom: i < patients.length - 1 ? "1px solid hsl(var(--border))" : undefined }}>
-                  <td className="py-3.5 px-5 font-semibold" style={{ color: "hsl(var(--foreground))" }}>{p.name}</td>
-                  <td className="py-3.5 px-5">
-                    <span className="flex items-center gap-1.5 font-bold ltr-nums" style={{ color: "var(--accent-3)" }}>
-                      <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                      {p.loyalty_points.toLocaleString("ar-SA")}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <LoyaltyManager holders={holders} recent={recent} config={config} />
     </div>
   );
 }

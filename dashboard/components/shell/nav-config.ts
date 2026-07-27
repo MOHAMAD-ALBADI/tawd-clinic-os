@@ -98,9 +98,13 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
   ],
   accountant: [
     { label: "لوحة المالية",  href: "/accountant",           icon: CreditCard, exact: true },
-    { label: "الفواتير",      href: "/accountant/invoices",  icon: ClipboardList },
-    { label: "إغلاق اليوم",  href: "/accountant/day-close", icon: Scale },
+    { label: "الفواتير",      href: "/accountant/invoices",  icon: Receipt },
+    /* Oman VAT is quarterly with a 500–5000 r.o. penalty for filing late, and
+       the product charged the tax without ever reporting it. */
+    { label: "الضريبة",        href: "/accountant/vat",       icon: Scale },
+    { label: "إغلاق اليوم",  href: "/accountant/day-close", icon: ClipboardList },
     { label: "نقاط الولاء",  href: "/accountant/loyalty",   icon: Star, module: "loyalty" },
+    { label: "ملفي الشخصي",  href: "/profile",              icon: Settings },
   ],
   platform_admin: [
     { label: "نظرة المنصة",  href: "/platform-admin",               icon: LayoutDashboard, exact: true },
