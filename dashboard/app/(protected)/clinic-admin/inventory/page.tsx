@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { clinicDatePlus } from "@/lib/clinic-time";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { InventoryBoard, type InvItem, type InvSupplier } from "@/components/inventory/inventory-board";
@@ -19,7 +20,7 @@ export default async function InventoryPage() {
   if (!claims || claims.role !== "clinic_admin") redirect("/login");
 
   const sb = await createServerSupabaseClient();
-  const soon = new Date(Date.now() + 60 * 86400_000).toISOString().slice(0, 10);
+  const soon = clinicDatePlus(60);
 
   const [itemsRes, suppliersRes, expiringRes, servicesRes, bomRes, rxRes] = await Promise.all([
     sb.from("inventory_items")

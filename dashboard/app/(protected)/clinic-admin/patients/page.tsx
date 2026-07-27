@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { clinicToday } from "@/lib/clinic-time";
 import Link from "next/link";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -31,7 +32,7 @@ export default async function PatientsPage() {
 
   const patients    = (data ?? []) as Patient[];
   const withLoyalty = patients.filter((p) => (p.loyalty_points ?? 0) > 0).length;
-  const today       = new Date().toISOString().split("T")[0];
+  const today       = clinicToday();
   const newToday    = patients.filter((p) => p.created_at.startsWith(today)).length;
 
   return (

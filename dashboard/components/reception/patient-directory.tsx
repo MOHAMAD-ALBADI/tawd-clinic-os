@@ -41,7 +41,9 @@ type Filter = "all" | "owing" | "no_next" | "new";
     answer without going through the manager's dashboard. This is the lookup:
     who they are, what they owe, when they were last in, what is booked, and the
     two clinical flags that matter at a desk. */
-export function PatientDirectory({ patients }: { patients: DirectoryPatient[] }) {
+export function PatientDirectory({
+  patients, capped,
+}: { patients: DirectoryPatient[]; capped: boolean }) {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
 
@@ -100,6 +102,17 @@ export function PatientDirectory({ patients }: { patients: DirectoryPatient[] })
           </button>
         )}
       </div>
+
+      {/* Search runs over the rows the server sent. If it had to stop short,
+          "no results" would be a lie for anyone past the cut — so the screen
+          says so instead of pretending the patient does not exist. */}
+      {capped && (
+        <div className="flex items-start gap-2 text-[12px] px-3.5 py-2.5 rounded-xl"
+          style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.28)", color: "#fbbf24" }}>
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          عدد المرضى تجاوز حد التحميل — البحث هنا يغطي الأحدث فقط. إن لم تجد أحدهم فهو موجود ولم يُحمَّل.
+        </div>
+      )}
 
       {rows.length === 0 ? (
         <div className="panel flex flex-col items-center gap-3 py-14">

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { clinicDatePlus } from "@/lib/clinic-time";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
@@ -80,7 +81,7 @@ export async function issueInvoice(input: {
   const { data: number, error: numErr } = await sb.rpc("next_platform_invoice_number");
   if (numErr || !number) return { ok: false as const, reason: "تعذّر توليد رقم الفاتورة" };
 
-  const due = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
+  const due = clinicDatePlus(14);
 
   const { data: inv, error } = await sb.from("platform_invoices").insert({
     clinic_id: input.clinicId,

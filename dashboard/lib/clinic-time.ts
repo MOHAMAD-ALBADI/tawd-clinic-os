@@ -32,3 +32,24 @@ export function clinicDayRange(date: string): { startUtc: string; endUtc: string
     endUtc: new Date(startUtc + 86_400_000).toISOString(),
   };
 }
+
+/** A clinic-local date shifted by whole days. Use instead of adding
+ *  86_400_000 to Date.now(), which drifts across the UTC boundary. */
+export function clinicDatePlus(days: number, from: Date = new Date()): string {
+  return clinicToday(new Date(from.getTime() + days * 86_400_000));
+}
+
+/** First day of the clinic-local month containing `date` (default: today). */
+export function clinicMonthStart(date: string = clinicToday()): string {
+  return `${date.slice(0, 7)}-01`;
+}
+
+/** The UTC instants bounding a clinic-local month, [start, end). */
+export function clinicMonthRange(monthStart: string): { startUtc: string; endUtc: string } {
+  const [y, m] = monthStart.split("-").map(Number);
+  const next = new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10);
+  return {
+    startUtc: clinicDayRange(monthStart).startUtc,
+    endUtc: clinicDayRange(next).startUtc,
+  };
+}

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { clinicToday, clinicMonthStart, clinicMonthRange } from "@/lib/clinic-time";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
@@ -25,103 +26,99 @@ export default async function ReportsPage() {
 
   const sb = await createServerSupabaseClient();
   const now = new Date();
-  const y = now.getUTCFullYear(), m = now.getUTCMonth();
-  const thisStart = new Date(Date.UTC(y, m, 1)).toISOString();
-  const nextStart = new Date(Date.UTC(y, m + 1, 1)).toISOString();
-  const prevStart = new Date(Date.UTC(y, m - 1, 1)).toISOString();
-  const monthLabel = `${y}-${String(m + 1).padStart(2, "0")}`;
 
-  const [
-    apptThis, apptPrev, invThis, payThis, payPrev, expThis,
-    plansAll, staffRes, patientsAll,
-  ] = await Promise.all([
-    sb.from("appointments").select("id, status, doctor_id, service_id, patient_id")
-      .eq("clinic_id", claims.clinic_id).is("deleted_at", null)
-      .gte("slot_time", thisStart).lt("slot_time", nextStart).limit(100000),
-    sb.from("appointments").select("id, status")
-      .eq("clinic_id", claims.clinic_id).is("deleted_at", null)
-      .gte("slot_time", prevStart).lt("slot_time", thisStart).limit(100000),
-    sb.from("invoices").select("total, status")
-      .eq("clinic_id", claims.clinic_id).is("deleted_at", null)
-      .gte("created_at", thisStart).lt("created_at", nextStart).limit(100000),
-    sb.from("payments").select("amount").eq("clinic_id", claims.clinic_id).eq("status", "completed")
-      .gte("created_at", thisStart).lt("created_at", nextStart).limit(100000),
-    sb.from("payments").select("amount").eq("clinic_id", claims.clinic_id).eq("status", "completed")
-      .gte("created_at", prevStart).lt("created_at", thisStart).limit(100000),
-    sb.from("expenses").select("amount").eq("clinic_id", claims.clinic_id).is("deleted_at", null)
-      .gte("expense_date", thisStart.slice(0, 10)).limit(100000),
-    sb.from("treatment_plans").select("status, total_estimate").eq("clinic_id", claims.clinic_id).limit(100000),
+  /* Months are the clinic's, not UTC — the last four hours of every month were
+     landing in the next one. */
+  const thisMonth = clinicMonthStart(clinicToday(now));
+  const [my, mm] = thisMonth.split("-").map(Number);
+  const prevMonth = `${new Date(Date.UTC(my, mm - 2, 1)).toISOString().slice(0, 7)}-01`;
+  const thisRange = clinicMonthRange(thisMonth);
+  const prevRange = clinicMonthRange(prevMonth);
+  const monthLabel = thisMonth.slice(0, 7);
+
+  /* Counted by the database.
+
+     This page used to pull up to 100,000 rows per metric — eight such queries —
+     and add them up in JavaScript. PostgREST caps rows, so past the cap the
+     totals simply stop growing: no error, revenue silently understated. The
+     same pattern was removed from the platform dashboard twice. */
+  const [thisRes, prevRes, staffRes] = await Promise.all([
+    sb.rpc("clinic_report_totals", {
+      p_clinic_id: claims.clinic_id, p_from: thisRange.startUtc, p_to: thisRange.endUtc,
+    }),
+    sb.rpc("clinic_report_totals", {
+      p_clinic_id: claims.clinic_id, p_from: prevRange.startUtc, p_to: prevRange.endUtc,
+    }),
     sb.from("tawd_staff_users").select("id, name, name_ar, role")
       .eq("clinic_id", claims.clinic_id).eq("is_active", true).is("deleted_at", null),
-    sb.from("patients").select("id, created_at").eq("clinic_id", claims.clinic_id).is("deleted_at", null).limit(100000),
   ]);
 
-  const appts = apptThis.data ?? [];
-  const prevAppts = apptPrev.data ?? [];
-  const invoices = invThis.data ?? [];
+  type Totals = {
+    appts: { total: number; completed: number; no_show: number; cancelled: number; unique_patients: number };
+    billed: number; collected: number; expenses: number; new_patients: number;
+    plans: { proposed: number; accepted: number; accepted_value: number };
+    by_doctor: { doctor_id: string; completed: number; no_show: number; total: number }[];
+    by_service: { service_id: string; completed: number }[];
+  };
+  const EMPTY: Totals = {
+    appts: { total: 0, completed: 0, no_show: 0, cancelled: 0, unique_patients: 0 },
+    billed: 0, collected: 0, expenses: 0, new_patients: 0,
+    plans: { proposed: 0, accepted: 0, accepted_value: 0 },
+    by_doctor: [], by_service: [],
+  };
+  const T = (thisRes.data as Totals | null) ?? EMPTY;
+  const P = (prevRes.data as Totals | null) ?? EMPTY;
   const staff = staffRes.data ?? [];
-  const plans = plansAll.data ?? [];
 
   /* ── operations ── */
-  const completed = appts.filter((a) => a.status === "completed").length;
-  const noShow = appts.filter((a) => a.status === "no_show").length;
-  const cancelled = appts.filter((a) => a.status === "cancelled").length;
+  const totalAppts = n(T.appts.total);
+  const completed = n(T.appts.completed);
+  const noShow = n(T.appts.no_show);
+  const cancelled = n(T.appts.cancelled);
   const finished = completed + noShow; // only appointments with a known outcome
   const noShowRate = pct(noShow, finished);
-  const prevFinished = prevAppts.filter((a) => a.status === "completed" || a.status === "no_show").length;
-  const prevNoShowRate = pct(prevAppts.filter((a) => a.status === "no_show").length, prevFinished);
+  const prevFinished = n(P.appts.completed) + n(P.appts.no_show);
+  const prevNoShowRate = pct(n(P.appts.no_show), prevFinished);
 
   /* ── money: billed vs collected is where revenue leaks ── */
-  const billed = invoices.reduce((s, i) => s + n(i.total), 0);
-  const collected = (payThis.data ?? []).reduce((s, p) => s + n(p.amount), 0);
-  const prevCollected = (payPrev.data ?? []).reduce((s, p) => s + n(p.amount), 0);
-  const expenses = (expThis.data ?? []).reduce((s, e) => s + n(e.amount), 0);
+  const billed = n(T.billed);
+  const collected = n(T.collected);
+  const prevCollected = n(P.collected);
+  const expenses = n(T.expenses);
   const collectionRate = pct(collected, billed);
   const profit = collected - expenses;
   const revPerVisit = completed > 0 ? collected / completed : 0;
   const revenueTrend = prevCollected > 0 ? Math.round(((collected - prevCollected) / prevCollected) * 100) : null;
 
   /* ── patients: new vs returning this month ── */
-  const uniquePatients = new Set(appts.map((a) => a.patient_id).filter(Boolean)).size;
-  const newThisMonth = (patientsAll.data ?? []).filter(
-    (p) => (p.created_at as string) >= thisStart && (p.created_at as string) < nextStart
-  ).length;
+  const uniquePatients = n(T.appts.unique_patients);
+  const newThisMonth = n(T.new_patients);
   const returning = Math.max(0, uniquePatients - newThisMonth);
 
   /* ── treatment plans: acceptance is the core clinical-sales metric ── */
-  const proposed = plans.filter((p) => p.status !== "draft").length;
-  const accepted = plans.filter((p) => ["accepted", "in_progress", "completed"].includes(p.status as string)).length;
+  const proposed = n(T.plans.proposed);
+  const accepted = n(T.plans.accepted);
   const acceptanceRate = pct(accepted, proposed);
-  const pipeline = plans.filter((p) => p.status === "proposed").reduce((s, p) => s + n(p.total_estimate), 0);
+  const pipeline = n(T.plans.accepted_value);
 
   /* ── per-doctor productivity ── */
   const doctorName = (id: string) => {
     const d = staff.find((s) => s.id === id);
     return (d?.name_ar ?? d?.name ?? "—") as string;
   };
-  const byDoctor = new Map<string, { done: number; total: number }>();
-  for (const a of appts) {
-    if (!a.doctor_id) continue;
-    const cur = byDoctor.get(a.doctor_id) ?? { done: 0, total: 0 };
-    cur.total += 1;
-    if (a.status === "completed") cur.done += 1;
-    byDoctor.set(a.doctor_id, cur);
-  }
-  const doctorRows = [...byDoctor.entries()]
-    .map(([id, v]) => ({ name: doctorName(id), ...v }))
+  const doctorRows = T.by_doctor
+    .map((d) => ({ name: doctorName(d.doctor_id), done: n(d.completed), total: n(d.total) }))
     .sort((a, b) => b.done - a.done);
 
   /* ── top services by volume ── */
-  const svcCount = new Map<string, number>();
-  for (const a of appts) if (a.service_id) svcCount.set(a.service_id, (svcCount.get(a.service_id) ?? 0) + 1);
-  const topSvcIds = [...svcCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const topSvc = T.by_service.slice(0, 5);
   let serviceRows: { name: string; count: number }[] = [];
-  if (topSvcIds.length) {
+  if (topSvc.length) {
     const { data: svcs } = await sb.from("services").select("id, name, name_ar")
-      .in("id", topSvcIds.map(([id]) => id));
-    serviceRows = topSvcIds.map(([id, count]) => {
-      const s = (svcs ?? []).find((x) => x.id === id);
-      return { name: (s?.name_ar ?? s?.name ?? "خدمة") as string, count };
+      .in("id", topSvc.map((x) => x.service_id));
+    serviceRows = topSvc.map((x) => {
+      const s = (svcs ?? []).find((y) => y.id === x.service_id);
+      return { name: (s?.name_ar ?? s?.name ?? "خدمة") as string, count: n(x.completed) };
     });
   }
 
@@ -138,7 +135,7 @@ export default async function ReportsPage() {
       unit: prevFinished > 0 ? `الشهر الماضي ${prevNoShowRate}%` : "لا مقارنة بعد",
       Icon: CalendarX, trend: null,
       color: noShowRate <= 10 ? "var(--accent-1)" : noShowRate <= 20 ? "#fbbf24" : "#fda4b4" },
-    { label: "مواعيد مكتملة", value: String(completed), unit: `من ${appts.length} موعد`,
+    { label: "مواعيد مكتملة", value: String(completed), unit: `من ${totalAppts} موعد`,
       Icon: ClipboardCheck, trend: null, color: "var(--accent-1)" },
     { label: "مرضى جدد", value: String(newThisMonth), unit: `عائدون ${returning}`,
       Icon: UserPlus, trend: null, color: "var(--accent-1)" },
@@ -253,7 +250,7 @@ export default async function ReportsPage() {
             { l: "مكتملة", v: completed, c: "var(--accent-1)" },
             { l: "لم يحضر", v: noShow, c: "#fda4b4" },
             { l: "ملغاة", v: cancelled, c: "var(--text-3)" },
-            { l: "قادمة / جارية", v: Math.max(0, appts.length - completed - noShow - cancelled), c: "var(--accent-1)" },
+            { l: "قادمة / جارية", v: Math.max(0, totalAppts - completed - noShow - cancelled), c: "var(--accent-1)" },
           ].map((x) => (
             <div key={x.l} className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--hairline)" }}>
               <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-4)" }}>{x.l}</p>

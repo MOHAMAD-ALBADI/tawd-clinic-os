@@ -1,5 +1,6 @@
 ﻿import { redirect } from "next/navigation";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
+import { clinicToday } from "@/lib/clinic-time";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { ClinicInfoForm } from "@/components/settings/clinic-info-form";
 import { WorkingHoursForm } from "@/components/settings/working-hours-form";
@@ -25,7 +26,7 @@ export default async function SettingsPage() {
 
   const supabase = await createServerSupabaseClient();
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = clinicToday();
   const [{ data: clinic }, { data: settings }, { data: subscription }, { count: staffCount }, { data: holidays }] =
     await Promise.all([
       supabase

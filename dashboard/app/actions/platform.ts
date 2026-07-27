@@ -1,6 +1,7 @@
 "use server";
 
 import { getUserClaims } from "@/lib/auth/get-user-claims";
+import { clinicToday } from "@/lib/clinic-time";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { revalidatePath } from "next/cache";
@@ -521,7 +522,7 @@ export async function renewSubscriptionMonth(clinicId: string) {
   await sb.from("tawd_clinics").update({ status: "active" }).eq("id", clinicId);
   revalidatePath(`/platform-admin/clinics/${clinicId}`);
   revalidatePath("/platform-admin");
-  return { ok: true as const, until: base.toISOString().split("T")[0] };
+  return { ok: true as const, until: clinicToday(base) };
 }
 
 /** WhatsApp from the PLATFORM to clinic owners' phones (single or bulk).

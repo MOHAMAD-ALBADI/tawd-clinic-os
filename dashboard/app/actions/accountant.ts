@@ -185,7 +185,7 @@ export async function createInvoiceForAppointment(appointmentId: string) {
       total,
       currency: "OMR",
       status: "sent",
-      due_date: new Date().toISOString().split("T")[0],
+      due_date: clinicToday(),
     })
     .select("id")
     .single();

@@ -1,6 +1,7 @@
 "use server";
 
 import { getUserClaims } from "@/lib/auth/get-user-claims";
+import { clinicToday } from "@/lib/clinic-time";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { revalidatePath } from "next/cache";
@@ -34,7 +35,7 @@ export async function checkEligibility(patientId: string) {
 
   if (!data?.provider_id) return { covered: false as const, reason: "لا يوجد تأمين مسجّل" };
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = clinicToday();
   const until = (data.valid_until as string) ?? null;
   if (until && until < today) {
     return { covered: false as const, reason: `انتهت البوليصة في ${until}` };
@@ -252,7 +253,7 @@ export async function logClaimForInvoice(e: {
 
     /* An expired policy pays nothing. Opening a claim against it would only
        manufacture a receivable the clinic will chase and never collect. */
-    const today = new Date().toISOString().slice(0, 10);
+    const today = clinicToday();
     if (cover.valid_until && (cover.valid_until as string) < today) return;
 
     const { data: existing } = await sb.from("insurance_claims").select("id")

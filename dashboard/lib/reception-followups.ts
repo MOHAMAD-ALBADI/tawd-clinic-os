@@ -77,11 +77,13 @@ export async function getFollowUps(clinicId: string): Promise<FollowUpBoard> {
       .gte("slot_time", new Date(Date.now() - 7 * 86_400_000).toISOString())
       .order("slot_time", { ascending: false }).limit(50),
 
-    /* Everyone seen, newest visit first — the recall list is built from this. */
-    sb.from("appointments")
-      .select("patient_id, slot_time, patients!patient_id(name, phone)")
-      .eq("clinic_id", clinicId).eq("status", "completed").is("deleted_at", null)
-      .order("slot_time", { ascending: false }).limit(4000),
+    /* Last visit per patient, aggregated in Postgres.
+
+       This used to fetch every completed appointment and reduce it in JS,
+       capped at 4000 rows. Past that cap patients silently vanished from the
+       recall list — the one list whose entire purpose is catching the people
+       nobody remembered. */
+    sb.rpc("clinic_last_visits", { p_clinic_id: clinicId }),
 
     /* Treatment the patient agreed to and nobody booked. The single largest
        pool of revenue sitting in any dental practice. */
@@ -137,26 +139,32 @@ export async function getFollowUps(clinicId: string): Promise<FollowUpBoard> {
       };
     });
 
-  /* Recall: last seen six months ago or more, nothing booked. */
-  const seen = new Map<string, { at: string; p: PatientJoin }>();
-  for (const v of lastVisits ?? []) {
-    const pid = v.patient_id as string;
-    if (!seen.has(pid)) seen.set(pid, { at: v.slot_time as string, p: v.patients as unknown as PatientJoin });
-  }
-  const recallDue: FollowUp[] = [...seen.entries()]
-    .filter(([pid, v]) => v.at < sixMonthsAgo && !bookedAhead.has(pid))
-    .map(([pid, v]) => {
-      const months = Math.floor((Date.now() - new Date(v.at).getTime()) / (30 * 86_400_000));
-      return {
-        id: `r-${pid}`, patientId: pid,
-        patientName: v.p?.name ?? "مريض", phone: v.p?.phone ?? null,
-        reason: "موعد دوري مستحق",
-        detail: `آخر زيارة منذ ${months} شهر`,
-        value: null, urgent: months >= 12,
-      };
-    })
-    .sort((a, b) => Number(b.urgent) - Number(a.urgent))
+  /* Recall: last seen six months ago or more, nothing booked.
+
+     Longest-absent first, and names are fetched only for the fifty that
+     qualify rather than joined across the entire visit history. */
+  const overdue = ((lastVisits ?? []) as { patient_id: string; last_visit: string }[])
+    .filter((v) => v.last_visit < sixMonthsAgo && !bookedAhead.has(v.patient_id))
+    .sort((a, b) => a.last_visit.localeCompare(b.last_visit))
     .slice(0, 50);
+
+  const { data: recallPeople } = overdue.length
+    ? await sb.from("patients").select("id, name, phone").in("id", overdue.map((v) => v.patient_id))
+    : { data: [] as Record<string, unknown>[] };
+  const personOf = new Map((recallPeople ?? []).map((p) => [p.id as string, p]));
+
+  const recallDue: FollowUp[] = overdue.map((v) => {
+    const p = personOf.get(v.patient_id);
+    const months = Math.floor((Date.now() - new Date(v.last_visit).getTime()) / (30 * 86_400_000));
+    return {
+      id: `r-${v.patient_id}`, patientId: v.patient_id,
+      patientName: (p?.name as string) ?? "مريض",
+      phone: (p?.phone as string | null) ?? null,
+      reason: "موعد دوري مستحق",
+      detail: `آخر زيارة منذ ${months} شهر`,
+      value: null, urgent: months >= 12,
+    };
+  });
 
   /* Accepted treatment with nothing on the books, grouped per patient so the
      desk makes one call, not one call per tooth. */

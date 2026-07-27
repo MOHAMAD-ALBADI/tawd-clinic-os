@@ -1,6 +1,7 @@
 "use server";
 
 import { getUserClaims } from "@/lib/auth/get-user-claims";
+import { clinicToday } from "@/lib/clinic-time";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { revalidatePath } from "next/cache";
@@ -33,7 +34,7 @@ export async function addExpense(input: ExpenseInput) {
     clinic_id: claims.clinic_id,
     category: input.category?.trim() || "أخرى",
     amount,
-    expense_date: input.expense_date || new Date().toISOString().slice(0, 10),
+    expense_date: input.expense_date || clinicToday(),
     payment_method: input.payment_method || "cash",
     description: input.description?.trim() || null,
     vendor: input.vendor?.trim() || null,
@@ -70,7 +71,7 @@ export async function logExpense(e: {
       clinic_id: e.clinicId,
       category: e.category,
       amount: Number(e.amount),
-      expense_date: new Date().toISOString().slice(0, 10),
+      expense_date: clinicToday(),
       payment_method: "bank_transfer",
       description: e.description ?? null,
       ref_type: e.refType,

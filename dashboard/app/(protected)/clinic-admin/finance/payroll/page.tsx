@@ -1,4 +1,5 @@
 import { getUserClaims } from "@/lib/auth/get-user-claims";
+import { clinicToday } from "@/lib/clinic-time";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { SalaryAndAttendance, type StaffRow } from "@/components/payroll/salary-attendance";
 import { PayrollRuns, type RunRow, type PayslipRow } from "@/components/payroll/payroll-runs";
@@ -20,7 +21,7 @@ export default async function PayrollPage({
   const now = new Date();
   const period = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
   const monthStart = `${period}-01`;
-  const today = now.toISOString().slice(0, 10);
+  const today = clinicToday(now);
 
   /* attendance day comes from the URL so the highlighted status always matches the
      date the manager picked (server refetches) — never a stale "today" */

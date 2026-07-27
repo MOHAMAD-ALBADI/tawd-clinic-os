@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { clinicToday } from "@/lib/clinic-time";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
@@ -19,7 +20,7 @@ export async function GET() {
   if (!claims) return NextResponse.json({ items: [], count: 0 }, { status: 401 });
 
   const items: NotifItem[] = [];
-  const today = new Date().toISOString().split("T")[0];
+  const today = clinicToday();
 
   if (hasRole(claims, "platform_admin")) {
     const sb = await createServiceRoleClient();

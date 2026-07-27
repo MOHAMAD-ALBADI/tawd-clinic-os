@@ -9,6 +9,9 @@ import { UserPlus } from "lucide-react";
 export const metadata = { title: "المرضى — طود" };
 export const dynamic = "force-dynamic";
 
+/** Directory search filters client-side, so this is also the search horizon. */
+const PATIENT_CAP = 5000;
+
 export default async function ReceptionPatientsPage() {
   const claims = await getUserClaims();
   if (!claims || !(hasRole(claims, "receptionist") || claims.role === "clinic_admin")) redirect("/login");
@@ -18,8 +21,11 @@ export default async function ReceptionPatientsPage() {
 
   const [{ data: people }, { data: visits }, { data: future }, { data: hist }, { data: invoices }] =
     await Promise.all([
+      /* Newest first, so if the cap bites it drops the oldest records
+         rather than an arbitrary slice — and the UI says when it did. */
       sb.from("patients").select("id, name, phone, gender, dob")
-        .eq("clinic_id", claims.clinic_id).is("deleted_at", null).limit(5000),
+        .eq("clinic_id", claims.clinic_id).is("deleted_at", null)
+        .order("created_at", { ascending: false }).limit(PATIENT_CAP),
       sb.from("appointments").select("patient_id, slot_time")
         .eq("clinic_id", claims.clinic_id).eq("status", "completed").is("deleted_at", null)
         .order("slot_time", { ascending: false }).limit(5000),
@@ -90,7 +96,7 @@ export default async function ReceptionPatientsPage() {
         </Link>
       </div>
 
-      <PatientDirectory patients={patients} />
+      <PatientDirectory patients={patients} capped={(people ?? []).length >= PATIENT_CAP} />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { clinicToday, clinicDayRange } from "@/lib/clinic-time";
+import { clinicToday, clinicDayRange, clinicDatePlus } from "@/lib/clinic-time";
 import { Activity, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { getUserClaims }             from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -118,7 +118,7 @@ export default async function ClinicAdminPage() {
   /* ── Action-center signals: what the manager must act on, pulled from the
      operational modules (inventory / insurance / commissions / finance). ── */
   const monthStart = `${today.slice(0, 7)}-01`;
-  const soon60 = new Date(Date.now() + 60 * 86_400_000).toISOString().slice(0, 10);
+  const soon60 = clinicDatePlus(60);
   const [invItemsRes, expiringRes, claimsRes, commRes, expensesRes, monthPaidRes, unbilledRes] =
     await Promise.all([
       sb.from("inventory_items").select("current_stock, reorder_level")

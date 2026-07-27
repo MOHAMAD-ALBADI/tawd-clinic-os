@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { clinicToday } from "@/lib/clinic-time";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { ScheduleEditor, type ScheduleRow, type LeaveRow } from "@/components/doctor/schedule-editor";
@@ -10,7 +11,7 @@ export default async function DoctorSchedulePage() {
   if (!claims || claims.role !== "doctor") redirect("/login");
 
   const supabase = await createServerSupabaseClient();
-  const today = new Date().toISOString().split("T")[0];
+  const today = clinicToday();
 
   const [{ data: schedule }, { data: leaves }] = await Promise.all([
     supabase

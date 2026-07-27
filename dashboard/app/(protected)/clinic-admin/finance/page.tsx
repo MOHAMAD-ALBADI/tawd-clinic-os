@@ -1,4 +1,5 @@
 import { getUserClaims } from "@/lib/auth/get-user-claims";
+import { clinicToday } from "@/lib/clinic-time";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { TrendingUp, TrendingDown, Wallet, PieChart, Banknote, CreditCard, Smartphone, ShieldCheck, AlertTriangle } from "lucide-react";
 
@@ -67,7 +68,7 @@ export default async function FinanceOverviewPage() {
   const cats = [...byCat.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
 
   /* ── outstanding ── */
-  const today = now.toISOString().slice(0, 10);
+  const today = clinicToday(now);
   const outstanding = (invRes.data ?? []).reduce((s, i) => s + n(i.total), 0);
   const overdueRows = (invRes.data ?? []).filter((i) => i.status === "overdue" || (i.due_date && (i.due_date as string) < today));
   const overdue = overdueRows.reduce((s, i) => s + n(i.total), 0);
