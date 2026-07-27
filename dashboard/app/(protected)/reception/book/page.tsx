@@ -8,7 +8,10 @@ import { ArrowRight } from "lucide-react";
 
 export const metadata = { title: "حجز موعد — طود" };
 
-export default async function BookPage() {
+export default async function BookPage({
+  searchParams,
+}: { searchParams: Promise<{ patient?: string; doctor?: string; date?: string; time?: string }> }) {
+  const sp = await searchParams;
   const claims = await getUserClaims();
   if (!claims || !(hasRole(claims, "receptionist") || claims.role === "clinic_admin")) redirect("/login");
 
@@ -34,10 +37,13 @@ export default async function BookPage() {
         </p>
       </div>
 
+      {/* Arrived from a calendar gap or a follow-up row — carry the choice in
+          rather than making the desk retype what it just clicked. */}
       <QuickBook
         patients={(patientsRes.data ?? []) as { id: string; name: string; phone: string | null }[]}
         services={(servicesRes.data ?? []).map((s) => ({ id: s.id, label: s.name_ar as string }))}
         doctors={(doctorsRes.data ?? []).map((d) => ({ id: d.id, label: (d.name_ar ?? d.name) as string }))}
+        prefill={{ patientId: sp.patient, doctorId: sp.doctor, date: sp.date, time: sp.time }}
       />
     </div>
   );

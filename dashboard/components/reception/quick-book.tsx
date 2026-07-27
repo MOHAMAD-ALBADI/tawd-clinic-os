@@ -10,14 +10,22 @@ type Opt = { id: string; label: string };
 
 /** Desk booking — availability-checked server-side (overlap + schedules + leaves).
     All feedback is in-app: no browser dialogs. */
+/** Prefill from wherever the desk arrived. Clicking a gap in the calendar, or
+    "book" beside a name on the follow-up list, should land on a form that
+    already knows the answer — retyping what you just clicked is the difference
+    between a tool and a form. */
+export type BookPrefill = { patientId?: string; doctorId?: string; date?: string; time?: string };
+
 export function QuickBook({
   patients,
   services,
   doctors,
+  prefill,
 }: {
   patients: PatientOpt[];
   services: Opt[];
   doctors: Opt[];
+  prefill?: BookPrefill;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -27,13 +35,13 @@ export function QuickBook({
   const [alts, setAlts] = useState<string[]>([]);
   const [success, setSuccess] = useState<{ patient: string; doctor: string; service: string; date: string; time: string } | null>(null);
   const [form, setForm] = useState({
-    patientId: "",
+    patientId: prefill?.patientId ?? "",
     name: "",
     phone: "",
     serviceId: services[0]?.id ?? "",
-    doctorId: "any" as string,
-    date: new Date(Date.now() + 86_400_000).toISOString().split("T")[0],
-    time: "10:00",
+    doctorId: prefill?.doctorId ?? ("any" as string),
+    date: prefill?.date ?? new Date(Date.now() + 86_400_000).toISOString().split("T")[0],
+    time: prefill?.time ?? "10:00",
   });
 
   const filtered = useMemo(() => {
@@ -88,6 +96,8 @@ export function QuickBook({
     setSearch("");
   }
 
+  const prefilled = patients.find((p) => p.id === prefill?.patientId);
+
   /* ── success card ── */
   if (success) {
     const dateAr = new Intl.DateTimeFormat("ar", { weekday: "long", day: "numeric", month: "long" })
@@ -115,6 +125,15 @@ export function QuickBook({
 
   return (
     <div className="panel" style={{ padding: "1.5rem", maxWidth: 620 }}>
+      {prefilled && (
+        <div className="flex items-center gap-2 text-[12.5px] px-3.5 py-2.5 rounded-xl mb-4"
+          style={{ background: "rgb(var(--accent-1-rgb) / 0.08)", border: "1px solid rgb(var(--accent-1-rgb) / 0.24)", color: "var(--accent-1)" }}>
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          الحجز لـ <span className="font-bold">{prefilled.name}</span>
+          {prefilled.phone && <span className="ltr-nums" style={{ color: "var(--text-3)" }}>{prefilled.phone}</span>}
+        </div>
+      )}
+
       <h3 className="font-bold text-white flex items-center gap-2 text-sm mb-4">
         <CalendarPlus className="w-4 h-4" style={{ color: "var(--accent-1)" }} />
         حجز موعد
