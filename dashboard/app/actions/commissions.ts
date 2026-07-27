@@ -1,6 +1,7 @@
 "use server";
 
 import { getUserClaims } from "@/lib/auth/get-user-claims";
+import { assertOwnClinic } from "@/lib/internal-guard";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { logExpense } from "@/app/actions/expenses";
 import { revalidatePath } from "next/cache";
@@ -62,6 +63,8 @@ export async function logCommissionForInvoice(e: {
 }): Promise<void> {
   try {
     if (!e.doctorId) return;
+    /* Exported from a "use server" file, therefore a network endpoint. */
+    await assertOwnClinic(e.clinicId);
     const sb = await createServerSupabaseClient();
     const { data: prof } = await sb.from("staff_hr_profiles")
       .select("commission_rate").eq("clinic_id", e.clinicId).eq("staff_id", e.doctorId).maybeSingle();

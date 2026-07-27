@@ -1,6 +1,7 @@
 "use server";
 
 import { getUserClaims } from "@/lib/auth/get-user-claims";
+import { assertOwnClinic } from "@/lib/internal-guard";
 import { clinicToday } from "@/lib/clinic-time";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
@@ -244,6 +245,8 @@ export async function logClaimForInvoice(e: {
   clinicId: string; patientId: string; apptId?: string | null; invoiceId: string; invoiceTotal: number;
 }): Promise<void> {
   try {
+    /* Exported from a "use server" file, therefore a network endpoint. */
+    await assertOwnClinic(e.clinicId);
     const sb = await createServerSupabaseClient();
     const { data: cover } = await sb.from("patient_insurance")
       .select("provider_id, coverage_percent, valid_until")

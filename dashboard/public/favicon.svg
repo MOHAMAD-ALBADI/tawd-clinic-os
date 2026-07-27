@@ -1,4 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <polygon points="16,3 30,27 2,27" fill="#0D9488"/>
-  <polygon points="16,10 23,23 9,23" fill="#0f766e" opacity="0.75"/>
+  <!--
+    The TAWD mark: three bars ascending left to right — a mountain's steps
+    (طود), a rising chart, full signal.
+
+    What was here was a teal triangle: the wrong shape entirely, in a palette
+    the product stopped using when the brand moved to Tawd Blue. The tab is
+    where the brand is seen every day, at 16 pixels, beside twenty other tabs —
+    so this is drawn for that size rather than scaled down from the app logo.
+    The bars are thicker, the lean is gentler, and there is no glow; all three
+    disappear at 16px and only cost contrast.
+  -->
+  <rect width="32" height="32" rx="8" fill="#0a0a09"/>
+  <g transform="skewY(-8) translate(0 2.4)">
+    <rect x="5"  y="17" width="6" height="9"  rx="1.8" fill="#5b93ff"/>
+    <rect x="13" y="13" width="6" height="13" rx="1.8" fill="#89aeff"/>
+    <rect x="21" y="8"  width="6" height="18" rx="1.8" fill="#ffffff"/>
+  </g>
 </svg>

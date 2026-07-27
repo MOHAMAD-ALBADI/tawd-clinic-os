@@ -1,6 +1,7 @@
 "use server";
 
 import { getUserClaims } from "@/lib/auth/get-user-claims";
+import { assertOwnClinic } from "@/lib/internal-guard";
 import { clinicToday } from "@/lib/clinic-time";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
@@ -66,6 +67,8 @@ export async function logExpense(e: {
 }): Promise<void> {
   try {
     if (!(Number(e.amount) > 0)) return;
+    /* Exported from a "use server" file, therefore a network endpoint. */
+    await assertOwnClinic(e.clinicId);
     const sb = await createServerSupabaseClient();
     await sb.from("expenses").insert({
       clinic_id: e.clinicId,
