@@ -4,7 +4,7 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { TawdBarsGlyph } from "@/components/shell/tawd-logo";
-import { clinicToday, clinicDayRange } from "@/lib/clinic-time";
+import { clinicToday, clinicDayRange, clinicDatePlus } from "@/lib/clinic-time";
 import { arTime } from "@/lib/ar-format";
 import { Banknote, CreditCard, ReceiptText, AlertCircle, ChevronLeft, Lock } from "lucide-react";
 
@@ -32,11 +32,17 @@ export default async function AccountantPage() {
       .eq("clinic_id", claims.clinic_id).eq("status", "paid").gte("created_at", monthStart).is("deleted_at", null),
     sb.from("invoices").select("total, status")
       .eq("clinic_id", claims.clinic_id).in("status", ["sent", "partially_paid", "overdue"]).is("deleted_at", null),
+    /* Every completed visit with no invoice, not just today's.
+
+       This was scoped to today, so a visit finished yesterday and not billed
+       vanished from the accountant's world entirely — there was no screen
+       anywhere that listed it. Work delivered and never charged for, and
+       nothing in the product ever mentioned it again. Ninety days back. */
     sb.from("appointments")
       .select("id, slot_time, patients!patient_id(name), services!service_id(name_ar, price), invoices!appt_id(id)")
       .eq("clinic_id", claims.clinic_id).eq("status", "completed")
-      .gte("slot_time", startUtc).lte("slot_time", endUtc)
-      .is("deleted_at", null).order("slot_time", { ascending: false }),
+      .gte("slot_time", clinicDayRange(clinicDatePlus(-90)).startUtc)
+      .is("deleted_at", null).order("slot_time", { ascending: false }).limit(500),
     sb.from("payments")
       .select("id, gateway, amount, paid_at, invoices!invoice_id(invoice_number, patients!patient_id(name))")
       .eq("clinic_id", claims.clinic_id).eq("status", "completed")
@@ -56,6 +62,10 @@ export default async function AccountantPage() {
   const pendingTotal = pending.reduce((s, i) => s + Number(i.total ?? 0), 0);
   const overdueCount = pending.filter((i) => i.status === "overdue").length;
   const ready = (readyRes.data ?? []).filter((a) => !(a.invoices as unknown as { id: string }[] | null)?.length);
+  /* Money the clinic earned and never billed. Naming the figure is the point —
+     "3 visits" is a chore, "45.000 ر.ع unbilled" is a decision. */
+  const readyValue = ready.reduce(
+    (s, a) => s + Number((a.services as unknown as { price?: number } | null)?.price ?? 0), 0);
   const dayClosed = (closedRes.data ?? []).length > 0;
 
   const fmtTime = (iso: string) => arTime.format(new Date(iso));
@@ -97,7 +107,9 @@ export default async function AccountantPage() {
       {/* ══ KPIs ══ */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { l: "جاهز للفوترة", v: ready.length, sub: "كشف مكتمل بلا فاتورة", warn: ready.length > 0 },
+          { l: "جاهز للفوترة", v: ready.length,
+            sub: readyValue > 0 ? `${fmt(readyValue)} ر.ع لم تُفوتَر` : "كشف مكتمل بلا فاتورة",
+            warn: ready.length > 0 },
           { l: "غير مسدد", v: fmt(pendingTotal), sub: `${pending.length} فاتورة`, warn: false },
           { l: "متأخرة", v: overdueCount, sub: "تحتاج متابعة", warn: overdueCount > 0 },
           { l: "عمليات اليوم", v: (paysTodayRes.data ?? []).length, sub: "دفعة مسجّلة", warn: false },
@@ -122,7 +134,7 @@ export default async function AccountantPage() {
           {ready.length === 0 ? (
             <div className="text-center py-10">
               <ReceiptText className="w-8 h-8 mx-auto mb-3" style={{ color: "var(--text-4)" }} />
-              <p className="text-sm" style={{ color: "var(--text-3)" }}>كل كشوفات اليوم مفوترة ✓</p>
+              <p className="text-sm" style={{ color: "var(--text-3)" }}>لا كشف مكتمل بلا فاتورة ✓</p>
             </div>
           ) : (
             <div className="space-y-1.5">
@@ -132,7 +144,15 @@ export default async function AccountantPage() {
                 return (
                   <div key={a.id} className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl flex-wrap"
                     style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
-                    <span className="text-[12px] ltr-nums w-14 shrink-0" style={{ color: "var(--text-3)" }}>{fmtTime(a.slot_time)}</span>
+                    {(() => {
+                      const days = Math.floor((Date.now() - new Date(a.slot_time as string).getTime()) / 86_400_000);
+                      return (
+                        <span className="text-[12px] ltr-nums w-14 shrink-0"
+                          style={{ color: days >= 2 ? "#fbbf24" : "var(--text-3)" }}>
+                          {days === 0 ? fmtTime(a.slot_time) : `${days} يوم`}
+                        </span>
+                      );
+                    })()}
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-bold text-white truncate">{p?.name ?? "مريض"}</p>
                       <p className="text-[11px]" style={{ color: "var(--text-4)" }}>{s?.name_ar ?? ""}</p>
