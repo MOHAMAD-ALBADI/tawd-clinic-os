@@ -1,4 +1,5 @@
 import { redirect, notFound } from "next/navigation";
+import { logPatientAccess } from "@/lib/patient-access-log";
 import Link from "next/link";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -37,6 +38,11 @@ export default async function PatientFilePage({ params }: { params: Promise<{ id
     .from("patients").select("id, name, phone, dob")
     .eq("id", id).eq("clinic_id", claims.clinic_id).single();
   if (!patient) notFound();
+
+  /* PDPL: record who opened this file. Fire-and-forget — see the helper. */
+  void logPatientAccess({
+    patientId: id, clinicId: claims.clinic_id, userId: claims.sub, accessType: "view_medical_history",
+  });
 
   const [{ data: vitals }, { data: notes }, { data: appts }, { data: history }] = await Promise.all([
     supabase.from("patient_vitals").select("*").eq("patient_id", id).order("recorded_at", { ascending: false }).limit(10),

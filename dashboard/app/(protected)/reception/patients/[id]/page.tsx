@@ -1,4 +1,5 @@
 import { redirect, notFound } from "next/navigation";
+import { logPatientAccess } from "@/lib/patient-access-log";
 import Link from "next/link";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -45,6 +46,11 @@ export default async function ReceptionPatientPage({ params }: { params: Promise
     .select("id, name, phone, email, dob, gender, national_id, created_at, source_channel")
     .eq("id", id).eq("clinic_id", claims.clinic_id).maybeSingle();
   if (!patient) notFound();
+
+  /* PDPL: record who opened this file. Fire-and-forget — see the helper. */
+  void logPatientAccess({
+    patientId: id, clinicId: claims.clinic_id, userId: claims.sub, accessType: "view_profile",
+  });
 
   const [{ data: appts }, { data: hist }, { data: invoices }] = await Promise.all([
     sb.from("appointments")
