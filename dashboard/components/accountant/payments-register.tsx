@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Search, X, Banknote, CreditCard, ShieldCheck, AlertTriangle, CheckCircle2,
-  Ban, Coins, Hash, UserCircle,
+  Ban, Coins, Hash, UserCircle, Download, Printer,
 } from "lucide-react";
+import { toCsv, downloadCsv } from "@/lib/csv";
 import { voidPayment } from "@/app/actions/accountant";
 import { METHODS, type PaymentMethod } from "@/lib/payment-methods";
 import { arDateShort, arTime } from "@/lib/ar-format";
@@ -46,11 +47,14 @@ const iconFor = (m: string) =>
     Reconciliation is looking down a list for the row that is wrong, which is why
     the list is the screen and the totals are a strip above it. */
 export function PaymentsRegister({
-  payments, capped, staffNames,
+  payments, capped, staffNames, periodLabel,
 }: {
   payments: RegisterPayment[];
   capped: boolean;
   staffNames: Record<string, string>;
+  /** named in the exported file, so a spreadsheet on somebody's desk still says
+      which window it covers */
+  periodLabel: string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -88,6 +92,30 @@ export function PaymentsRegister({
   const unmatched = live.filter(
     (p) => METHODS[p.method as PaymentMethod]?.refLabel && !p.reference,
   );
+
+  function exportCsv() {
+    /* The filtered view, not the whole table: what is exported is what is on the
+       screen, or the file and the figures above it disagree. */
+    const csv = toCsv(rows, [
+      { header: "التاريخ", value: (p) => p.paidAt.slice(0, 10) },
+      { header: "الوقت", value: (p) => p.paidAt.slice(11, 16) },
+      { header: "المريض", value: (p) => p.patientName },
+      { header: "الفاتورة", value: (p) => p.invoiceNumber },
+      { header: "الطريقة", value: (p) => METHODS[p.method as PaymentMethod]?.label ?? p.method },
+      { header: "المبلغ", value: (p) => p.amount.toFixed(3) },
+      { header: "الرقم المرجعي", value: (p) => p.reference ?? "" },
+      { header: "استلمها", value: (p) => (p.receivedBy ? staffNames[p.receivedBy] ?? "" : "") },
+      { header: "الحالة", value: (p) => (p.voided ? "ملغاة" : "مقبوضة") },
+      { header: "سبب الإلغاء", value: (p) => p.voidReason ?? "" },
+    ], [
+      [],
+      ["الفترة", periodLabel],
+      ["عدد الدفعات المقبوضة", String(live.length)],
+      ["الإجمالي المقبوض", total.toFixed(3)],
+      ...byMethod.map(([m, v]) => [METHODS[m as PaymentMethod]?.label ?? m, v.total.toFixed(3)]),
+    ]);
+    downloadCsv(`payments-${periodLabel.replace(/[^\w-]+/g, "-")}`, csv);
+  }
 
   function doVoid(p: RegisterPayment, reason: string) {
     setMsg(null);
@@ -161,6 +189,10 @@ export function PaymentsRegister({
             </button>
           )}
         </div>
+        <button className="btn-ghost" onClick={exportCsv} disabled={rows.length === 0}
+          title="تصدير المعروض إلى Excel">
+          <Download className="w-3.5 h-3.5" /> تصدير
+        </button>
       </div>
 
       {capped && (
@@ -234,6 +266,13 @@ export function PaymentsRegister({
                   }}>
                   {omr(p.amount)}
                 </span>
+
+                {/* The patient's proof of payment, which the clinic could not
+                    produce at all before. */}
+                <Link href={`/accountant/payments/${p.id}`} className="btn-ghost shrink-0"
+                  title="سند قبض">
+                  <Printer className="w-3.5 h-3.5" style={{ color: "var(--text-3)" }} />
+                </Link>
 
                 {!p.voided && (
                   p.dayClosed ? (

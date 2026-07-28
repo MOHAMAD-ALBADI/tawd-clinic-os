@@ -7,6 +7,8 @@ import { clinicToday } from "@/lib/clinic-time";
 import {
   PaymentsRegister, type RegisterPayment,
 } from "@/components/accountant/payments-register";
+import { PeriodPicker } from "@/components/finance/period-picker";
+import { resolvePeriod, withinPeriod } from "@/lib/period";
 import { ArrowRight } from "lucide-react";
 
 export const metadata = { title: "الدفعات — طود" };
@@ -21,20 +23,27 @@ const CAP = 400;
    which patient, on which invoice, by which method, against which slip, and taken
    by which member of staff — with the one control that was missing, undoing a row
    that was entered wrong. */
-export default async function PaymentsPage() {
+export default async function PaymentsPage({
+  searchParams,
+}: { searchParams: Promise<{ period?: string; from?: string; to?: string }> }) {
   const claims = await getUserClaims();
   if (!claims || !(hasRole(claims, "accountant") || claims.role === "clinic_admin")) redirect("/login");
 
   const sb = await createServerSupabaseClient();
+  /* The window is asked for, not assumed. This screen used to show "the last 400
+     payments", which means something different every month of a clinic's life. */
+  const period = resolvePeriod(await searchParams);
 
-  const { data: rows, count } = await sb
+  const base = sb
     .from("payments")
     /* One literal string, not a concatenation: the client infers the row type
        from the select text, and anything it cannot read at compile time collapses
        the whole result to an error type. */
     .select("id, amount, gateway, transaction_id, paid_at, status, received_by, voided_at, voided_by, void_reason, invoice_id, invoices!invoice_id(invoice_number, patient_id, patients!patient_id(name))",
       { count: "exact" })
-    .eq("clinic_id", claims.clinic_id)
+    .eq("clinic_id", claims.clinic_id);
+
+  const { data: rows, count } = await withinPeriod(base, "paid_at", period)
     .order("paid_at", { ascending: false })
     .limit(CAP);
 
@@ -92,10 +101,13 @@ export default async function PaymentsPage() {
         </p>
       </div>
 
+      <PeriodPicker active={period.key} from={period.from} to={period.to} label={period.label} />
+
       <PaymentsRegister
         payments={payments}
         capped={(count ?? 0) > CAP}
         staffNames={staffNames}
+        periodLabel={period.label}
       />
     </div>
   );

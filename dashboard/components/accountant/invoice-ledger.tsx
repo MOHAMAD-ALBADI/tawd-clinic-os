@@ -5,9 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Search, X, Banknote, CreditCard, AlertTriangle, CheckCircle2, Coins,
-  ReceiptText, ChevronLeft, Undo2, ShieldCheck,
+  ReceiptText, ChevronLeft, Undo2, ShieldCheck, Download, Printer,
 } from "lucide-react";
 import { METHODS, type PaymentMethod } from "@/lib/payment-methods";
+import { toCsv, downloadCsv } from "@/lib/csv";
 import { recordPayment } from "@/app/actions/accountant";
 import { adjustInvoice } from "@/app/actions/invoices";
 import { NumField, F } from "@/components/ui/num-field";
@@ -75,12 +76,13 @@ const ageDays = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime(
     list. An accountant cannot chase money with that, which is the only reason
     the page exists. */
 export function InvoiceLedger({
-  invoices, capped, methods,
+  invoices, capped, methods, periodLabel,
 }: {
   invoices: LedgerInvoice[]; capped: boolean;
   /** the methods this clinic accepts, so the dialog cannot offer a card machine
       to a clinic that does not have one */
   methods: PaymentMethod[];
+  periodLabel: string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -148,6 +150,32 @@ export function InvoiceLedger({
       setTimeout(() => setMsg(null), 6000);
       router.refresh();
     });
+  }
+
+  function exportCsv() {
+    const csv = toCsv(rows, [
+      { header: "الفاتورة", value: (i) => i.number },
+      { header: "التاريخ", value: (i) => i.createdAt.slice(0, 10) },
+      { header: "المريض", value: (i) => i.patientName },
+      { header: "الجوال", value: (i) => i.patientPhone ?? "" },
+      { header: "الإجمالي", value: (i) => i.total.toFixed(3) },
+      { header: "المحصّل", value: (i) => netPaid(i).toFixed(3) },
+      { header: "إشعار دائن/شطب", value: (i) => i.adjusted.toFixed(3) },
+      { header: "المستحق", value: (i) => owed(i).toFixed(3) },
+      { header: "الحالة", value: (i) => STATUS[i.status]?.label ?? i.status },
+      { header: "الاستحقاق", value: (i) => i.dueDate ?? "" },
+      { header: "العمر بالأيام", value: (i) => ageDays(i.createdAt) },
+    ], [
+      [],
+      ["الفترة", periodLabel],
+      ["عدد الفواتير", String(rows.length)],
+      ["إجمالي المستحق المعروض", rows.reduce((s, i) => s + owed(i), 0).toFixed(3)],
+      ["حتى ٣٠ يوم", aging.d0.toFixed(3)],
+      ["٣١–٦٠ يوم", aging.d30.toFixed(3)],
+      ["٦١–٩٠ يوم", aging.d60.toFixed(3)],
+      ["أكثر من ٩٠ يوم", aging.d90.toFixed(3)],
+    ]);
+    downloadCsv(`invoices-${periodLabel.replace(/[^\w-]+/g, "-")}`, csv);
   }
 
   function adjust(
@@ -221,6 +249,10 @@ export function InvoiceLedger({
             </button>
           )}
         </div>
+        <button className="btn-ghost" onClick={exportCsv} disabled={rows.length === 0}
+          title="تصدير المعروض إلى Excel">
+          <Download className="w-3.5 h-3.5" /> تصدير
+        </button>
       </div>
 
       {capped && (
@@ -316,6 +348,12 @@ export function InvoiceLedger({
                     <Undo2 className="w-3.5 h-3.5" style={{ color: "#c4b5fd" }} />
                   </button>
                 )}
+                {/* The printable tax invoice existed and nothing linked to it —
+                    the accountant who issues invoices could not print one. */}
+                <Link href={`/accountant/invoices/${inv.id}`} className="btn-ghost shrink-0"
+                  title="عرض وطباعة الفاتورة الضريبية">
+                  <Printer className="w-3.5 h-3.5" style={{ color: "var(--text-3)" }} />
+                </Link>
                 {inv.patientId && (
                   <Link href={`/reception/patients/${inv.patientId}`} className="shrink-0">
                     <ChevronLeft className="w-4 h-4" style={{ color: "var(--text-4)" }} />

@@ -4,17 +4,22 @@ import { hasRole } from "@/lib/auth/role-redirect";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { InvoiceLedger, type LedgerInvoice } from "@/components/accountant/invoice-ledger";
 import { offeredMethods } from "@/lib/payment-methods";
+import { PeriodPicker } from "@/components/finance/period-picker";
+import { resolvePeriod, withinPeriod } from "@/lib/period";
 
 export const metadata = { title: "الفواتير — طود" };
 export const dynamic = "force-dynamic";
 
 const CAP = 500;
 
-export default async function InvoicesPage() {
+export default async function InvoicesPage({
+  searchParams,
+}: { searchParams: Promise<{ period?: string; from?: string; to?: string }> }) {
   const claims = await getUserClaims();
   if (!claims || !(hasRole(claims, "accountant") || claims.role === "clinic_admin")) redirect("/login");
 
   const sb = await createServerSupabaseClient();
+  const period = resolvePeriod(await searchParams);
 
   /* invoice_number and the patient were both in reach and neither was shown.
      A ledger that identifies invoices by the first eight characters of a UUID
@@ -22,11 +27,15 @@ export default async function InvoicesPage() {
   const { data: paySettings } = await sb.from("tawd_clinic_settings")
     .select("accepted_methods").eq("clinic_id", claims.clinic_id).maybeSingle();
 
-  const { data: rows, count } = await sb
+  const invoiceQuery = sb
     .from("invoices")
     .select("id, invoice_number, total, adjusted_amount, status, created_at, due_date, patient_id, patients!patient_id(name, phone)",
             { count: "exact" })
-    .eq("clinic_id", claims.clinic_id).is("deleted_at", null)
+    .eq("clinic_id", claims.clinic_id).is("deleted_at", null);
+
+  /* Bounded by the chosen window rather than "the newest five hundred", which
+     meant something different every month the clinic grew. */
+  const { data: rows, count } = await withinPeriod(invoiceQuery, "created_at", period)
     .order("created_at", { ascending: false })
     .limit(CAP);
 
@@ -82,8 +91,11 @@ export default async function InvoicesPage() {
         </p>
       </div>
 
+      <PeriodPicker active={period.key} from={period.from} to={period.to} label={period.label} />
+
       <InvoiceLedger invoices={invoices} capped={(count ?? 0) > CAP}
-        methods={offeredMethods(paySettings?.accepted_methods as string[] | null)} />
+        methods={offeredMethods(paySettings?.accepted_methods as string[] | null)}
+        periodLabel={period.label} />
     </div>
   );
 }
