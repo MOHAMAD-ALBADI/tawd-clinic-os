@@ -26,7 +26,7 @@ import {
   Receipt,
   ShieldCheck,
   type LucideIcon,
-  Coins, TrendingUp, TrendingDown,
+  Coins, TrendingUp, TrendingDown, AtSign,
 } from "lucide-react";
 
 export interface NavItem {
@@ -143,6 +143,9 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { section: "التشغيل",
       label: "الأتمتة",       href: "/platform-admin/automation",    icon: Workflow },
     { label: "حملات المنصة", href: "/platform-admin/broadcast",     icon: Megaphone },
+    /* Sura answering DMs on TAWD's own account — her voice, and every
+       conversation she has had. */
+    { label: "إنستغرام",     href: "/platform-admin/instagram",     icon: AtSign },
 
     { section: "النظام",
       label: "الإعدادات",     href: "/platform-admin/settings",      icon: Settings },
