@@ -5,6 +5,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { CheckoutFlow } from "@/components/accountant/checkout-flow";
 import { loadOpenReceivables, sumOwed } from "@/lib/receivables";
+import { offeredMethods } from "@/lib/payment-methods";
 import { ArrowRight, AlertTriangle, User, Stethoscope } from "lucide-react";
 
 export const metadata = { title: "الكاشير — طود" };
@@ -27,11 +28,15 @@ export default async function CheckoutPage({ params }: { params: Promise<{ apptI
   if (!appt) notFound();
 
   /* outstanding balance from previous invoices — collect it while they're here */
-  const [oldInv, { data: pat }, { data: loyaltyCfg }] = await Promise.all([
+  const [oldInv, { data: pat }, { data: loyaltyCfg }, { data: paySettings }] = await Promise.all([
     loadOpenReceivables(sb, claims.clinic_id, { patientIds: [appt.patient_id as string] }),
     sb.from("patients").select("loyalty_points").eq("id", appt.patient_id).single(),
     sb.from("loyalty_settings")
       .select("is_active, redemption_rate, min_redeem_points, max_redeem_pct")
+      .eq("clinic_id", claims.clinic_id).maybeSingle(),
+    /* Which methods this clinic takes, and the account a transfer goes to. */
+    sb.from("tawd_clinic_settings")
+      .select("accepted_methods, bank_name, bank_account_name, bank_iban, transfer_phone")
       .eq("clinic_id", claims.clinic_id).maybeSingle(),
   ]);
   /* Net of payments and credit notes, and excluding the visit being billed right
@@ -99,7 +104,19 @@ export default async function CheckoutPage({ params }: { params: Promise<{ apptI
         </div>
       )}
 
-      {appt.status === "completed" && <CheckoutFlow appointmentId={apptId} loyalty={loyalty} />}
+      {appt.status === "completed" && (
+        <CheckoutFlow
+          appointmentId={apptId}
+          loyalty={loyalty}
+          methods={offeredMethods(paySettings?.accepted_methods as string[] | null)}
+          bank={{
+            bankName: (paySettings?.bank_name as string | null) ?? null,
+            accountName: (paySettings?.bank_account_name as string | null) ?? null,
+            iban: (paySettings?.bank_iban as string | null) ?? null,
+            phone: (paySettings?.transfer_phone as string | null) ?? null,
+          }}
+        />
+      )}
     </div>
   );
 }

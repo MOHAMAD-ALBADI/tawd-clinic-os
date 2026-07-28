@@ -7,10 +7,11 @@ import { DayCloseForm } from "@/components/accountant/day-close-form";
 import { clinicToday, clinicDayRange } from "@/lib/clinic-time";
 import { ArrowRight, History, ListChecks, Banknote, CreditCard, Undo2 } from "lucide-react";
 import { arTime } from "@/lib/ar-format";
+import { bucketOf, METHOD_AR } from "@/lib/payment-methods";
 
-const GATEWAY_AR: Record<string, string> = {
-  cash: "نقداً", bank_transfer: "تحويل/شبكة", thawani: "ثواني", insurance: "تأمين",
-};
+/* One vocabulary, shared with the cashier and the register — this local copy
+   called bank_transfer "تحويل/شبكة", the same conflation the schema has now
+   dropped. */
 
 export const metadata = { title: "إغلاق اليوم — طود" };
 export const dynamic = "force-dynamic";
@@ -45,21 +46,23 @@ export default async function DayClosePage() {
       .gte("created_at", startUtc).lt("created_at", endUtc)
       .order("created_at"),
     sb.from("cashier_day_closes")
-      .select("close_date, opening_float, counted_cash, system_cash, system_card, system_refunds, variance, notes")
+      .select("close_date, opening_float, counted_cash, system_cash, system_card, system_transfer, system_refunds, variance, notes")
       .eq("clinic_id", claims.clinic_id)
       .order("close_date", { ascending: false }).limit(10),
   ]);
 
-  /* Same three buckets closeDay() writes. The preview used to fold everything
-     non-cash into "card", so an insurance settlement was shown as card takings
-     and then recorded as "other" — the cashier saw one figure on screen and a
-     different one in the saved close. */
-  let cash = 0, card = 0, other = 0;
+  /* The same buckets closeDay() writes, from the same function — the preview and
+     the saved close must not be able to disagree, and they did: everything
+     non-cash was folded into "card" on screen and recorded as "other". */
+  let cash = 0, card = 0, transfer = 0, other = 0;
   for (const p of pays ?? []) {
     const amt = Number(p.amount ?? 0);
-    if (p.gateway === "cash") cash += amt;
-    else if (p.gateway === "bank_transfer" || p.gateway === "thawani") card += amt;
-    else other += amt;
+    switch (bucketOf(p.gateway as string)) {
+      case "drawer":   cash += amt; break;
+      case "terminal": card += amt; break;
+      case "bank":     transfer += amt; break;
+      default:         other += amt;
+    }
   }
 
   /* Only cash refunds touch the drawer — a reversed card payment is settled by
@@ -84,7 +87,8 @@ export default async function DayClosePage() {
 
       <div className="grid lg:grid-cols-2 gap-4 items-start">
         <div className="space-y-4">
-          <DayCloseForm systemCash={cash} systemCard={card} systemOther={other} cashRefunds={cashRefunds} />
+          <DayCloseForm systemCash={cash} systemCard={card} systemTransfer={transfer}
+            systemOther={other} cashRefunds={cashRefunds} />
 
           {/* Every payment behind today's figures. */}
           <div className="panel" style={{ padding: "1.25rem" }}>
@@ -117,7 +121,7 @@ export default async function DayClosePage() {
                         </p>
                         <p className="text-[10px] truncate" style={{ color: "var(--text-4)" }}>
                           <span className="ltr-nums">{inv?.invoice_number ?? ""}</span>
-                          {" · "}{GATEWAY_AR[r.method as string] ?? r.method}{" · "}{r.reason as string}
+                          {" · "}{METHOD_AR(r.method as string)}{" · "}{r.reason as string}
                         </p>
                       </div>
                       <span className="text-[12.5px] font-black ltr-nums shrink-0" style={{ color: "#c4b5fd" }}>
@@ -153,7 +157,7 @@ export default async function DayClosePage() {
                           {inv?.patients?.name ?? "—"}
                         </p>
                         <p className="text-[10px] ltr-nums" style={{ color: "var(--text-4)" }}>
-                          {inv?.invoice_number ?? ""} · {GATEWAY_AR[p.gateway as string] ?? p.gateway}
+                          {inv?.invoice_number ?? ""} · {METHOD_AR(p.gateway as string)}
                         </p>
                       </div>
                       <span className="text-[12.5px] font-black ltr-nums shrink-0"
@@ -185,7 +189,8 @@ export default async function DayClosePage() {
                     style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
                     <span className="text-[12px] font-semibold text-white w-28 shrink-0">{fmtDate(h.close_date)}</span>
                     <span className="text-[11px] ltr-nums flex-1" style={{ color: "var(--text-3)" }}>
-                      كاش {fmt(Number(h.system_cash))} · شبكة {fmt(Number(h.system_card))}
+                      كاش {fmt(Number(h.system_cash))} · مكينة {fmt(Number(h.system_card))}
+                      {Number(h.system_transfer ?? 0) > 0 && <> · تحويل {fmt(Number(h.system_transfer))}</>}
                       {Number(h.system_refunds ?? 0) > 0 && (
                         <span style={{ color: "#c4b5fd" }}> · مستردّ {fmt(Number(h.system_refunds))}</span>
                       )}

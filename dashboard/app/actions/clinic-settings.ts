@@ -177,6 +177,47 @@ export async function updateWorkingHours(hours: Record<string, { open: string; c
   revalidatePath("/clinic-admin/settings");
 }
 
+/** Which methods the desk takes, and where a bank transfer goes.
+
+    The cashier used to offer every clinic the same two buttons and had nowhere to
+    read the account from, so the receptionist recited it from memory. */
+export async function savePaymentSettings(input: {
+  methods: string[];
+  bankName: string | null;
+  accountName: string | null;
+  iban: string | null;
+  phone: string | null;
+}) {
+  const claims = await getUserClaims();
+  if (!claims || claims.role !== "clinic_admin") {
+    return { ok: false as const, reason: "غير مصرح" };
+  }
+
+  const KNOWN = new Set(["cash", "card", "bank_transfer", "insurance", "thawani"]);
+  const methods = [...new Set(input.methods)].filter((m) => KNOWN.has(m));
+
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase.from("tawd_clinic_settings").upsert(
+    {
+      clinic_id: claims.clinic_id,
+      /* Empty is stored as null, which the cashier reads as "not configured" and
+         therefore offers everything. Storing an empty array would mean "this
+         clinic accepts no money", which nobody intends by unticking four boxes. */
+      accepted_methods: methods.length ? methods : null,
+      bank_name: input.bankName,
+      bank_account_name: input.accountName,
+      bank_iban: input.iban,
+      transfer_phone: input.phone,
+    },
+    { onConflict: "clinic_id" },
+  );
+  if (error) return { ok: false as const, reason: "تعذّر حفظ طرق الدفع" };
+
+  revalidatePath("/clinic-admin/settings");
+  revalidatePath("/accountant/invoices");
+  return { ok: true as const };
+}
+
 /** Set the clinic's Google review link (used by Sura's post-visit follow-up message). */
 export async function updateReviewLink(url: string) {
   const claims = await getUserClaims();

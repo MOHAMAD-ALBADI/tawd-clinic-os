@@ -7,6 +7,7 @@ import { consumeServiceMaterials } from "@/app/actions/inventory";
 import { logClaimForInvoice } from "@/app/actions/insurance";
 import { logCommissionForInvoice } from "@/app/actions/commissions";
 import { clinicToday, clinicDayRange } from "@/lib/clinic-time";
+import { METHODS, bucketOf, type PaymentMethod } from "@/lib/payment-methods";
 import { revalidatePath } from "next/cache";
 
 async function requireAccountant() {
@@ -223,15 +224,29 @@ export async function createInvoiceForAppointment(appointmentId: string) {
   return { ok: true as const, invoiceId: inv.id, total, invoiceNumber, existed: false };
 }
 
-/** Record a payment against an invoice and roll the invoice status forward. */
+/** Record a payment against an invoice and roll the invoice status forward.
+
+    The method is the real one — the clinic's card machine is not a bank transfer
+    — and it carries the reference off the slip, because a payment nobody can
+    match to a terminal report or a bank statement is a number the clinic has to
+    take on trust. `received_by` is who was standing at the desk: without it a
+    short till has no owner. */
 export async function recordPayment(
   invoiceId: string,
-  gateway: "cash" | "bank_transfer",
-  amount: number
+  gateway: PaymentMethod,
+  amount: number,
+  reference?: string,
 ) {
   const claims = await requireAccountant();
   const sb = await createServerSupabaseClient();
   if (!(amount > 0)) return { ok: false as const, reason: "المبلغ غير صالح" };
+
+  const meta = METHODS[gateway];
+  if (!meta) return { ok: false as const, reason: "طريقة دفع غير معروفة" };
+  const ref = reference?.trim() || null;
+  if (meta.refRequired && !ref) {
+    return { ok: false as const, reason: `${meta.refLabel} مطلوب — بدونه لا يمكن مطابقة الدفعة` };
+  }
 
   const { data: inv, error: ierr } = await sb
     .from("invoices").select("id, total, net_total, status, patient_id, appt_id")
@@ -255,6 +270,8 @@ export async function recordPayment(
     amount: round3(amount),
     status: "completed",
     paid_at: new Date().toISOString(),
+    transaction_id: ref,
+    received_by: claims.sub,
   });
   if (perr) return { ok: false as const, reason: "تعذّر تسجيل الدفعة" };
 
@@ -369,14 +386,21 @@ export async function closeDay(input: DayCloseInput) {
       .lt("created_at", endUtc),
   ]);
 
-  let cash = 0, card = 0, other = 0;
+  /* One figure per document the clinic can actually check against: the drawer it
+     counts, the card machine's own settlement report, and the bank statement.
+     These three used to be two, with the terminal and the bank folded together
+     into "card" — a number that matches neither report. */
+  let cash = 0, card = 0, transfer = 0, other = 0;
   for (const p of pays ?? []) {
     const amt = Number(p.amount ?? 0);
-    if (p.gateway === "cash") cash += amt;
-    else if (p.gateway === "bank_transfer" || p.gateway === "thawani") card += amt;
-    else other += amt;
+    switch (bucketOf(p.gateway as string)) {
+      case "drawer":   cash += amt; break;
+      case "terminal": card += amt; break;
+      case "bank":     transfer += amt; break;
+      default:         other += amt;
+    }
   }
-  cash = round3(cash); card = round3(card); other = round3(other);
+  cash = round3(cash); card = round3(card); transfer = round3(transfer); other = round3(other);
   const cashRefunds = round3((refunds ?? []).reduce((s, r) => s + Number(r.amount ?? 0), 0));
 
   const expectedCash = round3(Number(input.openingFloat) + cash - cashRefunds);
@@ -390,6 +414,7 @@ export async function closeDay(input: DayCloseInput) {
       counted_cash: round3(Number(input.countedCash)),
       system_cash: cash,
       system_card: card,
+      system_transfer: transfer,
       system_other: other,
       system_refunds: cashRefunds,
       variance,
@@ -402,9 +427,89 @@ export async function closeDay(input: DayCloseInput) {
 
   revalidatePath("/accountant/day-close");
   return {
-    ok: true as const, systemCash: cash, systemCard: card, systemOther: other,
+    ok: true as const, systemCash: cash, systemCard: card,
+    systemTransfer: transfer, systemOther: other,
     cashRefunds, expectedCash, variance,
   };
+}
+
+/** Undo a payment that was recorded by mistake.
+
+    A typo is not a refund. A refund says money left the drawer; a mis-keyed
+    payment means money never arrived, and recording it as a refund would make
+    the till wrong a second time in the other direction. So the row stays, marked
+    void with a reason and a name, and every sum of money received ignores it.
+
+    Refused once the day is closed: those totals have been counted against a
+    drawer, a terminal report and a bank statement, and silently changing them
+    afterwards makes a signed-off reconciliation untrue. A closed day is corrected
+    on the invoice instead — a refund if the money really did go back, a credit
+    note if the invoice was wrong. */
+export async function voidPayment(paymentId: string, reason: string) {
+  const claims = await requireAccountant();
+  const sb = await createServerSupabaseClient();
+
+  const why = reason.trim();
+  if (why.length < 3) return { ok: false as const, reason: "اكتب سبب الإلغاء — يبقى في السجل" };
+
+  const { data: pay } = await sb.from("payments")
+    .select("id, amount, paid_at, voided_at, invoice_id, gateway")
+    .eq("id", paymentId).eq("clinic_id", claims.clinic_id).maybeSingle();
+  if (!pay) return { ok: false as const, reason: "الدفعة غير موجودة" };
+  if (pay.voided_at) return { ok: false as const, reason: "الدفعة ملغاة أصلاً" };
+
+  /* The clinic's own day, not UTC's — Oman is +4, so anything taken before 4am
+     would otherwise be tested against the wrong date. */
+  const day = clinicToday(new Date(pay.paid_at as string));
+  const { data: closed } = await sb.from("cashier_day_closes")
+    .select("close_date").eq("clinic_id", claims.clinic_id).eq("close_date", day).limit(1);
+  if (closed?.length) {
+    return {
+      ok: false as const,
+      reason: `يوم ${day} مُغلق ومطابَق — صحّح على الفاتورة باسترداد أو إشعار دائن بدل إلغاء الدفعة`,
+    };
+  }
+
+  /* status leaves 'completed', which is what actually removes it from the money.
+     Fifteen screens sum payments and every one filters on completed, so the void
+     is invisible to none of them — a flag only some of them checked is how the
+     cashier's screen and the manager's revenue end up disagreeing. */
+  const { error } = await sb.from("payments").update({
+    status: "voided",
+    voided_at: new Date().toISOString(),
+    voided_by: claims.sub,
+    void_reason: why,
+    updated_at: new Date().toISOString(),
+  }).eq("id", paymentId).eq("clinic_id", claims.clinic_id).is("voided_at", null);
+  if (error) return { ok: false as const, reason: "تعذّر إلغاء الدفعة" };
+
+  /* The invoice's status is derived from live payments, so it has to be
+     recomputed — leaving it "paid" after removing the payment that paid it is
+     exactly the bug class this product keeps tripping over. */
+  const { data: inv } = await sb.from("invoices")
+    .select("id, total, net_total, status").eq("id", pay.invoice_id).maybeSingle();
+  if (inv) {
+    const { data: live } = await sb.from("payments").select("amount")
+      .eq("invoice_id", pay.invoice_id).eq("status", "completed");
+    const paidSum = round3((live ?? []).reduce((s, p) => s + Number(p.amount ?? 0), 0));
+    const collectable = round3(Number(inv.net_total ?? inv.total ?? 0));
+    /* Only the payment-derived statuses are ours to set. A cancelled, refunded or
+       written-off invoice was put there by a decision, not by arithmetic. */
+    if (["paid", "partially_paid", "sent", "overdue"].includes(inv.status as string)) {
+      const next = paidSum >= collectable - 0.0005 ? "paid"
+        : paidSum > 0.0005 ? "partially_paid"
+        : inv.status === "overdue" ? "overdue" : "sent";
+      await sb.from("invoices")
+        .update({ status: next, updated_at: new Date().toISOString() })
+        .eq("id", pay.invoice_id);
+    }
+  }
+
+  revalidatePath("/accountant");
+  revalidatePath("/accountant/payments");
+  revalidatePath("/accountant/invoices");
+  revalidatePath("/accountant/day-close");
+  return { ok: true as const };
 }
 
 /** Save the clinic VAT registration number (shown on printed tax invoices). */

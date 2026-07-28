@@ -3,6 +3,7 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { InvoiceLedger, type LedgerInvoice } from "@/components/accountant/invoice-ledger";
+import { offeredMethods } from "@/lib/payment-methods";
 
 export const metadata = { title: "الفواتير — طود" };
 export const dynamic = "force-dynamic";
@@ -18,6 +19,9 @@ export default async function InvoicesPage() {
   /* invoice_number and the patient were both in reach and neither was shown.
      A ledger that identifies invoices by the first eight characters of a UUID
      and never names who owes cannot be used to chase anything. */
+  const { data: paySettings } = await sb.from("tawd_clinic_settings")
+    .select("accepted_methods").eq("clinic_id", claims.clinic_id).maybeSingle();
+
   const { data: rows, count } = await sb
     .from("invoices")
     .select("id, invoice_number, total, adjusted_amount, status, created_at, due_date, patient_id, patients!patient_id(name, phone)",
@@ -78,7 +82,8 @@ export default async function InvoicesPage() {
         </p>
       </div>
 
-      <InvoiceLedger invoices={invoices} capped={(count ?? 0) > CAP} />
+      <InvoiceLedger invoices={invoices} capped={(count ?? 0) > CAP}
+        methods={offeredMethods(paySettings?.accepted_methods as string[] | null)} />
     </div>
   );
 }

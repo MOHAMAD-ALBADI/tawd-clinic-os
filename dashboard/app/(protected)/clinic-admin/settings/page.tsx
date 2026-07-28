@@ -7,6 +7,7 @@ import { WorkingHoursForm } from "@/components/settings/working-hours-form";
 import { ClinicHolidays, type Holiday } from "@/components/settings/clinic-holidays";
 import { ReviewLinkForm } from "@/components/settings/review-link-form";
 import { VatNumberForm } from "@/components/settings/vat-number-form";
+import { PaymentMethodsForm } from "@/components/settings/payment-methods-form";
 import { BookingLink } from "@/components/platform/booking-link";
 import { SettingsTabs } from "@/components/settings/settings-tabs";
 import { MySubscription, type MyInvoice } from "@/components/settings/my-subscription";
@@ -45,9 +46,9 @@ export default async function SettingsPage({
         .single(),
       supabase
         .from("tawd_clinic_settings")
-        .select("working_hours, mfa_enforced, channel_toggles, google_review_url")
+        .select("working_hours, mfa_enforced, channel_toggles, google_review_url, accepted_methods, bank_name, bank_account_name, bank_iban, transfer_phone")
         .eq("clinic_id", claims.clinic_id)
-        .single(),
+        .maybeSingle(),
       supabase
         .from("tawd_subscriptions")
         .select("plan, status, renews_at")
@@ -167,6 +168,15 @@ export default async function SettingsPage({
             />
             {/* VAT number sits with billing, not with clinic details: it exists
                 because it is printed on every tax invoice. */}
+            {/* How money reaches the clinic sits with billing for the same
+                reason the VAT number does — it is about taking payment. */}
+            <PaymentMethodsForm initial={{
+              methods: (settings?.accepted_methods as string[] | null) ?? null,
+              bankName: (settings?.bank_name as string | null) ?? null,
+              accountName: (settings?.bank_account_name as string | null) ?? null,
+              iban: (settings?.bank_iban as string | null) ?? null,
+              phone: (settings?.transfer_phone as string | null) ?? null,
+            }} />
             <VatNumberForm current={(clinic?.vat_number as string | null) ?? null} />
           </>
         }

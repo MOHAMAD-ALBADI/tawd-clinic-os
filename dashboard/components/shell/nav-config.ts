@@ -26,6 +26,7 @@ import {
   Receipt,
   ShieldCheck,
   type LucideIcon,
+  Coins,
 } from "lucide-react";
 
 export interface NavItem {
@@ -109,6 +110,9 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { section: "المالية",
       label: "لوحة المالية",   href: "/accountant",           icon: CreditCard, exact: true },
     { label: "الفواتير",       href: "/accountant/invoices",  icon: Receipt },
+    /* Money received had no screen at all — only totals. A payment entered for
+       the wrong patient, or twice, or with a digit too many, was invisible. */
+    { label: "الدفعات",        href: "/accountant/payments",  icon: Coins },
     /* Oman VAT is quarterly with a 500–5000 r.o. penalty for filing late, and
        the product charged the tax without ever reporting it. */
     { label: "الضريبة",        href: "/accountant/vat",       icon: Scale },

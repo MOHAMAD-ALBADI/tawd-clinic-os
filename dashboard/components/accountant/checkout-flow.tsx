@@ -2,8 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ReceiptText, Banknote, CreditCard, CheckCircle2, AlertCircle, Star } from "lucide-react";
+import {
+  ReceiptText, Banknote, CreditCard, CheckCircle2, AlertCircle, Star, ShieldCheck,
+} from "lucide-react";
 import { createInvoiceForAppointment, recordPayment, redeemPoints } from "@/app/actions/accountant";
+import { METHODS, type PaymentMethod } from "@/lib/payment-methods";
 
 const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 
@@ -15,18 +18,34 @@ export type LoyaltyInfo = {
   maxPct: number;
 };
 
+export type BankDetails = {
+  bankName: string | null;
+  accountName: string | null;
+  iban: string | null;
+  phone: string | null;
+};
+
 /** Cashier: invoice the completed visit, then take the payment — one screen. */
 export function CheckoutFlow({
   appointmentId,
   loyalty,
+  methods,
+  bank,
 }: {
   appointmentId: string;
   loyalty?: LoyaltyInfo;
+  /** what this clinic actually accepts — a clinic with no card machine should not
+      be offered a card button */
+  methods: PaymentMethod[];
+  /** where a transfer goes, so the number is read off the screen and not off
+      somebody's memory */
+  bank: BankDetails;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [invoice, setInvoice] = useState<{ id: string; total: number; number: string } | null>(null);
-  const [gateway, setGateway] = useState<"cash" | "bank_transfer">("cash");
+  const [gateway, setGateway] = useState<PaymentMethod>(methods[0] ?? "cash");
+  const [reference, setReference] = useState("");
   const [amount, setAmount] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [redeemed, setRedeemed] = useState<{ points: number; value: number } | null>(null);
@@ -49,10 +68,15 @@ export function CheckoutFlow({
   function pay() {
     const amt = parseFloat(amount);
     if (!invoice || !(amt > 0)) { setErr("المبلغ غير صالح"); return; }
+    const meta = METHODS[gateway];
+    if (meta.refRequired && !reference.trim()) {
+      setErr(`${meta.refLabel} مطلوب — بدونه لا يمكن مطابقة الدفعة مع كشف البنك`);
+      return;
+    }
     setErr(null);
     start(async () => {
       try {
-        const r = await recordPayment(invoice.id, gateway, amt);
+        const r = await recordPayment(invoice.id, gateway, amt, reference.trim() || undefined);
         if (!r.ok) { setErr(r.reason); return; }
         setResult({ status: r.status, paidSum: r.paidSum, earned: r.earnedPoints ?? 0 });
         router.refresh();
@@ -161,24 +185,65 @@ export function CheckoutFlow({
 
           <div>
             <p className="text-[11px] font-semibold mb-2" style={{ color: "var(--text-3)" }}>طريقة الدفع</p>
+            {/* One button per method the clinic really takes. «شبكة / تحويل» used
+                to be one button covering the clinic's own card machine and a
+                transfer into its bank account — two things reconciled against two
+                different reports, so folding them together meant neither could be
+                checked. */}
             <div className="grid grid-cols-2 gap-2">
-              {([["cash", "كاش", Banknote], ["bank_transfer", "شبكة / تحويل", CreditCard]] as const).map(([g, label, Icon]) => (
-                <button
-                  key={g}
-                  onClick={() => setGateway(g)}
-                  className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-bold transition-colors"
-                  style={{
-                    background: gateway === g ? "rgb(var(--accent-1-rgb) / 0.12)" : "rgba(255,255,255,0.03)",
-                    border: `1px solid ${gateway === g ? "rgb(var(--accent-1-rgb) / 0.35)" : "rgba(255,255,255,0.08)"}`,
-                    color: gateway === g ? "var(--accent-1)" : "var(--text-2)",
-                  }}
-                >
-                  <Icon className="w-4 h-4" />
-                  {label}
-                </button>
-              ))}
+              {methods.map((g) => {
+                const m = METHODS[g];
+                const on = gateway === g;
+                const Icon = g === "cash" ? Banknote : g === "insurance" ? ShieldCheck : CreditCard;
+                return (
+                  <button
+                    key={g}
+                    onClick={() => { setGateway(g); setReference(""); setErr(null); }}
+                    className="flex items-start gap-2 px-3 py-2.5 rounded-xl text-[12.5px] font-bold transition-colors text-start"
+                    style={{
+                      background: on ? "rgb(var(--accent-1-rgb) / 0.12)" : "rgba(255,255,255,0.03)",
+                      border: `1px solid ${on ? "rgb(var(--accent-1-rgb) / 0.35)" : "rgba(255,255,255,0.08)"}`,
+                      color: on ? "var(--accent-1)" : "var(--text-2)",
+                    }}
+                  >
+                    <Icon className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span className="min-w-0">
+                      {m.label}
+                      <span className="block text-[10px] font-normal opacity-75 mt-0.5">{m.hint}</span>
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
+
+          {/* The account to transfer into, read off the screen rather than off a
+              sticky note — a number recited from memory is how a patient's money
+              ends up somewhere else. */}
+          {gateway === "bank_transfer" && (bank.iban || bank.phone || bank.accountName) && (
+            <div className="rounded-xl px-3.5 py-2.5 text-[11.5px] space-y-0.5"
+              style={{ background: "rgba(167,139,250,0.06)", border: "1px solid rgba(167,139,250,0.22)" }}>
+              <p className="font-bold" style={{ color: "#c4b5fd" }}>حساب العيادة للتحويل</p>
+              {bank.accountName && <p style={{ color: "var(--text-2)" }}>{bank.accountName}{bank.bankName ? ` — ${bank.bankName}` : ""}</p>}
+              {bank.iban && <p className="ltr-nums" dir="ltr" style={{ color: "var(--text-2)" }}>{bank.iban}</p>}
+              {bank.phone && <p className="ltr-nums" dir="ltr" style={{ color: "var(--text-2)" }}>{bank.phone}</p>}
+            </div>
+          )}
+
+          {/* What ties this row to a line on the terminal report or the bank
+              statement. Required only where the money is not in the room. */}
+          {METHODS[gateway].refLabel && (
+            <div>
+              <label className="text-[11px] font-semibold block mb-1" style={{ color: "var(--text-3)" }}>
+                {METHODS[gateway].refLabel}
+                {METHODS[gateway].refRequired
+                  ? " *"
+                  : <span style={{ color: "var(--text-4)" }}> (يساعد في المطابقة)</span>}
+              </label>
+              <input type="text" value={reference} onChange={(e) => setReference(e.target.value)}
+                className="field ltr-nums" dir="ltr" placeholder="—" />
+            </div>
+          )}
 
           <div>
             <label className="text-[11px] font-semibold block mb-1" style={{ color: "var(--text-3)" }}>المبلغ المقبوض (ر.ع)</label>

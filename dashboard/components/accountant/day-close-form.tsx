@@ -10,13 +10,18 @@ const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 3,
 export function DayCloseForm({
   systemCash,
   systemCard,
+  systemTransfer = 0,
   systemOther = 0,
   cashRefunds = 0,
 }: {
+  /** notes in the drawer, counted by hand */
   systemCash: number;
+  /** the clinic's own card machine — checked against its settlement report */
   systemCard: number;
-  /** insurance settlements and anything else that is neither notes nor card —
-      shown so the on-screen total matches the close that gets saved */
+  /** transfers and online links — checked against the bank statement. Was folded
+      into systemCard, which produced one number matching neither report. */
+  systemTransfer?: number;
+  /** insurance and anything else that never passes through the clinic's hands */
   systemOther?: number;
   /** cash handed back to patients today — it left the drawer, so it comes off
       the expected count. Shown rather than silently subtracted, because an
@@ -63,15 +68,24 @@ export function DayCloseForm({
 
       {/* system side — the three buckets the saved close records, so what is on
           screen and what lands in the record are the same numbers */}
+      {/* One figure per document the clinic can actually check it against. These
+          were two — with the card machine and the bank folded together — so
+          neither the terminal report nor the statement could be reconciled. */}
       <div className="grid gap-3 mb-5 grid-cols-2">
         <div className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <p className="text-[10px] mb-1" style={{ color: "var(--text-4)" }}>كاش النظام اليوم</p>
+          <p className="text-[10px] mb-1" style={{ color: "var(--text-4)" }}>نقداً — يُعدّ في الدرج</p>
           <p className="text-base font-bold ltr-nums text-white">{fmt(systemCash)}</p>
         </div>
         <div className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <p className="text-[10px] mb-1" style={{ color: "var(--text-4)" }}>شبكة/تحويل النظام</p>
+          <p className="text-[10px] mb-1" style={{ color: "var(--text-4)" }}>مكينة البطاقة — طابقه بتقريرها</p>
           <p className="text-base font-bold ltr-nums text-white">{fmt(systemCard)}</p>
         </div>
+        {systemTransfer > 0 && (
+          <div className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <p className="text-[10px] mb-1" style={{ color: "var(--text-4)" }}>تحويلات — طابقها بكشف البنك</p>
+            <p className="text-base font-bold ltr-nums text-white">{fmt(systemTransfer)}</p>
+          </div>
+        )}
         {systemOther > 0 && (
           <div className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
             <p className="text-[10px] mb-1" style={{ color: "var(--text-4)" }}>تأمين/أخرى</p>

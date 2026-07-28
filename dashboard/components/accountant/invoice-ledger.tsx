@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Search, X, Banknote, CreditCard, AlertTriangle, CheckCircle2, Coins,
-  ReceiptText, ChevronLeft, Undo2,
+  ReceiptText, ChevronLeft, Undo2, ShieldCheck,
 } from "lucide-react";
+import { METHODS, type PaymentMethod } from "@/lib/payment-methods";
 import { recordPayment } from "@/app/actions/accountant";
 import { adjustInvoice } from "@/app/actions/invoices";
 import { NumField, F } from "@/components/ui/num-field";
@@ -73,7 +74,14 @@ const ageDays = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime(
     ignored), no way to take a payment, and a total row count above a capped
     list. An accountant cannot chase money with that, which is the only reason
     the page exists. */
-export function InvoiceLedger({ invoices, capped }: { invoices: LedgerInvoice[]; capped: boolean }) {
+export function InvoiceLedger({
+  invoices, capped, methods,
+}: {
+  invoices: LedgerInvoice[]; capped: boolean;
+  /** the methods this clinic accepts, so the dialog cannot offer a card machine
+      to a clinic that does not have one */
+  methods: PaymentMethod[];
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [tab, setTab] = useState<Tab>("open");
@@ -126,10 +134,10 @@ export function InvoiceLedger({ invoices, capped }: { invoices: LedgerInvoice[];
   const outstanding = aging.d0 + aging.d30 + aging.d60 + aging.d90;
   const shownTotal = rows.reduce((s, i) => s + (tab === "paid" ? netPaid(i) : owed(i)), 0);
 
-  function pay(inv: LedgerInvoice, gateway: "cash" | "bank_transfer", amount: number) {
+  function pay(inv: LedgerInvoice, gateway: PaymentMethod, amount: number, ref: string) {
     setMsg(null);
     start(async () => {
-      const r = await recordPayment(inv.id, gateway, amount);
+      const r = await recordPayment(inv.id, gateway, amount, ref || undefined);
       if (!r.ok) { setMsg({ text: r.reason, bad: true }); return; }
       setPaying(null);
       setMsg({
@@ -319,7 +327,10 @@ export function InvoiceLedger({ invoices, capped }: { invoices: LedgerInvoice[];
         </div>
       )}
 
-      {paying && <PayDialog inv={paying} pending={pending} onClose={() => setPaying(null)} onPay={pay} />}
+      {paying && (
+        <PayDialog inv={paying} methods={methods} pending={pending}
+          onClose={() => setPaying(null)} onPay={pay} />
+      )}
       {adjusting && (
         <AdjustInvoiceDialog
           inv={{
@@ -350,15 +361,18 @@ function Card({ label, value, accent, warn, bad }: {
 }
 
 function PayDialog({
-  inv, pending, onClose, onPay,
+  inv, methods, pending, onClose, onPay,
 }: {
-  inv: LedgerInvoice; pending: boolean; onClose: () => void;
-  onPay: (i: LedgerInvoice, g: "cash" | "bank_transfer", amount: number) => void;
+  inv: LedgerInvoice; methods: PaymentMethod[]; pending: boolean; onClose: () => void;
+  onPay: (i: LedgerInvoice, g: PaymentMethod, amount: number, ref: string) => void;
 }) {
   const rest = owed(inv);
   const [amount, setAmount] = useState(String(rest));
-  const [gateway, setGateway] = useState<"cash" | "bank_transfer">("cash");
+  const [gateway, setGateway] = useState<PaymentMethod>(methods[0] ?? "cash");
+  const [reference, setReference] = useState("");
+  const meta = METHODS[gateway];
   const over = Number(amount) > rest + 0.0005;
+  const missingRef = meta.refRequired && !reference.trim();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }}>
@@ -376,22 +390,35 @@ function PayDialog({
           <NumField value={amount} onChange={setAmount} />
         </F>
 
-        <div className="flex items-center gap-1.5 mt-3">
-          {([["cash", "نقداً", Banknote], ["bank_transfer", "شبكة / تحويل", CreditCard]] as const).map(([k, l, Icon]) => {
+        <div className="grid grid-cols-2 gap-1.5 mt-3">
+          {methods.map((k) => {
+            const m = METHODS[k];
             const on = gateway === k;
+            const Icon = k === "cash" ? Banknote : k === "insurance" ? ShieldCheck : CreditCard;
             return (
-              <button key={k} type="button" onClick={() => setGateway(k)}
-                className="flex items-center gap-1.5 flex-1 justify-center text-[12.5px] font-bold px-3 py-2 rounded-xl transition-colors"
+              <button key={k} type="button"
+                onClick={() => { setGateway(k); setReference(""); }}
+                className="flex items-center gap-1.5 justify-center text-[12px] font-bold px-3 py-2 rounded-xl transition-colors"
                 style={{
                   background: on ? "rgb(var(--accent-1-rgb) / 0.13)" : "rgba(255,255,255,0.03)",
                   border: `1px solid ${on ? "rgb(var(--accent-1-rgb) / 0.34)" : "var(--hairline)"}`,
                   color: on ? "var(--accent-1)" : "var(--text-3)",
                 }}>
-                <Icon className="w-3.5 h-3.5" /> {l}
+                <Icon className="w-3.5 h-3.5 shrink-0" /> {m.label}
               </button>
             );
           })}
         </div>
+
+        {meta.refLabel && (
+          <div className="mt-3">
+            <label className="text-[11px] font-semibold block mb-1" style={{ color: "var(--text-3)" }}>
+              {meta.refLabel}{meta.refRequired ? " *" : ""}
+            </label>
+            <input className="field ltr-nums" dir="ltr" value={reference}
+              onChange={(e) => setReference(e.target.value)} placeholder="—" />
+          </div>
+        )}
 
         {/* Overpaying is a refund waiting to happen; the action refuses it, but
             saying so before the click is cheaper than an error afterwards. */}
@@ -401,10 +428,16 @@ function PayDialog({
           </p>
         )}
 
+        {missingRef && (
+          <p className="flex items-center gap-1.5 text-[11.5px] mt-3" style={{ color: "#fbbf24" }}>
+            <AlertTriangle className="w-3.5 h-3.5" /> {meta.refLabel} مطلوب للمطابقة مع كشف البنك
+          </p>
+        )}
+
         <div className="flex items-center justify-end gap-2 mt-4">
           <button className="btn-ghost" onClick={onClose}>إلغاء</button>
-          <button className="btn-primary" disabled={pending || !(Number(amount) > 0)}
-            onClick={() => onPay(inv, gateway, Number(amount))}>
+          <button className="btn-primary" disabled={pending || !(Number(amount) > 0) || missingRef}
+            onClick={() => onPay(inv, gateway, Number(amount), reference.trim())}>
             <Coins className="w-4 h-4" /> {pending ? "جارٍ…" : "تسجيل الدفعة"}
           </button>
         </div>
