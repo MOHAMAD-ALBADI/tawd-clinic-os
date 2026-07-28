@@ -52,6 +52,26 @@ function signed(raw: string, header: string | null): boolean {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+/** Write down something that arrived but went nowhere.
+
+    Every reason a webhook fails to produce a reply looks identical from the
+    outside — nothing happens. These rows are what turn "it doesn't work" into a
+    specific cause. */
+async function trace(kind: string, raw: string, extra?: string | null) {
+  try {
+    const { createServiceRoleClient } = await import("@/lib/supabase/server");
+    const sb = await createServiceRoleClient();
+    await sb.from("ig_conversations").insert({
+      ig_user_id: "__trace__",
+      sender_id: "__trace__",
+      direction: "in",
+      message_text: `[${kind}] ${raw.slice(0, 900)}`,
+      status: "failed",
+      error: extra ? `sig=${extra.slice(0, 60)}` : kind,
+    });
+  } catch { /* diagnostics must never break the endpoint */ }
+}
+
 type Entry = {
   id?: string;
   messaging?: {
@@ -65,6 +85,12 @@ export async function POST(req: NextRequest) {
   const raw = await req.text();
 
   if (!signed(raw, req.headers.get("x-hub-signature-256"))) {
+    /* Recorded, not just refused.
+
+       A silent 403 is indistinguishable from Meta never calling at all, and
+       those two have completely different fixes. Writing the rejection down is
+       the difference between diagnosing this in one attempt and guessing. */
+    await trace("rejected-signature", raw, req.headers.get("x-hub-signature-256"));
     return new NextResponse("bad signature", { status: 403 });
   }
 
@@ -78,7 +104,13 @@ export async function POST(req: NextRequest) {
   /* Meta retries anything that is not answered quickly, so the work happens
      after the 200 rather than before it. A slow reply here turns one message
      into three. */
-  queueMicrotask(() => void handle(body).catch(() => {}));
+  /* Serverless kills the function as soon as the response is returned, so a
+     queued microtask can be dropped before it ever runs. The work is awaited
+     instead — Meta allows a few seconds, and a reply that never happened is
+     worse than one that took two. */
+  await handle(body).catch(async (e) => {
+    await trace("handler-threw", e instanceof Error ? e.message : String(e));
+  });
   return NextResponse.json({ ok: true });
 }
 
@@ -97,7 +129,14 @@ async function handle(body: { entry?: Entry[] }) {
       if (await alreadySeen(mid)) continue;
 
       const agent = await agentFor(recipientId);
-      if (!agent) continue;
+      if (!agent) {
+        /* The commonest silent failure: the id Instagram puts in `recipient`
+           is not the id the agent row was created with. Recording the id we
+           actually received is what makes that fixable in one step instead of
+           a guessing game. */
+        await trace("no-agent-for-recipient", JSON.stringify({ recipientId, senderId, text }));
+        continue;
+      }
 
       await log({
         igUserId: recipientId, senderId, direction: "in", text, messageId: mid,
