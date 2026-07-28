@@ -4,14 +4,17 @@ import { useState, useRef, useTransition } from "react";
 import Link from "next/link";
 import { MoreHorizontal, Check, Trash2, FileText, Banknote, AlertTriangle } from "lucide-react";
 import { updateInvoiceStatus, deleteInvoice, recordInvoicePayment } from "@/app/actions/invoices";
-import { MANUAL_STATUSES, STATUS_META, GATEWAY_AR, fmt3, type InvoiceStatus } from "@/lib/invoice-meta";
+import { MANUAL_STATUSES, STATUS_META, fmt3, type InvoiceStatus } from "@/lib/invoice-meta";
+import { METHOD_AR, type PaymentMethod } from "@/lib/payment-methods";
 import { NumField } from "@/components/ui/num-field";
 
 type Pos = { left: number; top?: number; bottom?: number };
 const MENU_W = 216;
 
-type Gateway = "cash" | "bank_transfer" | "thawani" | "insurance";
-const GATEWAYS: Gateway[] = ["cash", "bank_transfer", "thawani", "insurance"];
+/* The shared list, so the manager is offered exactly what the cashier is —
+   including the clinic own card terminal, which this menu had no entry for. */
+type Gateway = PaymentMethod;
+const GATEWAYS: Gateway[] = ["cash", "card", "bank_transfer", "insurance"];
 
 export function InvoiceRowActions({
   id, status, total, paid,
@@ -180,7 +183,7 @@ function PaymentPanel({
       <div>
         <label className="text-[10.5px] block mb-1" style={{ color: "var(--text-4)" }}>طريقة الدفع</label>
         <select className="field" value={gateway} onChange={(e) => setGateway(e.target.value as Gateway)} style={{ cursor: "pointer" }}>
-          {GATEWAYS.map((g) => <option key={g} value={g}>{GATEWAY_AR[g]}</option>)}
+          {GATEWAYS.map((g) => <option key={g} value={g}>{METHOD_AR(g)}</option>)}
         </select>
       </div>
       <div className="flex gap-2 pt-0.5">

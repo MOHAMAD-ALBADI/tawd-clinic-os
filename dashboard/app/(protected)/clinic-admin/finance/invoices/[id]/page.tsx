@@ -4,7 +4,8 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { PrintInvoiceButton } from "@/components/invoices/print-button";
-import { STATUS_META, GATEWAY_AR, fmt3 as fmt, type InvoiceStatus } from "@/lib/invoice-meta";
+import { STATUS_META, fmt3 as fmt, type InvoiceStatus } from "@/lib/invoice-meta";
+import { METHOD_AR } from "@/lib/payment-methods";
 import { ChevronRight } from "lucide-react";
 
 export const metadata = { title: "فاتورة — طود" };
@@ -152,7 +153,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                 {payments.map((p) => (
                   <div key={p.id} className="flex items-center justify-between text-[12.5px]">
                     <span style={{ color: "var(--text-2)" }}>
-                      {GATEWAY_AR[p.gateway] ?? p.gateway} · <span className="ltr-nums">{d(p.paid_at)}</span>
+                      {METHOD_AR(p.gateway)} · <span className="ltr-nums">{d(p.paid_at)}</span>
                     </span>
                     <span className="ltr-nums font-bold text-white print:text-black">{fmt(p.amount)} ر.ع</span>
                   </div>

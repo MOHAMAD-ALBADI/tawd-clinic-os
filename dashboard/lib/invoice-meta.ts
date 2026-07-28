@@ -68,12 +68,14 @@ export const REFUND_METHODS: { value: "cash" | "bank_transfer" | "thawani"; labe
     opt-in per line rather than applied to everything. */
 export const OMAN_VAT_RATE = 0.05;
 
-export const GATEWAY_AR: Record<string, string> = {
-  cash: "نقداً",
-  bank_transfer: "تحويل بنكي",
-  thawani: "ثواني (بطاقة)",
-  insurance: "تأمين",
-};
+/* GATEWAY_AR lived here and is gone. It had no entry for `card`, so once the
+   clinic's own terminal became its own method a payment taken on it rendered as
+   the untranslated word "card" on three screens — the manager's finance hub, the
+   invoice document and the invoice row menu.
+
+   That is the cost of a second vocabulary: it does not fail when a value is
+   added, it just quietly stops covering it. METHOD_AR in lib/payment-methods.ts
+   is the only one now. */
 
 export const fmt3 = (n: number) =>
   Number(n ?? 0).toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });

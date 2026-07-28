@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { MANUAL_STATUSES, type InvoiceStatus } from "@/lib/invoice-meta";
 import { logClaimForInvoice } from "@/app/actions/insurance";
 import { clawBackLoyaltyOnRefund } from "@/lib/loyalty-ledger";
+import { METHODS, type PaymentMethod } from "@/lib/payment-methods";
 
 export type InvoiceLineInput = {
   description: string;
@@ -137,7 +138,12 @@ export async function createInvoice(data: {
 export async function recordInvoicePayment(
   invoiceId: string,
   amount: number,
-  gateway: "cash" | "bank_transfer" | "thawani" | "insurance",
+  /* The shared type, so this path cannot fall behind the cashier's. It listed
+     the four methods that existed before the clinic's own card terminal became
+     one, which meant a manager taking a card payment had to mislabel it as a
+     bank transfer — and the day-close then looked for it on the wrong report. */
+  gateway: PaymentMethod,
+  reference?: string,
 ) {
   const claims = await requireFinance();
   const amt = round3(amount);
@@ -166,6 +172,15 @@ export async function recordInvoicePayment(
     return { ok: false as const, reason: `المتبقّي على الفاتورة ${due.toFixed(3)} ر.ع فقط` };
   }
 
+  /* Same accountability the cashier's path records: who took it and what the
+     slip said. A payment entered from the manager's screen was landing with
+     neither, so it appeared in the register as "غير مسجّل". */
+  const meta = METHODS[gateway];
+  const ref = reference?.trim() || null;
+  if (meta?.refRequired && !ref) {
+    return { ok: false as const, reason: `${meta.refLabel} مطلوب — بدونه لا يمكن مطابقة الدفعة` };
+  }
+
   const { error: perr } = await sb.from("payments").insert({
     invoice_id: invoiceId,
     clinic_id: claims.clinic_id,
@@ -174,6 +189,8 @@ export async function recordInvoicePayment(
     amount: amt,
     status: "completed",
     paid_at: new Date().toISOString(),
+    transaction_id: ref,
+    received_by: claims.sub,
   });
   if (perr) return { ok: false as const, reason: "تعذّر تسجيل الدفعة" };
 

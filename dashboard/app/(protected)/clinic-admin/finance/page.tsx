@@ -2,6 +2,7 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { clinicToday } from "@/lib/clinic-time";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { loadOpenReceivables, sumOwed, isLate } from "@/lib/receivables";
+import { METHOD_AR } from "@/lib/payment-methods";
 import { TrendingUp, TrendingDown, Wallet, PieChart, Banknote, CreditCard, Smartphone, ShieldCheck, AlertTriangle } from "lucide-react";
 
 export const metadata = { title: "المالية — طود" };
@@ -11,11 +12,16 @@ const n = (v: unknown) => Number(v ?? 0) || 0;
 const fmt = (v: number) => new Intl.NumberFormat("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(v);
 const monthKey = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 
-const GATEWAY_META: Record<string, { label: string; Icon: typeof Banknote; color: string }> = {
-  cash:          { label: "نقداً",        Icon: Banknote,   color: "var(--accent-1)" },
-  thawani:       { label: "ثواني",        Icon: Smartphone, color: "#38bdf8" },
-  bank_transfer: { label: "تحويل بنكي",   Icon: CreditCard, color: "#a78bfa" },
-  insurance:     { label: "تأمين",        Icon: ShieldCheck, color: "#fbbf24" },
+/* Labels come from the shared vocabulary; only the icon and colour are this
+   screen's business. This map used to carry its own names and was missing `card`
+   entirely, so a payment taken on the clinic's own terminal appeared in the
+   manager's finance hub as the untranslated word "card". */
+const GATEWAY_ICON: Record<string, { Icon: typeof Banknote; color: string }> = {
+  cash:          { Icon: Banknote,   color: "var(--accent-1)" },
+  card:          { Icon: CreditCard, color: "#38bdf8" },
+  bank_transfer: { Icon: CreditCard, color: "#a78bfa" },
+  thawani:       { Icon: Smartphone, color: "#f0abfc" },
+  insurance:     { Icon: ShieldCheck, color: "#fbbf24" },
 };
 
 export default async function FinanceOverviewPage() {
@@ -173,12 +179,12 @@ export default async function FinanceOverviewPage() {
           ) : (
             <div className="space-y-3">
               {gateways.map(([g, amt]) => {
-                const meta = GATEWAY_META[g] ?? { label: g, Icon: Banknote, color: "#a1a1aa" };
+                const meta = GATEWAY_ICON[g] ?? { Icon: Banknote, color: "#a1a1aa" };
                 return (
                   <div key={g}>
                     <div className="flex items-center justify-between text-[12px] mb-1.5">
                       <span className="flex items-center gap-2 text-white font-semibold">
-                        <meta.Icon className="w-3.5 h-3.5" style={{ color: meta.color }} />{meta.label}
+                        <meta.Icon className="w-3.5 h-3.5" style={{ color: meta.color }} />{METHOD_AR(g)}
                       </span>
                       <span className="ltr-nums" style={{ color: "var(--text-3)" }}>
                         {fmt(amt)} ر.ع · {Math.round((amt / revenue) * 100)}%
