@@ -4,6 +4,8 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { TawdBarsGlyph } from "@/components/shell/tawd-logo";
+import { resolvePeriod, previousPeriod, withinPeriod } from "@/lib/period";
+import { PeriodPicker } from "@/components/finance/period-picker";
 import { clinicToday, clinicDayRange, clinicDatePlus } from "@/lib/clinic-time";
 import { arTime } from "@/lib/ar-format";
 import { Banknote, CreditCard, ReceiptText, AlertCircle, ChevronLeft, Lock } from "lucide-react";
@@ -12,7 +14,7 @@ export const metadata = { title: "لوحة المالية — طود" };
 
 const fmt = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 
-export default async function AccountantPage() {
+export default async function AccountantPage({ searchParams }: { searchParams: Promise<{ period?: string; from?: string; to?: string }> }) {
   const claims = await getUserClaims();
   if (!claims || !(hasRole(claims, "accountant") || claims.role === "clinic_admin")) redirect("/login");
 
@@ -22,19 +24,35 @@ export default async function AccountantPage() {
      belong to today — the same figure, two answers, on money. */
   const today = clinicToday();
   const { startUtc, endUtc } = clinicDayRange(today);
-  const monthStart = `${today.slice(0, 7)}-01T00:00:00+04:00`;
+
+  /* The hero stays today — this is the cash desk's day board. Everything that
+     measures PERFORMANCE takes a period, because "how did last month go" was a
+     question the finance screen could not be asked. */
+  const period = resolvePeriod(await searchParams);
+  const prev = previousPeriod(period);
 
   /* Current quarter, clinic time — the VAT period. */
   const qMonth = Math.floor((Number(today.slice(5, 7)) - 1) / 3) * 3 + 1;
   const quarterStart = `${today.slice(0, 4)}-${String(qMonth).padStart(2, "0")}-01`;
 
-  const [paysTodayRes, monthPaidRes, pendingRes, readyRes, recentPaysRes, closedRes, vatRes, vatAdjRes] =
+  const [paysTodayRes, periodPaidRes, pendingRes, readyRes, recentPaysRes, closedRes,
+         vatRes, vatAdjRes, periodBilledRes, prevPaidRes] =
     await Promise.all([
     sb.from("payments").select("gateway, amount")
       .eq("clinic_id", claims.clinic_id).eq("status", "completed")
       .gte("paid_at", startUtc).lte("paid_at", endUtc),
-    sb.from("invoices").select("net_total")
-      .eq("clinic_id", claims.clinic_id).eq("status", "paid").gte("created_at", monthStart).is("deleted_at", null),
+    /* Money that ARRIVED in the period.
+
+       This used to sum invoices whose status is "paid" and which were raised
+       this month — a different quantity wearing the label «محصّل الشهر». An
+       invoice from March settled in June counted for neither month, and one
+       raised and settled in June counted at its full value regardless of when
+       the cash landed. Payments are what was collected. */
+    withinPeriod(
+      sb.from("payments").select("amount")
+        .eq("clinic_id", claims.clinic_id).eq("status", "completed"),
+      "paid_at", period,
+    ).limit(8000),
     /* Open invoices, once — the ageing buckets and the outstanding total are the
        same set of invoices and were being fetched twice, which is also how they
        could disagree.
@@ -73,6 +91,24 @@ export default async function AccountantPage() {
     sb.from("invoice_adjustments").select("vat_amount")
       .eq("clinic_id", claims.clinic_id).in("kind", ["credit_note", "refund"])
       .gte("created_at", `${quarterStart}T00:00:00+04:00`).limit(5000),
+
+    /* Billed in the period, so the collection rate compares like with like — the
+       old one divided this month's collections by ALL outstanding ever, which
+       falls as the clinic ages regardless of how well it collects. */
+    withinPeriod(
+      sb.from("invoices").select("net_total")
+        .eq("clinic_id", claims.clinic_id).is("deleted_at", null)
+        .neq("status", "draft").neq("status", "cancelled"),
+      "created_at", period,
+    ).limit(8000),
+
+    /* The same window immediately before, which is the only thing that makes a
+       figure mean anything on its own. */
+    withinPeriod(
+      sb.from("payments").select("amount")
+        .eq("clinic_id", claims.clinic_id).eq("status", "completed"),
+      "paid_at", prev,
+    ).limit(8000),
   ]);
 
   let cashToday = 0, cardToday = 0;
@@ -81,7 +117,18 @@ export default async function AccountantPage() {
     else cardToday += Number(p.amount ?? 0);
   }
   const collectedToday = cashToday + cardToday;
-  const monthPaid = (monthPaidRes.data ?? []).reduce((s, i) => s + Number(i.net_total ?? 0), 0);
+  const sumAmount = (rows: { amount?: unknown }[] | null) =>
+    (rows ?? []).reduce((s, r) => s + Number(r.amount ?? 0), 0);
+
+  const periodCollected = sumAmount(periodPaidRes.data);
+  const prevCollected = sumAmount(prevPaidRes.data);
+  const periodBilled = (periodBilledRes.data ?? []).reduce((s, i) => s + Number(i.net_total ?? 0), 0);
+  /* Null rather than 0% when there is nothing to compare against — a first month
+     is not a 100% drop. */
+  const collectedDelta = prevCollected > 0
+    ? Math.round(((periodCollected - prevCollected) / prevCollected) * 100)
+    : null;
+
   const pending = pendingRes.data ?? [];
 
   /* Outstanding is what is left after payments, not the face value of every open
@@ -123,10 +170,13 @@ export default async function AccountantPage() {
   }
   const vatQuarter = (vatRes.data ?? []).reduce((s, i) => s + Number(i.vat_amount ?? 0), 0)
     - (vatAdjRes.data ?? []).reduce((s, a) => s + Number(a.vat_amount ?? 0), 0);
-  /* Billed vs collected this month is where revenue leaks, and neither number
-     meant anything alone. */
-  const collectionRate = monthPaid > 0 || pendingTotal > 0
-    ? Math.round((monthPaid / (monthPaid + pendingTotal)) * 100)
+  /* Collected against billed IN THE SAME WINDOW. The old rate divided this
+     month's collections by every outstanding invoice ever raised, so it drifted
+     downwards as the clinic aged no matter how well it collected — and it
+     disagreed with the identical figure on the revenue page. Capped, because an
+     old invoice settled inside this window legitimately takes it over 100. */
+  const collectionRate = periodBilled > 0
+    ? Math.min(100, Math.round((periodCollected / periodBilled) * 100))
     : null;
 
   const fmtTime = (iso: string) => arTime.format(new Date(iso));
@@ -158,8 +208,14 @@ export default async function AccountantPage() {
               {dayClosed ? "اليوم مُغلق ✓" : "إغلاق اليوم"}
             </Link>
             <div className="text-end">
-              <p className="text-[10px]" style={{ color: "var(--text-4)" }}>محصّل الشهر</p>
-              <p className="text-lg font-bold ltr-nums text-white">{fmt(monthPaid)}</p>
+              <p className="text-[10px]" style={{ color: "var(--text-4)" }}>محصّل {period.label}</p>
+              <p className="text-lg font-bold ltr-nums text-white">{fmt(periodCollected)}</p>
+              {collectedDelta !== null && (
+                <p className="text-[10px] ltr-nums"
+                  style={{ color: collectedDelta >= 0 ? "var(--accent-1)" : "#fda4b4" }}>
+                  {collectedDelta >= 0 ? "▲" : "▼"} {Math.abs(collectedDelta)}% عن الفترة السابقة
+                </p>
+              )}
               {collectionRate !== null && (
                 <p className="text-[10px] ltr-nums" style={{ color: collectionRate >= 80 ? "var(--accent-1)" : "#fbbf24" }}>
                   نسبة التحصيل {collectionRate}%
@@ -169,6 +225,10 @@ export default async function AccountantPage() {
           </div>
         </div>
       </div>
+
+      {/* Controls the performance figures only; the hero above is today's cash
+          desk and stays today whatever is chosen here. */}
+      <PeriodPicker active={period.key} from={period.from} to={period.to} label={period.label} />
 
       {/* ══ KPIs ══ */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

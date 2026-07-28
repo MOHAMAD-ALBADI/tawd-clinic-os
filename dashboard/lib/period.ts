@@ -130,6 +130,58 @@ export function resolvePeriod(sp: {
   };
 }
 
+/** The same window, immediately before this one.
+
+    A figure on its own says nothing — "collected 4,200" is only good or bad
+    against what the clinic did last month. The comparison has to be the same
+    LENGTH or it is not a comparison, so this walks back by the period's own span
+    rather than by a calendar month.
+
+    An unbounded period has no "before", and neither does a period with only one
+    end filled in. */
+export function previousPeriod(p: Period): Period {
+  if (!p.from || !p.to) {
+    return { ...p, key: "all", label: "—", from: null, to: null, startUtc: null, endUtc: null };
+  }
+
+  let from: string;
+  const to = p.from;
+
+  /* Calendar periods step back by a calendar unit, not by their own length.
+
+     An accountant comparing March to "last month" means February, and everyone
+     knows February is short. Stepping back 31 days instead would produce
+     "29 Jan – 1 Mar", a window nobody thinks in and which double-counts the end
+     of January. Equal-length is the right answer only where the period has no
+     calendar meaning. */
+  if (p.key === "month" || p.key === "last_month") {
+    from = monthBefore(p.from);
+  } else if (p.key === "quarter") {
+    from = monthBefore(monthBefore(monthBefore(p.from)));
+  } else if (p.key === "year") {
+    from = `${Number(p.from.slice(0, 4)) - 1}${p.from.slice(4)}`;
+  } else {
+    /* today, week, custom — a rolling window, so the comparison is the same
+       number of days immediately before it. */
+    const spanDays = Math.max(1, Math.round(
+      (new Date(`${p.to}T00:00:00.000Z`).getTime() - new Date(`${p.from}T00:00:00.000Z`).getTime())
+      / 86_400_000));
+    from = shiftDate(p.from, -spanDays);
+  }
+
+  return {
+    key: p.key, label: "الفترة السابقة", from, to,
+    startUtc: clinicDayRange(from).startUtc,
+    endUtc: clinicDayRange(to).startUtc,
+  };
+}
+
+/** First day of the month before the one `date` starts. */
+function monthBefore(date: string): string {
+  const [y, m] = date.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 10);
+}
+
 /** Apply the period to a timestamptz column, if it is bounded. */
 export function withinPeriod<T extends {
   gte: (c: string, v: string) => T; lt: (c: string, v: string) => T;

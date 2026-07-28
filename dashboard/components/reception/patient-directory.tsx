@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Search, Phone, CalendarPlus, AlertTriangle, HeartPulse, Coins, X,
   UserPlus, ChevronLeft, CalendarClock,
 } from "lucide-react";
 import { arDateShort } from "@/lib/ar-format";
+import { searchPatients } from "@/app/actions/patients";
 
 export type DirectoryPatient = {
   id: string;
@@ -46,6 +47,37 @@ export function PatientDirectory({
 }: { patients: DirectoryPatient[]; capped: boolean }) {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  /* Typing searches the DATABASE, not the page.
+
+     The box used to filter the newest few thousand rows in the browser, so it
+     worked perfectly until a clinic outgrew that number and then quietly stopped
+     finding the oldest patients — and someone registered six years ago is exactly
+     who rings up asking for their file. The loaded page is still what you see
+     before typing, and the two render identically because they are the same
+     shape. */
+  const [hits, setHits] = useState<DirectoryPatient[] | null>(null);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2) { setHits(null); setSearching(false); return; }
+    setSearching(true);
+    /* Debounced: a request per keystroke would race, and the answer that lands
+       last is not necessarily the answer to what is now in the box. */
+    const id = setTimeout(async () => {
+      try {
+        const r = await searchPatients(term);
+        setHits(r);
+      } catch {
+        /* Fall back to filtering what is loaded rather than showing nothing —
+           a degraded search beats a dead one. */
+        setHits(null);
+      } finally {
+        setSearching(false);
+      }
+    }, 280);
+    return () => clearTimeout(id);
+  }, [q]);
 
   const counts = useMemo(() => ({
     all: patients.length,
@@ -56,17 +88,24 @@ export function PatientDirectory({
 
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
-    return patients
+    /* Server results when there are any, the loaded page otherwise. The filter
+       chips still apply either way — "owing" over search results is a reasonable
+       thing to ask for. */
+    const source = hits ?? patients;
+    return source
       .filter((p) => {
         if (filter === "owing" && p.balance <= 0) return false;
         if (filter === "no_next" && (p.nextAppt || !p.lastVisit)) return false;
         if (filter === "new" && p.lastVisit) return false;
-        if (term && !`${p.name} ${p.phone ?? ""}`.toLowerCase().includes(term)) return false;
+        /* Only re-filter locally when the source is the loaded page; the server
+           already matched, and re-testing its rows against a naive substring
+           would drop matches on name_ar that the database found. */
+        if (!hits && term && !`${p.name} ${p.phone ?? ""}`.toLowerCase().includes(term)) return false;
         return true;
       })
       .sort((a, b) => (b.lastVisit ?? "").localeCompare(a.lastVisit ?? ""))
       .slice(0, 300);
-  }, [patients, q, filter]);
+  }, [patients, hits, q, filter]);
 
   return (
     <div className="space-y-4">
@@ -103,15 +142,24 @@ export function PatientDirectory({
         )}
       </div>
 
-      {/* Search runs over the rows the server sent. If it had to stop short,
-          "no results" would be a lie for anyone past the cut — so the screen
-          says so instead of pretending the patient does not exist. */}
-      {capped && (
+      {/* The cap now applies only to what is shown before anyone types: search
+          itself goes to the database and reaches every patient, however old. */}
+      {capped && !hits && q.trim().length < 2 && (
         <div className="flex items-start gap-2 text-[12px] px-3.5 py-2.5 rounded-xl"
-          style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.28)", color: "#fbbf24" }}>
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-          عدد المرضى تجاوز حد التحميل — البحث هنا يغطي الأحدث فقط. إن لم تجد أحدهم فهو موجود ولم يُحمَّل.
+          style={{ background: "rgba(255,255,255,0.025)", border: "1px solid var(--hairline)", color: "var(--text-3)" }}>
+          <Search className="w-4 h-4 shrink-0 mt-0.5" style={{ color: "var(--text-4)" }} />
+          تُعرض أحدث السجلات — اكتب حرفين للبحث في كل مرضى العيادة.
         </div>
+      )}
+
+      {searching && (
+        <p className="text-[12px] px-3.5" style={{ color: "var(--text-4)" }}>جارٍ البحث…</p>
+      )}
+      {hits && !searching && (
+        <p className="text-[12px] px-3.5" style={{ color: "var(--text-4)" }}>
+          <span className="ltr-nums">{hits.length}</span> نتيجة من كامل سجل العيادة
+          {hits.length >= 60 && " — ضيّق البحث لعرض نتائج أدق"}
+        </p>
       )}
 
       {rows.length === 0 ? (
