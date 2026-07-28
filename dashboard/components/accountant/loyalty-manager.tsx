@@ -5,12 +5,20 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Star, Search, X, Plus, Minus, AlertTriangle, CheckCircle2, History, Coins, Settings,
+  Clock, Download,
 } from "lucide-react";
+import { toCsv, downloadCsv } from "@/lib/csv";
 import { adjustPoints } from "@/app/actions/loyalty-admin";
 import { NumField, F } from "@/components/ui/num-field";
 import { arDateTime } from "@/lib/ar-format";
 
-export type LoyaltyHolder = { id: string; name: string; phone: string | null; points: number };
+export type LoyaltyHolder = {
+  id: string; name: string; phone: string | null; points: number;
+  /** last loyalty movement, which is what expiry is measured from */
+  lastActivity: string | null;
+  /** days until this balance is zeroed, or null when nothing expires */
+  daysToExpiry: number | null;
+};
 export type LoyaltyTxn = {
   id: string; patientName: string; type: string; points: number;
   balanceAfter: number; note: string | null; createdAt: string;
@@ -55,6 +63,31 @@ export function LoyaltyManager({
   const totalPoints = holders.reduce((s, h) => s + h.points, 0);
   const liability = totalPoints * config.redemptionRate;
 
+  /* Expiry is lazy — a stale balance is zeroed the next time that patient is
+     touched, not by a nightly job — so nobody was ever warned. These are the
+     balances that die within the month, which is both a liability that is about
+     to disappear and a patient about to be told their points are gone. */
+  const expiring = holders.filter((h) => h.daysToExpiry !== null && h.daysToExpiry <= 30);
+  const expiringPoints = expiring.reduce((s, h) => s + h.points, 0);
+  const alreadyDead = holders.filter((h) => h.daysToExpiry !== null && h.daysToExpiry <= 0);
+
+  function exportCsv() {
+    const csv = toCsv(rows, [
+      { header: "المريض", value: (h) => h.name },
+      { header: "الجوال", value: (h) => h.phone ?? "" },
+      { header: "النقاط", value: (h) => h.points },
+      { header: "قيمتها (ر.ع)", value: (h) => (h.points * config.redemptionRate).toFixed(3) },
+      { header: "آخر حركة", value: (h) => h.lastActivity?.slice(0, 10) ?? "" },
+      { header: "يوماً حتى الانتهاء", value: (h) => h.daysToExpiry ?? "" },
+    ], [
+      [],
+      ["إجمالي النقاط", String(totalPoints)],
+      ["الالتزام المالي", liability.toFixed(3)],
+      ["نقاط تنتهي خلال ٣٠ يوماً", String(expiringPoints)],
+    ]);
+    downloadCsv("loyalty-balances", csv);
+  }
+
   return (
     <div className="space-y-4">
       {!config.active && (
@@ -80,8 +113,22 @@ export function LoyaltyManager({
         {/* The number nobody was shown: what those points cost if redeemed. */}
         <Card label="التزام مالي" value={omr(liability)} sub="ر.ع لو استُبدلت كلها" warn={liability > 0} />
         <Card label="قيمة النقطة" value={omr(config.redemptionRate)} sub="ر.ع عند الاستبدال" />
-        <Card label="الاكتساب" value={int(config.pointsPerOmr)} sub="نقطة لكل ر.ع مدفوع" accent />
+        {expiring.length > 0 ? (
+          <Card label="تنتهي خلال ٣٠ يوماً" value={int(expiringPoints)}
+            sub={`${expiring.length} مريض · ${omr(expiringPoints * config.redemptionRate)} ر.ع`} warn />
+        ) : (
+          <Card label="الاكتساب" value={int(config.pointsPerOmr)} sub="نقطة لكل ر.ع مدفوع" accent />
+        )}
       </div>
+
+      {alreadyDead.length > 0 && (
+        <div className="flex items-start gap-2 text-[12px] px-3.5 py-2.5 rounded-xl"
+          style={{ background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.26)", color: "#fbbf24" }}>
+          <Clock className="w-4 h-4 shrink-0 mt-0.5" />
+          <span className="ltr-nums">{alreadyDead.length}</span> رصيد تجاوز مدة الصلاحية وسيُصفَّر عند أول حركة
+          للمريض — الأرصدة أعلاه ما زالت تحتسبه.
+        </div>
+      )}
 
       <div className="panel flex items-start gap-3 flex-wrap" style={{ padding: "0.95rem 1.2rem" }}>
         <Settings className="w-4 h-4 shrink-0 mt-0.5" style={{ color: "var(--text-3)" }} />
@@ -97,9 +144,14 @@ export function LoyaltyManager({
 
       <div className="grid grid-cols-12 gap-4 items-start">
         <div className="col-span-12 lg:col-span-7 panel" style={{ padding: "1.25rem" }}>
-          <div className="section-title mb-3">
-            <Star className="w-3.5 h-3.5" style={{ color: "var(--accent-1)" }} />
-            <h2>أرصدة المرضى</h2>
+          <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+            <div className="section-title">
+              <Star className="w-3.5 h-3.5" style={{ color: "var(--accent-1)" }} />
+              <h2>أرصدة المرضى</h2>
+            </div>
+            <button className="btn-ghost" onClick={exportCsv} disabled={rows.length === 0}>
+              <Download className="w-3.5 h-3.5" /> تصدير
+            </button>
           </div>
 
           <div className="relative mb-3">
@@ -127,9 +179,17 @@ export function LoyaltyManager({
                     <Link href={`/reception/patients/${h.id}`} className="text-[13px] font-bold text-white truncate hover:underline">
                       {h.name}
                     </Link>
-                    {h.phone && (
-                      <p className="text-[10.5px] ltr-nums" style={{ color: "var(--text-4)" }}>{h.phone}</p>
-                    )}
+                    <p className="flex items-center gap-2 text-[10.5px]" style={{ color: "var(--text-4)" }}>
+                      {h.phone && <span className="ltr-nums">{h.phone}</span>}
+                      {/* When this balance dies, on a page that never said so. */}
+                      {h.daysToExpiry !== null && h.daysToExpiry <= 30 && (
+                        <span className="inline-flex items-center gap-1 ltr-nums"
+                          style={{ color: h.daysToExpiry <= 0 ? "#fda4b4" : "#fbbf24" }}>
+                          <Clock className="w-3 h-3" />
+                          {h.daysToExpiry <= 0 ? "انتهت المدة" : `تنتهي خلال ${h.daysToExpiry} يوم`}
+                        </span>
+                      )}
+                    </p>
                   </div>
                   <span className="flex items-center gap-1 text-[13px] font-black ltr-nums shrink-0"
                     style={{ color: "var(--accent-1)" }}>
