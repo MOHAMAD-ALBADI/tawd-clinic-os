@@ -8,6 +8,8 @@ import { ClinicHolidays, type Holiday } from "@/components/settings/clinic-holid
 import { ReviewLinkForm } from "@/components/settings/review-link-form";
 import { VatNumberForm } from "@/components/settings/vat-number-form";
 import { PaymentMethodsForm } from "@/components/settings/payment-methods-form";
+import { EmailChannelForm } from "@/components/settings/email-channel-form";
+import { emailStatus } from "@/lib/email";
 import { BookingLink } from "@/components/platform/booking-link";
 import { SettingsTabs } from "@/components/settings/settings-tabs";
 import { MySubscription, type MyInvoice } from "@/components/settings/my-subscription";
@@ -32,6 +34,7 @@ export default async function SettingsPage({
      own callback already decided after asking the gateway — the flag itself
      never settles anything. */
   const payFlag = (await searchParams).pay ?? null;
+  const email = await emailStatus(claims.clinic_id);
   const thawani = thawaniConfig();
 
   const supabase = await createServerSupabaseClient();
@@ -176,6 +179,11 @@ export default async function SettingsPage({
               accountName: (settings?.bank_account_name as string | null) ?? null,
               iban: (settings?.bank_iban as string | null) ?? null,
               phone: (settings?.transfer_phone as string | null) ?? null,
+            }} />
+            <EmailChannelForm initial={{
+              configured: email.configured, enabled: email.enabled,
+              fromName: email.fromName, replyTo: email.replyTo,
+              clinicName: (clinic?.name_ar ?? clinic?.name ?? "عيادة") as string,
             }} />
             <VatNumberForm current={(clinic?.vat_number as string | null) ?? null} />
           </>

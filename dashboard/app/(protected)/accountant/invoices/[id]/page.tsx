@@ -6,6 +6,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { PrintInvoiceButton } from "@/components/invoices/print-button";
 import { InvoiceDocument } from "@/components/invoices/invoice-document";
 import { ArrowRight } from "lucide-react";
+import { SendEmailButton } from "@/components/email/send-email-button";
+import { emailStatus } from "@/lib/email";
 
 export const metadata = { title: "فاتورة — طود" };
 export const dynamic = "force-dynamic";
@@ -27,7 +29,7 @@ export default async function AccountantInvoicePage({
   const [{ data: inv }, { data: items }, { data: clinic }, { data: pays }, { data: adjs }] =
     await Promise.all([
       sb.from("invoices")
-        .select("id,invoice_number,subtotal,discount_amount,vat_amount,total,status,due_date,created_at,notes,patients!patient_id(name,phone)")
+        .select("id,invoice_number,subtotal,discount_amount,vat_amount,total,status,due_date,created_at,notes,patients!patient_id(name,phone,email)")
         .eq("id", id).eq("clinic_id", claims.clinic_id).maybeSingle(),
       sb.from("invoice_items")
         .select("id,description,quantity,unit_price_snapshot,vat_amount,total")
@@ -46,6 +48,8 @@ export default async function AccountantInvoicePage({
 
   if (!inv) notFound();
 
+  const email = await emailStatus(claims.clinic_id);
+
   const patient = inv.patients as unknown as { name: string; phone: string | null } | null;
 
   return (
@@ -55,7 +59,12 @@ export default async function AccountantInvoicePage({
           style={{ color: "var(--text-3)" }}>
           <ArrowRight className="w-3.5 h-3.5" /> رجوع للفواتير
         </Link>
-        <PrintInvoiceButton />
+        <div className="flex items-center gap-2">
+          <SendEmailButton kind="invoice" id={id}
+            patientEmail={(patient as unknown as { email?: string | null } | null)?.email ?? null}
+            enabled={email.configured && email.enabled} />
+          <PrintInvoiceButton />
+        </div>
       </div>
 
       <InvoiceDocument

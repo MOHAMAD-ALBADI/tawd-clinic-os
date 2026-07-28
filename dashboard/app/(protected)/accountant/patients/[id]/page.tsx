@@ -6,6 +6,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { buildStatement } from "@/lib/patient-statement";
 import { StatementView } from "@/components/accountant/statement-view";
 import { ArrowRight } from "lucide-react";
+import { SendEmailButton } from "@/components/email/send-email-button";
+import { emailStatus } from "@/lib/email";
 
 export const metadata = { title: "كشف حساب — طود" };
 export const dynamic = "force-dynamic";
@@ -24,13 +26,14 @@ export default async function PatientStatementPage({
 
   const sb = await createServerSupabaseClient();
   const [{ data: patient }, { data: clinic }] = await Promise.all([
-    sb.from("patients").select("id, name, phone")
+    sb.from("patients").select("id, name, phone, email")
       .eq("id", id).eq("clinic_id", claims.clinic_id).is("deleted_at", null).maybeSingle(),
     sb.from("tawd_clinics").select("name, name_ar").eq("id", claims.clinic_id).maybeSingle(),
   ]);
   if (!patient) notFound();
 
   const st = await buildStatement(sb, claims.clinic_id, id);
+  const email = await emailStatus(claims.clinic_id);
 
   return (
     <div className="space-y-4 animate-fade-in pb-20">
@@ -39,6 +42,11 @@ export default async function PatientStatementPage({
           style={{ color: "var(--text-3)" }}>
           <ArrowRight className="w-3.5 h-3.5" /> رجوع لحسابات المرضى
         </Link>
+        <div className="mt-3">
+          <SendEmailButton kind="statement" id={id}
+            patientEmail={(patient.email as string | null) ?? null}
+            enabled={email.configured && email.enabled} />
+        </div>
       </div>
 
       <StatementView

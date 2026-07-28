@@ -8,6 +8,8 @@ import { METHOD_AR } from "@/lib/payment-methods";
 import { fmt3 as fmt } from "@/lib/invoice-meta";
 import { arDateTime } from "@/lib/ar-format";
 import { ArrowRight } from "lucide-react";
+import { SendEmailButton } from "@/components/email/send-email-button";
+import { emailStatus } from "@/lib/email";
 
 export const metadata = { title: "سند قبض — طود" };
 export const dynamic = "force-dynamic";
@@ -27,12 +29,14 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
   const sb = await createServerSupabaseClient();
   const [{ data: pay }, { data: clinic }] = await Promise.all([
     sb.from("payments")
-      .select("id, amount, gateway, transaction_id, paid_at, status, voided_at, void_reason, received_by, invoices!invoice_id(invoice_number, total, patients!patient_id(name, phone))")
+      .select("id, amount, gateway, transaction_id, paid_at, status, voided_at, void_reason, received_by, invoices!invoice_id(invoice_number, total, patients!patient_id(name, phone, email))")
       .eq("id", id).eq("clinic_id", claims.clinic_id).maybeSingle(),
     sb.from("tawd_clinics")
       .select("name, name_ar, vat_number, phone, address").eq("id", claims.clinic_id).maybeSingle(),
   ]);
   if (!pay) notFound();
+
+  const email = await emailStatus(claims.clinic_id);
 
   const inv = pay.invoices as unknown as
     { invoice_number?: string; total?: number; patients?: { name?: string; phone?: string } | null } | null;
@@ -51,7 +55,12 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
           style={{ color: "var(--text-3)" }}>
           <ArrowRight className="w-3.5 h-3.5" /> رجوع للدفعات
         </Link>
-        <PrintInvoiceButton />
+        <div className="flex items-center gap-2">
+          <SendEmailButton kind="receipt" id={id}
+            patientEmail={(pay.invoices as unknown as { patients?: { email?: string | null } | null } | null)?.patients?.email ?? null}
+            enabled={email.configured && email.enabled} />
+          <PrintInvoiceButton />
+        </div>
       </div>
 
       {/* A voided receipt must never be handed over as if it were live. */}
