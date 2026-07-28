@@ -26,7 +26,7 @@ import {
   Receipt,
   ShieldCheck,
   type LucideIcon,
-  Coins,
+  Coins, TrendingUp,
 } from "lucide-react";
 
 export interface NavItem {
@@ -113,6 +113,11 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     /* Money received had no screen at all — only totals. A payment entered for
        the wrong patient, or twice, or with a digit too many, was invisible. */
     { label: "الدفعات",        href: "/accountant/payments",  icon: Coins },
+    /* Debt by person, not by document — a patient with four part-paid invoices
+       appeared four times and nowhere did the product total them up. */
+    { label: "حسابات المرضى",  href: "/accountant/patients",  icon: Users },
+    /* The section could say how much came in and never what it came from. */
+    { label: "تحليل الإيراد",  href: "/accountant/revenue",   icon: TrendingUp },
     /* Oman VAT is quarterly with a 500–5000 r.o. penalty for filing late, and
        the product charged the tax without ever reporting it. */
     { label: "الضريبة",        href: "/accountant/vat",       icon: Scale },
