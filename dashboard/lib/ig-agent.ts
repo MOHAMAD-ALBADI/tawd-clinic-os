@@ -79,10 +79,19 @@ ${transcript ? `المحادثة حتى الآن:\n${transcript}\n` : ""}
 رسالة جديدة من الشخص:
 ${text}
 
-اكتبي ردّك فقط، بدون مقدمات ولا شرح لما تفعلينه.
+اكتبي ردّك فقط — لا تكتبي مقدمة مثل "إليك رداً" ولا تشرحي ما تفعلينه.
 
-طول الرد يتبع ثقل السؤال: تحية تُقابَل بسطر وسؤال، وسؤال جادّ عن المنتج يستحق
-إجابة وافية. لا تختصري إجابة تستحق الشرح، ولا تُطيلي على تحية.`;
+التنسيق: إنستغرام لا يعرض النجوم ولا الماركداون — النجمة تظهر نجمة.
+فنسّقي بالأسطر لا بالرموز:
+• سطر فارغ بين كل فكرة وأخرى
+• عند تعداد الأشياء، ابدئي كل واحد بـ • في سطر مستقل
+• لا تكتبي فقرة واحدة طويلة ملتصقة
+
+الطول يتبع ثقل السؤال: تحية تُقابَل بسطرين، وسؤال عن المنتج يستحق إجابة وافية
+منسّقة. لا تختصري ما يستحق الشرح.
+
+المحادثة أعلاه أمامك — لا تكرري ما قلتِه سابقاً بصيغة أخرى، ولا تعيدي التعريف
+بنفسك إن سبق أن عرّفتِ. أضيفي جديداً في كل رد.`;
 
   try {
     const res = await fetch(
@@ -92,16 +101,43 @@ ${text}
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 400 },
+          generationConfig: {
+            temperature: 0.7,
+            /* Room to actually answer. Arabic tokenises poorly — a normal
+               paragraph costs far more tokens than the same text in English. */
+            maxOutputTokens: 1500,
+            /* Thinking OFF, and this is the whole bug that made her look stupid.
+
+               Gemini 2.5 reasons internally before answering, and those thoughts
+               are billed against the SAME budget as the reply. With 400 tokens
+               it spent 382 thinking and had 14 left to speak — which is why every
+               answer arrived chopped off mid-word at about thirty characters. It
+               was never the prompt.
+
+               A DM assistant does not need a reasoning budget; it needs to
+               answer. */
+            thinkingConfig: { thinkingBudget: 0 },
+          },
         }),
         cache: "no-store",
       },
     );
     if (!res.ok) return null;
     const j = (await res.json()) as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
+      candidates?: {
+        finishReason?: string;
+        content?: { parts?: { text?: string; thought?: boolean }[] };
+      }[];
     };
-    const out = j.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    const cand = j.candidates?.[0];
+    /* Every part joined, not just the first: the model may split a reply across
+       several, and taking parts[0] would truncate it again by a different
+       route. Thought parts are excluded — they are not for the reader. */
+    const out = (cand?.content?.parts ?? [])
+      .filter((p) => !p.thought)
+      .map((p) => p.text ?? "")
+      .join("")
+      .trim();
     return out || null;
   } catch {
     return null;
