@@ -28,14 +28,21 @@ export default async function AccountantPage() {
   const qMonth = Math.floor((Number(today.slice(5, 7)) - 1) / 3) * 3 + 1;
   const quarterStart = `${today.slice(0, 4)}-${String(qMonth).padStart(2, "0")}-01`;
 
-  const [paysTodayRes, monthPaidRes, pendingRes, readyRes, recentPaysRes, closedRes, agingRes, vatRes] = await Promise.all([
+  const [paysTodayRes, monthPaidRes, pendingRes, readyRes, recentPaysRes, closedRes, vatRes, vatAdjRes] =
+    await Promise.all([
     sb.from("payments").select("gateway, amount")
       .eq("clinic_id", claims.clinic_id).eq("status", "completed")
       .gte("paid_at", startUtc).lte("paid_at", endUtc),
-    sb.from("invoices").select("total")
+    sb.from("invoices").select("net_total")
       .eq("clinic_id", claims.clinic_id).eq("status", "paid").gte("created_at", monthStart).is("deleted_at", null),
-    sb.from("invoices").select("total, status")
-      .eq("clinic_id", claims.clinic_id).in("status", ["sent", "partially_paid", "overdue"]).is("deleted_at", null),
+    /* Open invoices, once — the ageing buckets and the outstanding total are the
+       same set of invoices and were being fetched twice, which is also how they
+       could disagree.
+
+       net_total, not total: a credit note reduced what may be collected. */
+    sb.from("invoices").select("id, net_total, created_at, status")
+      .eq("clinic_id", claims.clinic_id).in("status", ["sent", "partially_paid", "overdue"])
+      .is("deleted_at", null).limit(2000),
     /* Every completed visit with no invoice, not just today's.
 
        This was scoped to today, so a visit finished yesterday and not billed
@@ -53,16 +60,18 @@ export default async function AccountantPage() {
       .order("paid_at", { ascending: false }).limit(8),
     sb.from("cashier_day_closes").select("close_date")
       .eq("clinic_id", claims.clinic_id).eq("close_date", today).limit(1),
-    /* Receivables need an age to be actionable — "50 outstanding" is a number,
-       "50 outstanding, 30 of it past ninety days" is a decision. */
-    sb.from("invoices").select("total, created_at, status")
-      .eq("clinic_id", claims.clinic_id).is("deleted_at", null)
-      .in("status", ["sent", "partially_paid", "overdue"]).limit(2000),
     /* The quarter's output VAT, so the filing position is visible before the
        deadline rather than discovered at it. */
     sb.from("invoices").select("vat_amount")
       .eq("clinic_id", claims.clinic_id).is("deleted_at", null)
-      .neq("status", "draft").neq("status", "cancelled").neq("status", "refunded")
+      .neq("status", "draft").neq("status", "cancelled")
+      .gte("created_at", `${quarterStart}T00:00:00+04:00`).limit(5000),
+    /* Netted the same way the return itself nets it, so the headline here and
+       the filing screen cannot disagree: credit notes and refunds reduce output
+       tax in the quarter they were issued; write-offs do not, because bad-debt
+       relief is a conditional claim rather than an automatic deduction. */
+    sb.from("invoice_adjustments").select("vat_amount")
+      .eq("clinic_id", claims.clinic_id).in("kind", ["credit_note", "refund"])
       .gte("created_at", `${quarterStart}T00:00:00+04:00`).limit(5000),
   ]);
 
@@ -72,9 +81,27 @@ export default async function AccountantPage() {
     else cardToday += Number(p.amount ?? 0);
   }
   const collectedToday = cashToday + cardToday;
-  const monthPaid = (monthPaidRes.data ?? []).reduce((s, i) => s + Number(i.total ?? 0), 0);
+  const monthPaid = (monthPaidRes.data ?? []).reduce((s, i) => s + Number(i.net_total ?? 0), 0);
   const pending = pendingRes.data ?? [];
-  const pendingTotal = pending.reduce((s, i) => s + Number(i.total ?? 0), 0);
+
+  /* Outstanding is what is left after payments, not the face value of every open
+     invoice. A part-paid invoice was counted in full, so the receivable was
+     overstated and the collection rate below it understated — the two figures
+     that decide whether anyone chases a debt this week. */
+  const openIds = pending.map((i) => i.id as string);
+  const { data: openPays } = openIds.length
+    ? await sb.from("payments").select("invoice_id, amount")
+        .eq("clinic_id", claims.clinic_id).eq("status", "completed").in("invoice_id", openIds)
+    : { data: [] as Record<string, unknown>[] };
+  const paidOf = new Map<string, number>();
+  for (const p of openPays ?? []) {
+    const k = p.invoice_id as string;
+    paidOf.set(k, (paidOf.get(k) ?? 0) + Number(p.amount ?? 0));
+  }
+  const owedOn = (inv: { id: unknown; net_total: unknown }) =>
+    Math.max(0, Number(inv.net_total ?? 0) - (paidOf.get(inv.id as string) ?? 0));
+
+  const pendingTotal = pending.reduce((s, i) => s + owedOn(i), 0);
   const overdueCount = pending.filter((i) => i.status === "overdue").length;
   const ready = (readyRes.data ?? []).filter((a) => !(a.invoices as unknown as { id: string }[] | null)?.length);
   /* Money the clinic earned and never billed. Naming the figure is the point —
@@ -83,16 +110,19 @@ export default async function AccountantPage() {
     (s, a) => s + Number((a.services as unknown as { price?: number } | null)?.price ?? 0), 0);
   const dayClosed = (closedRes.data ?? []).length > 0;
 
+  /* Receivables need an age to be actionable — "50 outstanding" is a number,
+     "50 outstanding, 30 of it past ninety days" is a decision. */
   const aging = { d30: 0, d60: 0, d90: 0, over: 0 };
-  for (const inv of agingRes.data ?? []) {
+  for (const inv of pending) {
     const age = Math.floor((Date.now() - new Date(inv.created_at as string).getTime()) / 86_400_000);
-    const v = Number(inv.total ?? 0);
+    const v = owedOn(inv);
     if (age <= 30) aging.d30 += v;
     else if (age <= 60) aging.d60 += v;
     else if (age <= 90) aging.d90 += v;
     else aging.over += v;
   }
-  const vatQuarter = (vatRes.data ?? []).reduce((s, i) => s + Number(i.vat_amount ?? 0), 0);
+  const vatQuarter = (vatRes.data ?? []).reduce((s, i) => s + Number(i.vat_amount ?? 0), 0)
+    - (vatAdjRes.data ?? []).reduce((s, a) => s + Number(a.vat_amount ?? 0), 0);
   /* Billed vs collected this month is where revenue leaks, and neither number
      meant anything alone. */
   const collectionRate = monthPaid > 0 || pendingTotal > 0

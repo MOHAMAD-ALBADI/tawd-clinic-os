@@ -234,12 +234,18 @@ export async function recordPayment(
   if (!(amount > 0)) return { ok: false as const, reason: "المبلغ غير صالح" };
 
   const { data: inv, error: ierr } = await sb
-    .from("invoices").select("id, total, status, patient_id, appt_id")
+    .from("invoices").select("id, total, net_total, status, patient_id, appt_id")
     .eq("id", invoiceId).eq("clinic_id", claims.clinic_id).is("deleted_at", null).single();
   if (ierr || !inv) return { ok: false as const, reason: "الفاتورة غير موجودة" };
+  if (inv.status === "written_off") {
+    return { ok: false as const, reason: "الفاتورة مشطوبة — أصدر فاتورة جديدة إن عاد المريض ليسدّد" };
+  }
   if (["paid", "cancelled", "refunded"].includes(inv.status)) {
     return { ok: false as const, reason: "الفاتورة غير قابلة للتحصيل" };
   }
+
+  /* What is collectable, after any credit note — not what was invoiced. */
+  const collectable = round3(Number(inv.net_total ?? inv.total ?? 0));
 
   const { error: perr } = await sb.from("payments").insert({
     invoice_id: invoiceId,
@@ -256,7 +262,7 @@ export async function recordPayment(
     .from("payments").select("amount")
     .eq("invoice_id", invoiceId).eq("status", "completed");
   const paidSum = round3((pays ?? []).reduce((s, p) => s + Number(p.amount ?? 0), 0));
-  const newStatus = paidSum >= Number(inv.total) - 0.0005 ? "paid" : "partially_paid";
+  const newStatus = paidSum >= collectable - 0.0005 ? "paid" : "partially_paid";
 
   const { error: uerr } = await sb
     .from("invoices")
@@ -343,13 +349,25 @@ export async function closeDay(input: DayCloseInput) {
   const today = clinicToday();
   const { startUtc, endUtc } = clinicDayRange(today);
 
-  const { data: pays } = await sb
-    .from("payments")
-    .select("gateway, amount")
-    .eq("clinic_id", claims.clinic_id)
-    .eq("status", "completed")
-    .gte("paid_at", startUtc)
-    .lt("paid_at", endUtc);
+  const [{ data: pays }, { data: refunds }] = await Promise.all([
+    sb.from("payments")
+      .select("gateway, amount")
+      .eq("clinic_id", claims.clinic_id)
+      .eq("status", "completed")
+      .gte("paid_at", startUtc)
+      .lt("paid_at", endUtc),
+    /* Cash handed back left the drawer. Counting only what came in meant the
+       till was short by exactly the refund and the variance read as missing
+       money — the close accused the cashier of the thing it had failed to
+       record. Card reversals are the bank's problem, not the drawer's. */
+    sb.from("invoice_adjustments")
+      .select("amount")
+      .eq("clinic_id", claims.clinic_id)
+      .eq("kind", "refund")
+      .eq("method", "cash")
+      .gte("created_at", startUtc)
+      .lt("created_at", endUtc),
+  ]);
 
   let cash = 0, card = 0, other = 0;
   for (const p of pays ?? []) {
@@ -359,8 +377,9 @@ export async function closeDay(input: DayCloseInput) {
     else other += amt;
   }
   cash = round3(cash); card = round3(card); other = round3(other);
+  const cashRefunds = round3((refunds ?? []).reduce((s, r) => s + Number(r.amount ?? 0), 0));
 
-  const expectedCash = round3(Number(input.openingFloat) + cash);
+  const expectedCash = round3(Number(input.openingFloat) + cash - cashRefunds);
   const variance = round3(Number(input.countedCash) - expectedCash);
 
   const { error } = await sb.from("cashier_day_closes").upsert(
@@ -372,6 +391,7 @@ export async function closeDay(input: DayCloseInput) {
       system_cash: cash,
       system_card: card,
       system_other: other,
+      system_refunds: cashRefunds,
       variance,
       notes: input.notes?.trim() || null,
       closed_by: claims.sub,
@@ -381,7 +401,10 @@ export async function closeDay(input: DayCloseInput) {
   if (error) return { ok: false as const, reason: "تعذّر حفظ الإغلاق" };
 
   revalidatePath("/accountant/day-close");
-  return { ok: true as const, systemCash: cash, systemCard: card, systemOther: other, expectedCash, variance };
+  return {
+    ok: true as const, systemCash: cash, systemCard: card, systemOther: other,
+    cashRefunds, expectedCash, variance,
+  };
 }
 
 /** Save the clinic VAT registration number (shown on printed tax invoices). */

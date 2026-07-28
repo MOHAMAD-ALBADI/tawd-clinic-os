@@ -5,7 +5,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { DayCloseForm } from "@/components/accountant/day-close-form";
 import { clinicToday, clinicDayRange } from "@/lib/clinic-time";
-import { ArrowRight, History, ListChecks, Banknote, CreditCard } from "lucide-react";
+import { ArrowRight, History, ListChecks, Banknote, CreditCard, Undo2 } from "lucide-react";
 import { arTime } from "@/lib/ar-format";
 
 const GATEWAY_AR: Record<string, string> = {
@@ -27,7 +27,7 @@ export default async function DayClosePage() {
   const today = clinicToday();
   const { startUtc, endUtc } = clinicDayRange(today);
 
-  const [{ data: pays }, { data: history }] = await Promise.all([
+  const [{ data: pays }, { data: refunds }, { data: history }] = await Promise.all([
     /* Itemised, not just totalled. A cashier who is 5.000 short cannot find it
        in a single figure — reconciliation means looking down the list for the
        payment that is wrong, and the list was never on the page. */
@@ -36,8 +36,16 @@ export default async function DayClosePage() {
       .eq("clinic_id", claims.clinic_id).eq("status", "completed")
       .gte("paid_at", startUtc).lt("paid_at", endUtc)
       .order("paid_at"),
+    /* Money that went back out today. It belongs on the same list as the money
+       that came in: a drawer is reconciled by looking at every movement, and a
+       refund the list does not mention is a shortfall with no explanation. */
+    sb.from("invoice_adjustments")
+      .select("id, amount, method, reason, created_at, invoices!invoice_id(invoice_number, patients!patient_id(name))")
+      .eq("clinic_id", claims.clinic_id).eq("kind", "refund")
+      .gte("created_at", startUtc).lt("created_at", endUtc)
+      .order("created_at"),
     sb.from("cashier_day_closes")
-      .select("close_date, opening_float, counted_cash, system_cash, system_card, variance, notes")
+      .select("close_date, opening_float, counted_cash, system_cash, system_card, system_refunds, variance, notes")
       .eq("clinic_id", claims.clinic_id)
       .order("close_date", { ascending: false }).limit(10),
   ]);
@@ -53,6 +61,12 @@ export default async function DayClosePage() {
     else if (p.gateway === "bank_transfer" || p.gateway === "thawani") card += amt;
     else other += amt;
   }
+
+  /* Only cash refunds touch the drawer — a reversed card payment is settled by
+     the bank and never passes through the till. */
+  const cashRefunds = (refunds ?? [])
+    .filter((r) => r.method === "cash")
+    .reduce((s, r) => s + Number(r.amount ?? 0), 0);
 
   const fmtDate = (d: string) =>
     new Intl.DateTimeFormat("ar", { weekday: "long", day: "numeric", month: "short" }).format(new Date(d + "T12:00:00"));
@@ -70,7 +84,7 @@ export default async function DayClosePage() {
 
       <div className="grid lg:grid-cols-2 gap-4 items-start">
         <div className="space-y-4">
-          <DayCloseForm systemCash={cash} systemCard={card} systemOther={other} />
+          <DayCloseForm systemCash={cash} systemCard={card} systemOther={other} cashRefunds={cashRefunds} />
 
           {/* Every payment behind today's figures. */}
           <div className="panel" style={{ padding: "1.25rem" }}>
@@ -81,8 +95,39 @@ export default async function DayClosePage() {
               </h3>
               <span className="text-[11px] ltr-nums" style={{ color: "var(--text-4)" }}>
                 {(pays ?? []).length} دفعة
+                {(refunds ?? []).length > 0 && ` · ${(refunds ?? []).length} استرداد`}
               </span>
             </div>
+
+            {(refunds ?? []).length > 0 && (
+              <div className="space-y-1 mb-2">
+                {(refunds ?? []).map((r) => {
+                  const inv = r.invoices as unknown as
+                    { invoice_number?: string; patients?: { name?: string } | null } | null;
+                  return (
+                    <div key={r.id as string} className="flex items-center gap-2.5 px-3 py-2 rounded-xl"
+                      style={{ background: "rgba(167,139,250,0.06)", border: "1px solid rgba(167,139,250,0.22)" }}>
+                      <Undo2 className="w-3.5 h-3.5 shrink-0" style={{ color: "#c4b5fd" }} />
+                      <span className="text-[11px] ltr-nums shrink-0" style={{ color: "var(--text-4)" }}>
+                        {arTime.format(new Date(r.created_at as string))}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[12px] font-semibold text-white truncate">
+                          {inv?.patients?.name ?? "—"}
+                        </p>
+                        <p className="text-[10px] truncate" style={{ color: "var(--text-4)" }}>
+                          <span className="ltr-nums">{inv?.invoice_number ?? ""}</span>
+                          {" · "}{GATEWAY_AR[r.method as string] ?? r.method}{" · "}{r.reason as string}
+                        </p>
+                      </div>
+                      <span className="text-[12.5px] font-black ltr-nums shrink-0" style={{ color: "#c4b5fd" }}>
+                        −{fmt(Number(r.amount ?? 0))}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {(pays ?? []).length === 0 ? (
               <p className="text-xs text-center py-8" style={{ color: "var(--text-4)" }}>
@@ -141,6 +186,9 @@ export default async function DayClosePage() {
                     <span className="text-[12px] font-semibold text-white w-28 shrink-0">{fmtDate(h.close_date)}</span>
                     <span className="text-[11px] ltr-nums flex-1" style={{ color: "var(--text-3)" }}>
                       كاش {fmt(Number(h.system_cash))} · شبكة {fmt(Number(h.system_card))}
+                      {Number(h.system_refunds ?? 0) > 0 && (
+                        <span style={{ color: "#c4b5fd" }}> · مستردّ {fmt(Number(h.system_refunds))}</span>
+                      )}
                     </span>
                     <span className="text-[11px] font-bold ltr-nums shrink-0"
                       style={{ color: ok ? "var(--accent-1)" : "#fcd34d" }}>

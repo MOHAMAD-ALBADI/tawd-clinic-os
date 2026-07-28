@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { clinicToday, clinicDayRange, clinicDatePlus } from "@/lib/clinic-time";
+import { loadOpenReceivables, sumOwed } from "@/lib/receivables";
 import { Activity, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { getUserClaims }             from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -59,8 +60,11 @@ export default async function ClinicAdminPage() {
       .eq("clinic_id", claims.clinic_id).eq("status", "completed")
       .gte("paid_at", todayStart).lte("paid_at", todayEnd),
 
-    sb.from("invoices").select("total")
-      .eq("clinic_id", claims.clinic_id).in("status", ["sent", "partially_paid", "overdue"]).is("deleted_at", null),
+    /* The one definition of "owed", shared with the finance hub and the
+       accountant's ledger — net of payments already taken and of any credit
+       note. Summing the face value of open invoices, as this did, made the
+       headline disagree with every screen a manager would click through to. */
+    loadOpenReceivables(sb, claims.clinic_id),
 
     sb.from("ai_review_queue")
       .select("id, ai_draft, ai_intent, confidence_score, status, created_at, patients!patient_id(name)", { count: "exact" })
@@ -164,7 +168,7 @@ export default async function ClinicAdminPage() {
   const newToday        = patientsNewRes.count ?? 0;
   const todayRevenue    = (todayRevenueRes.data ?? []).reduce((s, p) => s + Number((p as { amount?: number }).amount ?? 0), 0);
   const yesterdayRev    = (yesterdayRevenueRes.data ?? []).reduce((s, p) => s + Number((p as { amount?: number }).amount ?? 0), 0);
-  const pendingTotal    = (pendingInvoicesRes.data ?? []).reduce((s, i) => s + Number((i as any).total ?? 0), 0);
+  const pendingTotal    = sumOwed(pendingInvoicesRes);
   const hitlItems       = hitlRes.data       ?? [];
   const hitlCount       = hitlRes.count      ?? 0;
   const staff           = staffRes.data      ?? [];

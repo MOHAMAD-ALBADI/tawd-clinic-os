@@ -6,6 +6,7 @@ import { hasRole } from "@/lib/auth/role-redirect";
 import { revalidatePath } from "next/cache";
 import { MANUAL_STATUSES, type InvoiceStatus } from "@/lib/invoice-meta";
 import { logClaimForInvoice } from "@/app/actions/insurance";
+import { clawBackLoyaltyOnRefund } from "@/lib/loyalty-ledger";
 
 export type InvoiceLineInput = {
   description: string;
@@ -144,9 +145,12 @@ export async function recordInvoicePayment(
 
   const sb = await createServerSupabaseClient();
   const { data: inv } = await sb.from("invoices")
-    .select("id, total, status").eq("id", invoiceId).eq("clinic_id", claims.clinic_id)
+    .select("id, total, net_total, status").eq("id", invoiceId).eq("clinic_id", claims.clinic_id)
     .is("deleted_at", null).maybeSingle();
   if (!inv) return { ok: false as const, reason: "الفاتورة غير موجودة" };
+  if (inv.status === "written_off") {
+    return { ok: false as const, reason: "الفاتورة مشطوبة — أصدر فاتورة جديدة إن عاد المريض ليسدّد" };
+  }
   if (["paid", "cancelled", "refunded"].includes(inv.status as string)) {
     return { ok: false as const, reason: "الفاتورة غير قابلة للتحصيل" };
   }
@@ -154,7 +158,10 @@ export async function recordInvoicePayment(
   const { data: prior } = await sb.from("payments").select("amount")
     .eq("invoice_id", invoiceId).eq("status", "completed");
   const already = round3((prior ?? []).reduce((s, p) => s + Number(p.amount ?? 0), 0));
-  const due = round3(Number(inv.total ?? 0) - already);
+  /* net_total, not total: a credit note reduced what is collectable, and taking
+     the original amount would leave the invoice overpaid and owing a refund. */
+  const collectable = round3(Number(inv.net_total ?? inv.total ?? 0));
+  const due = round3(collectable - already);
   if (amt - due > 0.0005) {
     return { ok: false as const, reason: `المتبقّي على الفاتورة ${due.toFixed(3)} ر.ع فقط` };
   }
@@ -171,14 +178,77 @@ export async function recordInvoicePayment(
   if (perr) return { ok: false as const, reason: "تعذّر تسجيل الدفعة" };
 
   const paidSum = round3(already + amt);
-  const newStatus = paidSum >= Number(inv.total) - 0.0005 ? "paid" : "partially_paid";
+  const newStatus = paidSum >= collectable - 0.0005 ? "paid" : "partially_paid";
   const { error: uerr } = await sb.from("invoices")
     .update({ status: newStatus, updated_at: new Date().toISOString() })
     .eq("id", invoiceId).eq("clinic_id", claims.clinic_id);
   if (uerr) return { ok: false as const, reason: "سُجّلت الدفعة لكن تعذّر تحديث حالة الفاتورة" };
 
   revalidateInvoices();
-  return { ok: true as const, status: newStatus, remaining: round3(Number(inv.total) - paidSum) };
+  return { ok: true as const, status: newStatus, remaining: round3(collectable - paidSum) };
+}
+
+/** Refund, credit note or write-off against an invoice.
+
+    The arithmetic is not done here. Reading the totals, deciding, then writing
+    would be three round trips with no lock: two accountants refunding the same
+    invoice at the same moment would both read the same "already refunded"
+    figure, both pass the cap, and the clinic would hand back twice what it took.
+    So the database does it in one locked transaction — cap, adjustment row, the
+    write-off's expense, the new status and the collectable total together — and
+    this function's job is the session, the role, and the things that happen
+    around the money. */
+export async function adjustInvoice(input: {
+  invoiceId: string;
+  kind: "refund" | "credit_note" | "write_off";
+  amount: number;
+  reason: string;
+  method?: "cash" | "bank_transfer" | "thawani" | null;
+}) {
+  const claims = await requireFinance();
+  const amount = round3(input.amount);
+  if (!(amount > 0)) return { ok: false as const, reason: "المبلغ يجب أن يكون أكبر من صفر" };
+  if (input.reason.trim().length < 3) return { ok: false as const, reason: "اكتب سبب التسوية" };
+
+  const sb = await createServerSupabaseClient();
+  const { data, error } = await sb.rpc("adjust_invoice", {
+    p_invoice: input.invoiceId,
+    p_kind:    input.kind,
+    p_amount:  amount,
+    p_reason:  input.reason.trim(),
+    p_method:  input.kind === "refund" ? (input.method ?? null) : null,
+  });
+  /* The RPC raises readable Arabic — the cap, the missing reason, the wrong role
+     — so it is shown rather than replaced with a generic failure. */
+  if (error) return { ok: false as const, reason: error.message || "تعذّر تسجيل التسوية" };
+
+  const r = (data ?? {}) as {
+    status?: string; outstanding?: number; amount?: number; vat_amount?: number;
+  };
+
+  /* Points earned on money that has just gone back out. */
+  let pointsTaken = 0;
+  if (input.kind === "refund") {
+    const { data: inv } = await sb.from("invoices")
+      .select("patient_id").eq("id", input.invoiceId).eq("clinic_id", claims.clinic_id).maybeSingle();
+    if (inv?.patient_id) {
+      pointsTaken = await clawBackLoyaltyOnRefund(
+        sb, claims.clinic_id, inv.patient_id as string, claims.sub, amount);
+    }
+  }
+
+  revalidateInvoices();
+  revalidatePath("/accountant/day-close");
+  revalidatePath("/accountant/vat");
+  if (input.kind === "write_off") revalidatePath("/clinic-admin/finance/expenses");
+
+  return {
+    ok: true as const,
+    status: (r.status ?? "") as string,
+    outstanding: Number(r.outstanding ?? 0),
+    vatShare: Number(r.vat_amount ?? 0),
+    pointsTaken,
+  };
 }
 
 export async function updateInvoiceStatus(id: string, status: InvoiceStatus) {

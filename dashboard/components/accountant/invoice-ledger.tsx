@@ -5,11 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Search, X, Banknote, CreditCard, AlertTriangle, CheckCircle2, Coins,
-  ReceiptText, ChevronLeft,
+  ReceiptText, ChevronLeft, Undo2,
 } from "lucide-react";
 import { recordPayment } from "@/app/actions/accountant";
+import { adjustInvoice } from "@/app/actions/invoices";
 import { NumField, F } from "@/components/ui/num-field";
 import { arDateShort } from "@/lib/ar-format";
+import { ADJUSTMENT_META, type AdjustmentKind } from "@/lib/invoice-meta";
+import { AdjustInvoiceDialog } from "@/components/accountant/adjust-invoice-dialog";
 
 export type LedgerInvoice = {
   id: string;
@@ -17,14 +20,29 @@ export type LedgerInvoice = {
   patientId: string | null;
   patientName: string;
   patientPhone: string | null;
+  /** what was invoiced — the figure on the document */
   total: number;
   paid: number;
+  /** money already given back */
+  refunded: number;
+  /** credit notes plus write-offs: the part of `total` no longer collectable */
+  adjusted: number;
   status: string;
   createdAt: string;
   dueDate: string | null;
 };
 
 const omr = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+
+/* Collectable, collected, and the gap between them.
+
+   Every figure on this page used to be total − paid. That is only true of an
+   invoice nothing has happened to: a credit note reduces what may be collected,
+   a refund un-collects what was, and both were invisible here — so a corrected
+   invoice still showed its original debt and a refunded one showed as settled. */
+const collectable = (i: LedgerInvoice) => i.total - i.adjusted;
+const netPaid     = (i: LedgerInvoice) => i.paid - i.refunded;
+const owed        = (i: LedgerInvoice) => Math.max(0, collectable(i) - netPaid(i));
 
 const STATUS: Record<string, { label: string; color: string }> = {
   draft:          { label: "مسودة",        color: "#a1a1aa" },
@@ -34,10 +52,17 @@ const STATUS: Record<string, { label: string; color: string }> = {
   paid:           { label: "مسدّدة",       color: "#34d399" },
   cancelled:      { label: "ملغاة",        color: "#71717a" },
   refunded:       { label: "مستردة",       color: "#a78bfa" },
+  written_off:    { label: "مشطوبة",       color: "#a78bfa" },
 };
 
 const OPEN = ["sent", "partially_paid", "overdue", "draft"];
-type Tab = "open" | "overdue" | "paid" | "all";
+type Tab = "open" | "overdue" | "paid" | "adjusted" | "all";
+
+/* Anything that has been refunded, credited or written off, whatever its
+   status. An accountant is asked about these more often than about clean
+   invoices, and there was no way to find one. */
+const ADJUSTED = (i: LedgerInvoice) =>
+  i.refunded > 0 || i.adjusted > 0 || i.status === "refunded" || i.status === "written_off";
 
 const ageDays = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
 
@@ -54,6 +79,7 @@ export function InvoiceLedger({ invoices, capped }: { invoices: LedgerInvoice[];
   const [tab, setTab] = useState<Tab>("open");
   const [q, setQ] = useState("");
   const [paying, setPaying] = useState<LedgerInvoice | null>(null);
+  const [adjusting, setAdjusting] = useState<LedgerInvoice | null>(null);
   const [msg, setMsg] = useState<{ text: string; bad?: boolean } | null>(null);
 
   const isOpen = (i: LedgerInvoice) => OPEN.includes(i.status);
@@ -64,6 +90,7 @@ export function InvoiceLedger({ invoices, capped }: { invoices: LedgerInvoice[];
     open: invoices.filter(isOpen).length,
     overdue: invoices.filter(isOverdue).length,
     paid: invoices.filter((i) => i.status === "paid").length,
+    adjusted: invoices.filter(ADJUSTED).length,
     all: invoices.length,
   }), [invoices]);
 
@@ -74,6 +101,7 @@ export function InvoiceLedger({ invoices, capped }: { invoices: LedgerInvoice[];
         if (tab === "open" && !isOpen(i)) return false;
         if (tab === "overdue" && !isOverdue(i)) return false;
         if (tab === "paid" && i.status !== "paid") return false;
+        if (tab === "adjusted" && !ADJUSTED(i)) return false;
         if (term && !`${i.patientName} ${i.number} ${i.patientPhone ?? ""}`.toLowerCase().includes(term)) return false;
         return true;
       })
@@ -85,7 +113,7 @@ export function InvoiceLedger({ invoices, capped }: { invoices: LedgerInvoice[];
     const buckets = { d0: 0, d30: 0, d60: 0, d90: 0 };
     for (const i of invoices) {
       if (!isOpen(i)) continue;
-      const rest = i.total - i.paid;
+      const rest = owed(i);
       const age = ageDays(i.createdAt);
       if (age <= 30) buckets.d0 += rest;
       else if (age <= 60) buckets.d30 += rest;
@@ -96,7 +124,7 @@ export function InvoiceLedger({ invoices, capped }: { invoices: LedgerInvoice[];
   }, [invoices]);
 
   const outstanding = aging.d0 + aging.d30 + aging.d60 + aging.d90;
-  const shownTotal = rows.reduce((s, i) => s + (tab === "paid" ? i.total : i.total - i.paid), 0);
+  const shownTotal = rows.reduce((s, i) => s + (tab === "paid" ? netPaid(i) : owed(i)), 0);
 
   function pay(inv: LedgerInvoice, gateway: "cash" | "bank_transfer", amount: number) {
     setMsg(null);
@@ -107,9 +135,30 @@ export function InvoiceLedger({ invoices, capped }: { invoices: LedgerInvoice[];
       setMsg({
         text: r.status === "paid"
           ? `سُدّدت ${inv.number} بالكامل ✓${r.earnedPoints ? ` · ${r.earnedPoints} نقطة ولاء` : ""}`
-          : `سُجّلت دفعة على ${inv.number} — المتبقي ${omr(inv.total - r.paidSum)} ر.ع`,
+          : `سُجّلت دفعة على ${inv.number} — المتبقي ${omr(Math.max(0, collectable(inv) - r.paidSum))} ر.ع`,
       });
       setTimeout(() => setMsg(null), 6000);
+      router.refresh();
+    });
+  }
+
+  function adjust(
+    inv: LedgerInvoice, kind: AdjustmentKind, amount: number, reason: string,
+    method: "cash" | "bank_transfer" | "thawani" | null,
+  ) {
+    setMsg(null);
+    start(async () => {
+      const r = await adjustInvoice({ invoiceId: inv.id, kind, amount, reason, method });
+      if (!r.ok) { setMsg({ text: r.reason, bad: true }); return; }
+      setAdjusting(null);
+      const label = ADJUSTMENT_META[kind].label;
+      setMsg({
+        text: `سُجّل ${label} ${omr(amount)} ر.ع على ${inv.number}`
+          + ` — المستحق الآن ${omr(r.outstanding)} ر.ع`
+          + (r.pointsTaken ? ` · سُحبت ${r.pointsTaken} نقطة ولاء` : "")
+          + (kind === "write_off" ? " · سُجّل مصروف «ديون معدومة»" : ""),
+      });
+      setTimeout(() => setMsg(null), 9000);
       router.refresh();
     });
   }
@@ -136,7 +185,8 @@ export function InvoiceLedger({ invoices, capped }: { invoices: LedgerInvoice[];
       )}
 
       <div className="flex items-center gap-2 flex-wrap">
-        {([["open", "غير مسدّدة"], ["overdue", "متأخرة"], ["paid", "مسدّدة"], ["all", "الكل"]] as [Tab, string][])
+        {([["open", "غير مسدّدة"], ["overdue", "متأخرة"], ["paid", "مسدّدة"],
+           ["adjusted", "تسويات"], ["all", "الكل"]] as [Tab, string][])
           .map(([k, label]) => {
             const on = tab === k;
             const n = counts[k];
@@ -186,16 +236,25 @@ export function InvoiceLedger({ invoices, capped }: { invoices: LedgerInvoice[];
             style={{ borderBottom: "1px solid var(--hairline)", color: "var(--text-4)" }}>
             <span className="ltr-nums">{rows.length} فاتورة</span>
             <span className="ms-auto">
-              {tab === "paid" ? "محصّل" : "مستحق"}{" "}
+              {tab === "paid" ? "محصّل صافي" : "مستحق"}{" "}
               <span className="font-black ltr-nums" style={{ color: "var(--accent-1)" }}>{omr(shownTotal)}</span> ر.ع
             </span>
           </div>
 
           {rows.map((inv, i) => {
             const st = STATUS[inv.status] ?? STATUS.draft;
-            const rest = inv.total - inv.paid;
+            const rest = owed(inv);
             const late = isOverdue(inv);
             const age = ageDays(inv.createdAt);
+            /* A refund or a credit note is the whole story of some invoices, so
+               it goes on the row rather than behind a click. */
+            const adjNote = [
+              inv.refunded > 0 ? `مستردّ ${omr(inv.refunded)}` : "",
+              inv.adjusted > 0 ? `منزَّل ${omr(inv.adjusted)}` : "",
+            ].filter(Boolean).join(" · ");
+            /* Anything with money still in play can be adjusted: an open debt can
+               be credited or written off, a settled one can be refunded. */
+            const canAdjust = owed(inv) > 0.0005 || netPaid(inv) > 0.0005;
             return (
               <div key={inv.id} className="flex items-center gap-3 px-4 py-3 flex-wrap"
                 style={{ borderTop: i ? "1px solid var(--hairline-2)" : "none" }}>
@@ -220,8 +279,15 @@ export function InvoiceLedger({ invoices, capped }: { invoices: LedgerInvoice[];
 
                 <div className="text-end shrink-0" style={{ minWidth: 92 }}>
                   <p className="text-[13px] font-black ltr-nums text-white">{omr(inv.total)}</p>
-                  {inv.paid > 0 && inv.status !== "paid" && (
+                  {/* Only while the invoice is still being collected. A refunded
+                      or written-off one has a non-zero gap between billed and
+                      collected, and printing it as "باقي" reads as a debt the
+                      desk should chase — which is the opposite of the truth. */}
+                  {isOpen(inv) && rest > 0 && rest < inv.total && (
                     <p className="text-[10.5px] ltr-nums" style={{ color: "#fbbf24" }}>باقي {omr(rest)}</p>
+                  )}
+                  {adjNote && (
+                    <p className="text-[10px] ltr-nums" style={{ color: "#c4b5fd" }}>{adjNote}</p>
                   )}
                 </div>
 
@@ -236,6 +302,12 @@ export function InvoiceLedger({ invoices, capped }: { invoices: LedgerInvoice[];
                     <Banknote className="w-3.5 h-3.5" style={{ color: "#34d399" }} />
                   </button>
                 )}
+                {canAdjust && (
+                  <button className="btn-ghost" disabled={pending} title="استرداد / إشعار دائن / شطب"
+                    onClick={() => { setMsg(null); setAdjusting(inv); }}>
+                    <Undo2 className="w-3.5 h-3.5" style={{ color: "#c4b5fd" }} />
+                  </button>
+                )}
                 {inv.patientId && (
                   <Link href={`/reception/patients/${inv.patientId}`} className="shrink-0">
                     <ChevronLeft className="w-4 h-4" style={{ color: "var(--text-4)" }} />
@@ -248,6 +320,17 @@ export function InvoiceLedger({ invoices, capped }: { invoices: LedgerInvoice[];
       )}
 
       {paying && <PayDialog inv={paying} pending={pending} onClose={() => setPaying(null)} onPay={pay} />}
+      {adjusting && (
+        <AdjustInvoiceDialog
+          inv={{
+            id: adjusting.id, number: adjusting.number, patientName: adjusting.patientName,
+            total: adjusting.total, netPaid: netPaid(adjusting), outstanding: owed(adjusting),
+          }}
+          pending={pending}
+          onClose={() => setAdjusting(null)}
+          onSubmit={(kind, amount, reason, method) => adjust(adjusting, kind, amount, reason, method)}
+        />
+      )}
     </div>
   );
 }
@@ -272,7 +355,7 @@ function PayDialog({
   inv: LedgerInvoice; pending: boolean; onClose: () => void;
   onPay: (i: LedgerInvoice, g: "cash" | "bank_transfer", amount: number) => void;
 }) {
-  const rest = inv.total - inv.paid;
+  const rest = owed(inv);
   const [amount, setAmount] = useState(String(rest));
   const [gateway, setGateway] = useState<"cash" | "bank_transfer">("cash");
   const over = Number(amount) > rest + 0.0005;

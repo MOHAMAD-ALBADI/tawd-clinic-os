@@ -5,6 +5,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { PatientDirectory, type DirectoryPatient } from "@/components/reception/patient-directory";
 import { UserPlus } from "lucide-react";
+import { loadOpenReceivables, owedByPatient } from "@/lib/receivables";
 
 export const metadata = { title: "المرضى — طود" };
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ export default async function ReceptionPatientsPage() {
   const sb = await createServerSupabaseClient();
   const nowIso = new Date().toISOString();
 
-  const [{ data: people }, { data: visits }, { data: future }, { data: hist }, { data: invoices }] =
+  const [{ data: people }, { data: visits }, { data: future }, { data: hist }, invoices] =
     await Promise.all([
       /* Newest first, so if the cap bites it drops the oldest records
          rather than an arbitrary slice — and the UI says when it did. */
@@ -34,10 +35,9 @@ export default async function ReceptionPatientsPage() {
         .gte("slot_time", nowIso).order("slot_time").limit(3000),
       sb.from("medical_histories").select("patient_id, allergies, chronic_diseases").limit(5000),
       /* What is still owed, so the desk can ask while the patient is here
-         rather than posting a reminder next week. */
-      sb.from("invoices").select("patient_id, total, status")
-        .eq("clinic_id", claims.clinic_id).is("deleted_at", null)
-        .in("status", ["sent", "overdue", "partially_paid"]).limit(3000),
+         rather than posting a reminder next week. Net of payments and credit
+         notes — the same helper the finance screens use. */
+      loadOpenReceivables(sb, claims.clinic_id),
     ]);
 
   const last = new Map<string, string>();
@@ -59,11 +59,7 @@ export default async function ReceptionPatientsPage() {
     if (a.length) allergyOf.set(pid, a);
     if (c.length) chronicOf.set(pid, c);
   }
-  const owed = new Map<string, number>();
-  for (const inv of invoices ?? []) {
-    const pid = inv.patient_id as string;
-    owed.set(pid, (owed.get(pid) ?? 0) + Number(inv.total ?? 0));
-  }
+  const owed = owedByPatient(invoices);
 
   const patients: DirectoryPatient[] = (people ?? []).map((p) => {
     const id = p.id as string;

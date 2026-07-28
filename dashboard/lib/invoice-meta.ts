@@ -7,10 +7,11 @@
 
 export type InvoiceStatus =
   | "draft" | "sent" | "paid" | "partially_paid"
-  | "overdue" | "cancelled" | "refunded";
+  | "overdue" | "cancelled" | "refunded" | "written_off";
 
-/** Statuses a human may set by hand. "paid" and "partially_paid" are absent on
-    purpose: they follow from recorded payments, never from an opinion. */
+/** Statuses a human may set by hand. "paid", "partially_paid", "refunded" and
+    "written_off" are absent on purpose: they follow from recorded payments and
+    recorded adjustments, never from an opinion. */
 export const MANUAL_STATUSES: InvoiceStatus[] = ["draft", "sent", "overdue", "cancelled"];
 
 export const STATUS_META: Record<InvoiceStatus, { label: string; cls: string; color: string }> = {
@@ -21,7 +22,47 @@ export const STATUS_META: Record<InvoiceStatus, { label: string; cls: string; co
   overdue:        { label: "متأخرة",        cls: "badge-bad",   color: "#F87171" },
   cancelled:      { label: "ملغاة",         cls: "badge-mute",  color: "#71717a" },
   refunded:       { label: "مستردة",        cls: "badge-brand", color: "var(--accent-1)" },
+  written_off:    { label: "مشطوبة",        cls: "badge-mute",  color: "#a78bfa" },
 };
+
+/* The three ways an invoice can go backwards.
+
+   They are easy to confuse and expensive to confuse, so each one carries the
+   sentence that tells them apart — shown in the dialog, not left in a comment
+   for the person who has to choose. */
+export type AdjustmentKind = "refund" | "credit_note" | "write_off";
+
+export const ADJUSTMENT_META: Record<AdjustmentKind, {
+  label: string; short: string; hint: string; colour: string;
+}> = {
+  refund: {
+    label: "استرداد",
+    short: "فلوس ترجع للمريض",
+    hint: "المريض دفع فعلاً وترجّعون له مبلغه. المبلغ يخرج من الصندوق، فلا يزيد عمّا حُصّل. "
+        + "الاسترداد لا يعدّل الفاتورة — إن كانت الفاتورة نفسها خطأ فأصدروا إشعار دائن كذلك.",
+    colour: "#a78bfa",
+  },
+  credit_note: {
+    label: "إشعار دائن",
+    short: "تصحيح مبلغ الفاتورة",
+    hint: "الفاتورة صدرت بمبلغ أكبر من الصحيح، فيُنزَّل الفرق منها. لا تتحرك أي فلوس — "
+        + "المستحق على المريض هو ما ينقص.",
+    colour: "#38bdf8",
+  },
+  write_off: {
+    label: "شطب",
+    short: "دين يئستم من تحصيله",
+    hint: "دين لن يُحصَّل، فيخرج من المستحقات ويُسجَّل خسارة في المصروفات تحت «ديون معدومة». "
+        + "الفاتورة تبقى في السجل ولا تُحذف.",
+    colour: "#fda4b4",
+  },
+};
+
+export const REFUND_METHODS: { value: "cash" | "bank_transfer" | "thawani"; label: string }[] = [
+  { value: "cash",          label: "نقداً من الصندوق" },
+  { value: "bank_transfer", label: "تحويل بنكي" },
+  { value: "thawani",       label: "عكس عملية البطاقة" },
+];
 
 /** Oman's standard VAT rate. Health services are largely exempt, so this is
     opt-in per line rather than applied to everything. */

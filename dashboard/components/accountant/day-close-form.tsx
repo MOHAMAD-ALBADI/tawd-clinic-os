@@ -11,12 +11,17 @@ export function DayCloseForm({
   systemCash,
   systemCard,
   systemOther = 0,
+  cashRefunds = 0,
 }: {
   systemCash: number;
   systemCard: number;
   /** insurance settlements and anything else that is neither notes nor card —
       shown so the on-screen total matches the close that gets saved */
   systemOther?: number;
+  /** cash handed back to patients today — it left the drawer, so it comes off
+      the expected count. Shown rather than silently subtracted, because an
+      unexplained drop in the expected figure reads as a bug. */
+  cashRefunds?: number;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -26,7 +31,7 @@ export function DayCloseForm({
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<{ variance: number; expectedCash: number } | null>(null);
 
-  const expected = Number(openingFloat || 0) + systemCash;
+  const expected = Number(openingFloat || 0) + systemCash - cashRefunds;
   const liveVariance = countedCash === "" ? null : Number(countedCash) - expected;
 
   function submit() {
@@ -58,7 +63,7 @@ export function DayCloseForm({
 
       {/* system side — the three buckets the saved close records, so what is on
           screen and what lands in the record are the same numbers */}
-      <div className={`grid gap-3 mb-5 ${systemOther > 0 ? "grid-cols-3" : "grid-cols-2"}`}>
+      <div className="grid gap-3 mb-5 grid-cols-2">
         <div className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
           <p className="text-[10px] mb-1" style={{ color: "var(--text-4)" }}>كاش النظام اليوم</p>
           <p className="text-base font-bold ltr-nums text-white">{fmt(systemCash)}</p>
@@ -71,6 +76,13 @@ export function DayCloseForm({
           <div className="rounded-xl px-3 py-2.5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
             <p className="text-[10px] mb-1" style={{ color: "var(--text-4)" }}>تأمين/أخرى</p>
             <p className="text-base font-bold ltr-nums text-white">{fmt(systemOther)}</p>
+          </div>
+        )}
+        {cashRefunds > 0 && (
+          <div className="rounded-xl px-3 py-2.5"
+            style={{ background: "rgba(167,139,250,0.07)", border: "1px solid rgba(167,139,250,0.25)" }}>
+            <p className="text-[10px] mb-1" style={{ color: "#c4b5fd" }}>مستردّ نقداً اليوم</p>
+            <p className="text-base font-bold ltr-nums" style={{ color: "#c4b5fd" }}>−{fmt(cashRefunds)}</p>
           </div>
         )}
       </div>

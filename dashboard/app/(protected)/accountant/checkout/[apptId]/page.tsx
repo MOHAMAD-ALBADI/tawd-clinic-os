@@ -4,6 +4,7 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { CheckoutFlow } from "@/components/accountant/checkout-flow";
+import { loadOpenReceivables, sumOwed } from "@/lib/receivables";
 import { ArrowRight, AlertTriangle, User, Stethoscope } from "lucide-react";
 
 export const metadata = { title: "الكاشير — طود" };
@@ -26,20 +27,16 @@ export default async function CheckoutPage({ params }: { params: Promise<{ apptI
   if (!appt) notFound();
 
   /* outstanding balance from previous invoices — collect it while they're here */
-  const [{ data: oldInv }, { data: pat }, { data: loyaltyCfg }] = await Promise.all([
-    sb.from("invoices")
-      .select("total, status")
-      .eq("clinic_id", claims.clinic_id)
-      .eq("patient_id", appt.patient_id)
-      .in("status", ["sent", "partially_paid", "overdue"])
-      .neq("appt_id", apptId)
-      .is("deleted_at", null),
+  const [oldInv, { data: pat }, { data: loyaltyCfg }] = await Promise.all([
+    loadOpenReceivables(sb, claims.clinic_id, { patientIds: [appt.patient_id as string] }),
     sb.from("patients").select("loyalty_points").eq("id", appt.patient_id).single(),
     sb.from("loyalty_settings")
       .select("is_active, redemption_rate, min_redeem_points, max_redeem_pct")
       .eq("clinic_id", claims.clinic_id).maybeSingle(),
   ]);
-  const outstanding = (oldInv ?? []).reduce((s, i) => s + Number(i.total ?? 0), 0);
+  /* Net of payments and credit notes, and excluding the visit being billed right
+     now — this figure is read out loud to the patient at the desk. */
+  const outstanding = sumOwed(oldInv.filter((i) => i.apptId !== apptId));
   const loyalty = {
     active: !!loyaltyCfg?.is_active,
     balance: Number(pat?.loyalty_points ?? 0),

@@ -28,7 +28,7 @@ export default async function InvoicesPage() {
        partially paid invoice, and the day-close reconciles against payments. */
     supabase.from("payments").select("amount").eq("clinic_id", claims.clinic_id)
       .eq("status", "completed").gte("paid_at", monthStart),
-    supabase.from("invoices").select("total,status").eq("clinic_id", claims.clinic_id).is("deleted_at", null).gte("created_at", monthStart),
+    supabase.from("invoices").select("total,net_total,status").eq("clinic_id", claims.clinic_id).is("deleted_at", null).gte("created_at", monthStart),
     supabase.from("patients").select("id,name,phone").eq("clinic_id", claims.clinic_id).is("deleted_at", null).eq("is_archived", false).order("name"),
     supabase.from("services").select("id,name,price,vat_applicable").eq("clinic_id", claims.clinic_id).is("deleted_at", null).eq("is_active", true).order("name"),
   ]);
@@ -52,7 +52,9 @@ export default async function InvoicesPage() {
   }
 
   const totalRevenue = (monthPayData ?? []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
-  const totalPending = monthInvs.filter((i) => ["sent", "partially_paid", "overdue"].includes(i.status)).reduce((s, i) => s + (i.total ?? 0), 0);
+  const totalPending = monthInvs
+    .filter((i) => ["sent", "partially_paid", "overdue"].includes(i.status))
+    .reduce((s, i) => s + Number(i.net_total ?? i.total ?? 0), 0);
   const countOverdue = invoices.filter((i) => i.status === "overdue").length;
   const countPaid    = invoices.filter((i) => i.status === "paid").length;
 

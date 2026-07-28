@@ -1,5 +1,6 @@
 import "server-only";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { paymentsByInvoice } from "@/lib/receivables";
 
 /* The front desk's actual job, which the dashboard never showed.
 
@@ -97,7 +98,7 @@ export async function getFollowUps(clinicId: string): Promise<FollowUpBoard> {
       .order("priority", { ascending: false }).order("created_at").limit(50),
 
     sb.from("invoices")
-      .select("id, patient_id, total, status, created_at, patients!patient_id(name, phone)")
+      .select("id, patient_id, net_total, status, created_at, patients!patient_id(name, phone)")
       .eq("clinic_id", clinicId).is("deleted_at", null)
       .in("status", ["sent", "overdue", "partially_paid"]).limit(200),
 
@@ -207,12 +208,19 @@ export async function getFollowUps(clinicId: string): Promise<FollowUpBoard> {
 
   /* Unpaid invoices, so the desk can ask while the patient is standing there
      rather than posting a reminder afterwards. */
+  /* What is actually left, not the face value of the invoice. A patient who has
+     paid 90 of 100 was being chased for 100 and shown as urgent at the desk. */
+  const paidOf = await paymentsByInvoice(
+    sb, clinicId, (openInvoices ?? []).map((i) => i.id as string));
+
   const owed = new Map<string, { name: string; phone: string | null; total: number; count: number }>();
   for (const inv of openInvoices ?? []) {
+    const rest = Math.max(0, Number(inv.net_total ?? 0) - (paidOf.get(inv.id as string) ?? 0));
+    if (rest <= 0.0005) continue;
     const pid = inv.patient_id as string;
     const p = inv.patients as unknown as PatientJoin;
     const cur = owed.get(pid) ?? { name: p?.name ?? "مريض", phone: p?.phone ?? null, total: 0, count: 0 };
-    cur.total += Number(inv.total ?? 0);
+    cur.total += rest;
     cur.count++;
     owed.set(pid, cur);
   }

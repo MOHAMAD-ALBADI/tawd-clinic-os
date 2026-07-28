@@ -1,6 +1,7 @@
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { clinicToday } from "@/lib/clinic-time";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { loadOpenReceivables, sumOwed, isLate } from "@/lib/receivables";
 import { TrendingUp, TrendingDown, Wallet, PieChart, Banknote, CreditCard, Smartphone, ShieldCheck, AlertTriangle } from "lucide-react";
 
 export const metadata = { title: "المالية — طود" };
@@ -29,7 +30,7 @@ export default async function FinanceOverviewPage() {
   // six-month window, this month included
   const windowStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1)).toISOString().slice(0, 10);
 
-  const [payRes, expRes, invRes] = await Promise.all([
+  const [payRes, expRes, openInvoices] = await Promise.all([
     sb.from("payments").select("amount, gateway, created_at")
       .eq("clinic_id", claims.clinic_id).eq("status", "completed")
       .gte("created_at", `${windowStart}T00:00:00`),
@@ -37,9 +38,7 @@ export default async function FinanceOverviewPage() {
       .eq("clinic_id", claims.clinic_id).is("deleted_at", null)
       .gte("expense_date", windowStart),
     // everything still owed, regardless of when it was raised
-    sb.from("invoices").select("total, status, due_date")
-      .eq("clinic_id", claims.clinic_id).is("deleted_at", null)
-      .in("status", ["sent", "partially_paid", "overdue"]),
+    loadOpenReceivables(sb, claims.clinic_id),
   ]);
 
   const payments = payRes.data ?? [];
@@ -69,9 +68,9 @@ export default async function FinanceOverviewPage() {
 
   /* ── outstanding ── */
   const today = clinicToday(now);
-  const outstanding = (invRes.data ?? []).reduce((s, i) => s + n(i.total), 0);
-  const overdueRows = (invRes.data ?? []).filter((i) => i.status === "overdue" || (i.due_date && (i.due_date as string) < today));
-  const overdue = overdueRows.reduce((s, i) => s + n(i.total), 0);
+  const outstanding = sumOwed(openInvoices);
+  const overdueRows = openInvoices.filter((i) => isLate(i, today));
+  const overdue = sumOwed(overdueRows);
 
   /* ── six-month trend ── */
   const months: { key: string; label: string; rev: number; exp: number }[] = [];

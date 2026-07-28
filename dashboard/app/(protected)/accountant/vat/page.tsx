@@ -5,7 +5,7 @@ import { hasRole } from "@/lib/auth/role-redirect";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { clinicToday } from "@/lib/clinic-time";
 import { arDate } from "@/lib/ar-format";
-import { VatReturn, type VatInvoice } from "@/components/accountant/vat-return";
+import { VatReturn, type VatInvoice, type VatAdjustment } from "@/components/accountant/vat-return";
 import { ArrowRight, AlertTriangle } from "lucide-react";
 
 export const metadata = { title: "ضريبة القيمة المضافة — طود" };
@@ -45,16 +45,26 @@ export default async function VatPage({
   const period = quarterOf(anchor);
 
   const sb = await createServerSupabaseClient();
-  const [{ data: clinic }, { data: rows }] = await Promise.all([
+  const [{ data: clinic }, { data: rows }, { data: adjRows }] = await Promise.all([
     sb.from("tawd_clinics").select("name_ar, name, vat_number, vat_enabled")
       .eq("id", claims.clinic_id).maybeSingle(),
-    /* Cancelled invoices are not supplies. Refunded ones are, and their credit
-       belongs in the same period they were refunded — flagged rather than
-       silently netted, because that is an accountant's call not a query's. */
+    /* Cancelled invoices are not supplies. Everything else raised in the period
+       is, at the amount it was raised for — an invoice later refunded or credited
+       still declares its own tax in its own quarter. */
     sb.from("invoices")
       .select("id, invoice_number, created_at, subtotal, discount_amount, vat_amount, total, status, patients!patient_id(name)")
       .eq("clinic_id", claims.clinic_id).is("deleted_at", null)
       .neq("status", "draft").neq("status", "cancelled")
+      .gte("created_at", `${period.start}T00:00:00+04:00`)
+      .lt("created_at", `${period.end}T00:00:00+04:00`)
+      .order("created_at").limit(5000),
+    /* Adjustments belong to the period they were MADE in, not the one the
+       invoice was raised in — an invoice from March credited in May reduces the
+       May return. Netting them against the invoice's own quarter would restate a
+       return that has already been filed. */
+    sb.from("invoice_adjustments")
+      .select("id, kind, amount, vat_amount, reason, created_at, invoices!invoice_id(invoice_number, patients!patient_id(name))")
+      .eq("clinic_id", claims.clinic_id)
       .gte("created_at", `${period.start}T00:00:00+04:00`)
       .lt("created_at", `${period.end}T00:00:00+04:00`)
       .order("created_at").limit(5000),
@@ -71,6 +81,21 @@ export default async function VatPage({
     total: Number(r.total ?? 0),
     status: r.status as string,
   }));
+
+  const adjustments: VatAdjustment[] = (adjRows ?? []).map((a) => {
+    const inv = a.invoices as unknown as
+      { invoice_number?: string; patients?: { name?: string } | null } | null;
+    return {
+      id: a.id as string,
+      kind: a.kind as VatAdjustment["kind"],
+      date: a.created_at as string,
+      invoiceNumber: inv?.invoice_number ?? "—",
+      patientName: inv?.patients?.name ?? "—",
+      amount: Number(a.amount ?? 0),
+      vat: Number(a.vat_amount ?? 0),
+      reason: a.reason as string,
+    };
+  });
 
   const daysToDue = Math.ceil((new Date(period.due).getTime() - Date.now()) / 86_400_000);
   const quarterClosed = today >= period.end;
@@ -112,6 +137,7 @@ export default async function VatPage({
 
       <VatReturn
         invoices={invoices}
+        adjustments={adjustments}
         period={period}
         daysToDue={daysToDue}
         quarterClosed={quarterClosed}

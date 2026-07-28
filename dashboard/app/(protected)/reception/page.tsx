@@ -9,6 +9,7 @@ import { WalkinDialog } from "@/components/reception/walkin-dialog";
 import { EmergencyAlerts } from "@/components/dashboard/emergency-alerts";
 import { TawdBarsGlyph } from "@/components/shell/tawd-logo";
 import { arDayDate, arTime } from "@/lib/ar-format";
+import { loadOpenReceivables, owedByPatient } from "@/lib/receivables";
 import {
   CalendarPlus, ClipboardList, Hourglass, AlertTriangle, HeartPulse, Coins,
   PhoneCall, ChevronLeft, Users,
@@ -84,11 +85,7 @@ export default async function ReceptionPage() {
     todayPatientIds.length
       ? sb.from("medical_histories").select("patient_id, allergies, chronic_diseases").in("patient_id", todayPatientIds)
       : Promise.resolve({ data: [] as Record<string, unknown>[] }),
-    todayPatientIds.length
-      ? sb.from("invoices").select("patient_id, total, status")
-          .eq("clinic_id", claims.clinic_id).is("deleted_at", null)
-          .in("status", ["sent", "overdue", "partially_paid"]).in("patient_id", todayPatientIds)
-      : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    loadOpenReceivables(sb, claims.clinic_id, { patientIds: todayPatientIds }),
   ]);
   const allergyOf = new Map<string, string[]>();
   const chronicOf = new Map<string, string[]>();
@@ -99,11 +96,9 @@ export default async function ReceptionPage() {
     if (al.length) allergyOf.set(pid, al);
     if (ch.length) chronicOf.set(pid, ch);
   }
-  const owedOf = new Map<string, number>();
-  for (const inv of dueRes.data ?? []) {
-    const pid = inv.patient_id as string;
-    owedOf.set(pid, (owedOf.get(pid) ?? 0) + Number(inv.total ?? 0));
-  }
+  /* Net of what they have already paid and of any credit note — the desk asks
+     the patient for this figure out loud, so it had better be the real one. */
+  const owedOf = owedByPatient(dueRes);
 
   const doctors = (doctorsRes.data ?? []).map((d) => ({ id: d.id, label: (d.name_ar ?? d.name) as string }));
   const services = (servicesRes.data ?? []).map((s) => ({ id: s.id, label: s.name_ar as string }));

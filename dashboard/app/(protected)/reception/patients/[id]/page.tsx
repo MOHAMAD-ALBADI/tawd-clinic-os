@@ -57,15 +57,17 @@ export default async function ReceptionPatientPage({ params }: { params: Promise
       .select("id, slot_time, status, services!service_id(name_ar), tawd_staff_users!doctor_id(name_ar, name)")
       .eq("patient_id", id).is("deleted_at", null).order("slot_time", { ascending: false }).limit(30),
     sb.from("medical_histories").select("allergies, chronic_diseases, blood_type").eq("patient_id", id).maybeSingle(),
-    sb.from("invoices").select("id, invoice_number, total, status, created_at")
+    sb.from("invoices").select("id, invoice_number, total, net_total, status, created_at")
       .eq("patient_id", id).is("deleted_at", null).order("created_at", { ascending: false }).limit(20),
   ]);
 
   const allergies = (hist?.allergies as string[] | null) ?? [];
   const chronic = (hist?.chronic_diseases as string[] | null) ?? [];
+  /* net_total, so an invoice corrected by a credit note stops showing its
+     original debt on the patient's file. */
   const owed = (invoices ?? [])
     .filter((i) => ["sent", "overdue", "partially_paid"].includes(i.status as string))
-    .reduce((s, i) => s + Number(i.total ?? 0), 0);
+    .reduce((s, i) => s + Number(i.net_total ?? i.total ?? 0), 0);
 
   const now = new Date().toISOString();
   const upcoming = (appts ?? []).filter((a) => (a.slot_time as string) >= now && !["cancelled", "no_show"].includes(a.status as string));
