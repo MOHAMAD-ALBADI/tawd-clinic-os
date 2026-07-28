@@ -2,6 +2,7 @@
 
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { clinicToday } from "@/lib/clinic-time";
+import { platformSecrets } from "@/lib/platform-secrets";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { revalidatePath } from "next/cache";
@@ -536,12 +537,23 @@ export async function sendClinicWhatsApp(clinicIds: string[], message: string) {
   if (!text) return { ok: false as const, reason: "الرسالة فارغة" };
   if (!clinicIds.length) return { ok: false as const, reason: "اختر عيادة واحدة على الأقل" };
 
-  const { data: cfg } = await sb
-    .from("channel_configs").select("config").eq("channel", "whatsapp").eq("is_active", true).limit(1).maybeSingle();
-  const conf = cfg?.config as Record<string, string> | null;
-  if (!conf?.access_token || !conf?.phone_number_id) {
-    return { ok: false as const, reason: "لا يوجد مرسل واتساب مفعّل للمنصة" };
+  /* The PLATFORM's sender, not a clinic's.
+
+     This used to take "the first active whatsapp channel row" — which is a
+     clinic's own number. With one customer it happened to be TAWD's own; with
+     two, a broadcast from us would have reached one clinic from a competing
+     clinic's WhatsApp number. */
+  const secrets = await platformSecrets();
+  if (!secrets.waAccessToken || !secrets.waPhoneNumberId) {
+    return {
+      ok: false as const,
+      reason: "لا يوجد رقم واتساب للمنصّة — أضِفه في مفاتيح المنصّة قبل الإرسال",
+    };
   }
+  const conf = {
+    access_token: secrets.waAccessToken,
+    phone_number_id: secrets.waPhoneNumberId,
+  };
 
   const { data: clinics } = await sb
     .from("tawd_clinics").select("id, name_ar, name, phone").in("id", clinicIds);

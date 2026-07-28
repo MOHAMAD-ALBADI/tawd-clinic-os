@@ -1,6 +1,7 @@
 "use server";
 
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { platformSecrets } from "@/lib/platform-secrets";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { revalidatePath } from "next/cache";
@@ -58,11 +59,10 @@ async function sendAlertEmail(
   context?: Record<string, unknown>
 ) {
   try {
-    const { data: cfg } = await sb
-      .from("channel_configs").select("config")
-      .eq("channel", "whatsapp").eq("is_active", true).limit(1).maybeSingle();
-    const conf = cfg?.config as Record<string, string> | null;
-    if (!conf?.resend_key || !conf?.alert_email) return;
+    /* Platform keys from the platform table, not from a clinic's channel row. */
+    const secrets = await platformSecrets();
+    if (!secrets.resendKey || !secrets.alertEmail) return;
+    const conf = { resend_key: secrets.resendKey, alert_email: secrets.alertEmail };
 
     const esc = (s: string) =>
       s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));

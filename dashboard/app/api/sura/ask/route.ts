@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { platformSecrets } from "@/lib/platform-secrets";
 import { hasRole } from "@/lib/auth/role-redirect";
 
 export const dynamic = "force-dynamic";
@@ -450,14 +451,16 @@ export async function POST(req: Request) {
   const cid = isPlatform ? "" : claims.clinic_id; // '' = unscoped platform mode
 
   const [cfgRes, clinicRes, meRes] = await Promise.all([
-    sb.from("channel_configs").select("config").eq("channel", "whatsapp").eq("is_active", true).limit(1).maybeSingle(),
+    /* The platform key, from the platform table — this used to read whichever
+       clinic channel row came back first. */
+    platformSecrets(),
     // platform mode has no clinic_id — an empty value against a uuid column errors
     isPlatform
       ? Promise.resolve({ data: null })
       : sb.from("tawd_clinics").select("name, name_ar, clinic_type").eq("id", claims.clinic_id).maybeSingle(),
     sb.from("tawd_staff_users").select("name, name_ar").eq("id", claims.sub).maybeSingle(),
   ]);
-  const geminiKey = (cfgRes.data?.config as Record<string, string> | null)?.gemini_key;
+  const geminiKey = cfgRes.geminiKey;
   if (!geminiKey) {
     return NextResponse.json({ answer: "إعداد الذكاء الاصطناعي غير مكتمل لهذه العيادة — تواصل مع دعم طود." });
   }
