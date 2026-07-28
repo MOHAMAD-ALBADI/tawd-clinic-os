@@ -26,7 +26,7 @@ import {
   Receipt,
   ShieldCheck,
   type LucideIcon,
-  Coins, TrendingUp,
+  Coins, TrendingUp, TrendingDown,
 } from "lucide-react";
 
 export interface NavItem {
@@ -118,6 +118,11 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "حسابات المرضى",  href: "/accountant/patients",  icon: Users },
     /* The section could say how much came in and never what it came from. */
     { label: "تحليل الإيراد",  href: "/accountant/revenue",   icon: TrendingUp },
+    /* An insured clinic's biggest debtor is the insurer, and the accountant's
+       outstanding figure ignored them entirely. */
+    { label: "مستحقات التأمين", href: "/accountant/insurance", icon: ShieldCheck, module: "insurance" },
+    /* The bookkeeper could see what came in and not what went out. */
+    { label: "المصروفات",      href: "/accountant/expenses",  icon: TrendingDown, module: "expenses" },
     /* Oman VAT is quarterly with a 500–5000 r.o. penalty for filing late, and
        the product charged the tax without ever reporting it. */
     { label: "الضريبة",        href: "/accountant/vat",       icon: Scale },
