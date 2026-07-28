@@ -24,9 +24,18 @@ export default async function SuraAnalyticsPage() {
   const sb = await createServerSupabaseClient();
   const [{ data }, { data: errData }] = await Promise.all([
     sb.rpc("sura_analytics"),
-    /* Only the COUNT is used, to derive a plain up/degraded status. The messages,
-       workflow names and stack traces are never sent to the manager's browser. */
-    sb.rpc("sura_recent_errors"),
+    /* sura_health, not sura_recent_errors.
+
+       This page was careful — it read only the count and never rendered the
+       messages. But being careful in the page protected nothing: the function ran
+       SECURITY DEFINER and was callable by any signed-in user straight at
+       /rest/v1/rpc/sura_recent_errors, and sura_errors has no clinic_id, so it
+       returned the platform's whole n8n failure log — other clinics' workflow
+       names, execution ids, and whatever the error text happened to contain.
+
+       sura_health answers the only question a clinic actually has: is my
+       assistant working. The detailed log is platform-only now. */
+    sb.rpc("sura_health"),
   ]);
   const a = (data ?? {}) as Analytics;
   const openErrors = Number((errData as { open_count?: number } | null)?.open_count ?? 0);
