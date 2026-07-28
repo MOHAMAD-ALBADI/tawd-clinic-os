@@ -3,166 +3,149 @@
 import { revalidatePath } from "next/cache";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { hasRole } from "@/lib/auth/role-redirect";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { clinicIdentity, sendClinicEmail, looksLikeEmail } from "@/lib/email";
-import { invoiceEmail, receiptEmail, statementEmail } from "@/lib/email-templates";
-import { buildStatement } from "@/lib/patient-statement";
-import { METHOD_AR } from "@/lib/payment-methods";
+import { createServiceRoleClient } from "@/lib/supabase/server";
+import { clinicRecipients, sendPlatformEmail, emailStatus } from "@/lib/email";
+import { subscriptionInvoiceMail, dunningMail } from "@/lib/email-templates";
+import { appOrigin } from "@/lib/thawani";
 
-/* Sending a patient their own paperwork.
+/* TAWD writing to its clinics about money.
 
-   Everything the product produced could be printed and delivered by no other
-   means, so "email me my invoice" was answered with a photograph of a screen.
+   The subscription invoice existed only inside the platform dashboard, which is
+   a screen the clinic never opens — so a clinic learned it owed something when
+   somebody rang them, or when the account suspended itself. */
 
-   Each of these rebuilds the document from the database at send time rather than
-   taking figures from the caller — a client that passes its own totals is a
-   client that can email a patient the wrong balance. */
-
-async function requireFinance() {
+async function requirePlatform() {
   const claims = await getUserClaims();
-  if (!claims || !(claims.role === "clinic_admin" || hasRole(claims, "accountant"))) {
-    throw new Error("غير مصرح");
-  }
+  if (!claims || !hasRole(claims, "platform_admin")) throw new Error("غير مصرح");
   return claims;
 }
 
-const round3 = (n: number) => Math.round((Number(n) || 0) * 1000) / 1000;
-const dateOnly = (iso: string) => iso.slice(0, 10);
+const money = (v: number) => Math.round((Number(v) || 0) * 1000) / 1000;
 
-/** Email a patient their invoice. */
-export async function emailInvoice(invoiceId: string, override?: string) {
-  const claims = await requireFinance();
-  const sb = await createServerSupabaseClient();
+/** Everything one platform invoice needs to be written about. */
+async function invoiceFacts(invoiceId: string) {
+  const sb = await createServiceRoleClient();
+  const { data: inv } = await sb.from("platform_invoices")
+    .select("id, number, clinic_id, period_start, period_end, total_omr, status, due_at, tawd_clinics!clinic_id(name, name_ar)")
+    .eq("id", invoiceId).maybeSingle();
+  if (!inv) return null;
 
-  const [{ data: inv }, { data: items }] = await Promise.all([
-    sb.from("invoices")
-      .select("id, invoice_number, total, net_total, vat_amount, created_at, patient_id, patients!patient_id(name, email)")
-      .eq("id", invoiceId).eq("clinic_id", claims.clinic_id).is("deleted_at", null).maybeSingle(),
-    sb.from("invoice_items")
-      .select("description, description_ar, quantity, total")
-      .eq("invoice_id", invoiceId).eq("clinic_id", claims.clinic_id).order("sort_order"),
-  ]);
+  const { data: pays } = await sb.from("platform_payments")
+    .select("amount_omr").eq("invoice_id", invoiceId);
+  const paid = (pays ?? []).reduce((s, p) => s + Number(p.amount_omr ?? 0), 0);
+  const clinic = inv.tawd_clinics as unknown as { name?: string; name_ar?: string } | null;
+
+  return {
+    id: inv.id as string,
+    number: inv.number as string,
+    clinicId: inv.clinic_id as string,
+    clinicName: clinic?.name_ar ?? clinic?.name ?? "العيادة",
+    periodStart: inv.period_start as string,
+    periodEnd: inv.period_end as string,
+    total: Number(inv.total_omr ?? 0),
+    outstanding: money(Number(inv.total_omr ?? 0) - paid),
+    status: inv.status as string,
+    dueAt: (inv.due_at as string | null) ?? null,
+  };
+}
+
+/* The clinic's own billing screen, which is where the pay-by-card button lives.
+   Deep-linking there rather than to a generic login means the manager lands on
+   the invoice instead of hunting for it. */
+const payUrl = () => `${appOrigin()}/clinic-admin/settings`;
+
+/** Send a clinic its subscription invoice. */
+export async function emailSubscriptionInvoice(invoiceId: string) {
+  const claims = await requirePlatform();
+  const inv = await invoiceFacts(invoiceId);
   if (!inv) return { ok: false as const, reason: "الفاتورة غير موجودة" };
+  if (inv.status === "void") return { ok: false as const, reason: "الفاتورة ملغاة" };
 
-  const patient = inv.patients as unknown as { name?: string; email?: string | null } | null;
-  const to = override?.trim() || patient?.email || "";
-  if (!looksLikeEmail(to)) {
-    return { ok: false as const, reason: "لا يوجد بريد إلكتروني لهذا المريض" };
-  }
-
-  const { data: pays } = await sb.from("payments").select("amount")
-    .eq("invoice_id", invoiceId).eq("status", "completed");
-  const paid = round3((pays ?? []).reduce((s, p) => s + Number(p.amount ?? 0), 0));
-  const collectable = round3(Number(inv.net_total ?? inv.total ?? 0));
-
-  const identity = await clinicIdentity(claims.clinic_id);
-  const { subject, html } = invoiceEmail(identity, {
-    number: inv.invoice_number as string,
-    patientName: patient?.name ?? "عميلنا",
-    date: dateOnly(inv.created_at as string),
-    total: Number(inv.total ?? 0),
-    vat: Number(inv.vat_amount ?? 0),
-    paid,
-    outstanding: round3(collectable - paid),
-    items: (items ?? []).map((i) => ({
-      description: (i.description_ar as string) || (i.description as string) || "بند",
-      quantity: Number(i.quantity ?? 1),
-      total: Number(i.total ?? 0),
-    })),
+  const to = await clinicRecipients(inv.clinicId);
+  const { subject, html } = subscriptionInvoiceMail({
+    clinicName: inv.clinicName,
+    number: inv.number,
+    periodStart: inv.periodStart,
+    periodEnd: inv.periodEnd,
+    total: inv.total,
+    outstanding: inv.outstanding,
+    dueAt: inv.dueAt,
+    payUrl: payUrl(),
   });
 
-  const r = await sendClinicEmail({
-    clinicId: claims.clinic_id, to, subject, html, kind: "invoice",
-    patientId: (inv.patient_id as string) ?? null,
-    refType: "invoice", refId: invoiceId, sentBy: claims.sub,
+  const r = await sendPlatformEmail({
+    clinicId: inv.clinicId, to, subject, html, kind: "subscription_invoice",
+    refType: "platform_invoice", refId: invoiceId, sentBy: claims.sub,
   });
   if (!r.ok) return { ok: false as const, reason: r.reason };
 
-  revalidatePath("/accountant/invoices");
-  revalidatePath(`/accountant/invoices/${invoiceId}`);
-  return { ok: true as const, to };
+  revalidatePath("/platform-admin/billing");
+  return { ok: true as const, to: to.join(", ") };
 }
 
-/** Email a patient the receipt for one payment. */
-export async function emailReceipt(paymentId: string, override?: string) {
-  const claims = await requireFinance();
-  const sb = await createServerSupabaseClient();
+/** Chase one overdue invoice. */
+export async function emailDunning(invoiceId: string) {
+  const claims = await requirePlatform();
+  const inv = await invoiceFacts(invoiceId);
+  if (!inv) return { ok: false as const, reason: "الفاتورة غير موجودة" };
+  if (inv.status === "void") return { ok: false as const, reason: "الفاتورة ملغاة" };
+  if (inv.outstanding <= 0) return { ok: false as const, reason: "الفاتورة مسدّدة" };
 
-  const { data: pay } = await sb.from("payments")
-    .select("id, amount, gateway, paid_at, status, invoice_id, invoices!invoice_id(invoice_number, patient_id, patients!patient_id(name, email))")
-    .eq("id", paymentId).eq("clinic_id", claims.clinic_id).maybeSingle();
-  if (!pay) return { ok: false as const, reason: "الدفعة غير موجودة" };
-  /* A voided payment is not a receipt. Emailing one would hand the patient proof
-     of something the clinic has already decided did not happen. */
-  if (pay.status !== "completed") {
-    return { ok: false as const, reason: "الدفعة ملغاة — لا يُرسل سند لها" };
-  }
+  const daysLate = inv.dueAt
+    ? Math.floor((Date.now() - new Date(inv.dueAt).getTime()) / 86_400_000)
+    : 0;
 
-  const inv = pay.invoices as unknown as
-    { invoice_number?: string; patient_id?: string; patients?: { name?: string; email?: string | null } | null } | null;
-  const to = override?.trim() || inv?.patients?.email || "";
-  if (!looksLikeEmail(to)) {
-    return { ok: false as const, reason: "لا يوجد بريد إلكتروني لهذا المريض" };
-  }
-
-  const identity = await clinicIdentity(claims.clinic_id);
-  const { subject, html } = receiptEmail(identity, {
-    receiptNo: String(pay.id).slice(0, 8).toUpperCase(),
-    patientName: inv?.patients?.name ?? "عميلنا",
-    amount: Number(pay.amount ?? 0),
-    method: METHOD_AR(pay.gateway as string),
-    paidAt: dateOnly(pay.paid_at as string),
-    invoiceNumber: inv?.invoice_number ?? null,
+  const to = await clinicRecipients(inv.clinicId);
+  const { subject, html } = dunningMail({
+    clinicName: inv.clinicName,
+    number: inv.number,
+    outstanding: inv.outstanding,
+    dueAt: inv.dueAt,
+    daysLate,
+    payUrl: payUrl(),
   });
 
-  const r = await sendClinicEmail({
-    clinicId: claims.clinic_id, to, subject, html, kind: "receipt",
-    patientId: inv?.patient_id ?? null,
-    refType: "payment", refId: paymentId, sentBy: claims.sub,
+  const r = await sendPlatformEmail({
+    clinicId: inv.clinicId, to, subject, html, kind: "dunning",
+    refType: "platform_invoice", refId: invoiceId, sentBy: claims.sub,
   });
   if (!r.ok) return { ok: false as const, reason: r.reason };
 
-  revalidatePath("/accountant/payments");
-  return { ok: true as const, to };
+  revalidatePath("/platform-admin/billing");
+  return { ok: true as const, to: to.join(", ") };
 }
 
-/** Email a patient their statement of account. */
-export async function emailStatement(patientId: string, override?: string) {
-  const claims = await requireFinance();
-  const sb = await createServerSupabaseClient();
+/** Chase every overdue invoice at once.
 
-  const { data: patient } = await sb.from("patients")
-    .select("id, name, email").eq("id", patientId).eq("clinic_id", claims.clinic_id)
-    .is("deleted_at", null).maybeSingle();
-  if (!patient) return { ok: false as const, reason: "المريض غير موجود" };
-
-  const to = override?.trim() || (patient.email as string | null) || "";
-  if (!looksLikeEmail(to)) {
-    return { ok: false as const, reason: "لا يوجد بريد إلكتروني لهذا المريض" };
+    One button rather than a nightly cron, deliberately: the operator sees who is
+    about to be chased before anything leaves, and a clinic mid-dispute is not
+    emailed a demand by a schedule at 3am. */
+export async function emailAllOverdue() {
+  const claims = await requirePlatform();
+  const status = emailStatus();
+  if (!status.configured) {
+    return { ok: false as const, reason: "الإرسال غير مفعّل — أضف RESEND_API_KEY" };
   }
 
-  const st = await buildStatement(sb, claims.clinic_id, patientId);
-  if (!st.lines.length) {
-    return { ok: false as const, reason: "لا حركات مالية لهذا المريض" };
+  const sb = await createServiceRoleClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: invoices } = await sb.from("platform_invoices")
+    .select("id, due_at, status").neq("status", "void").lt("due_at", today).limit(200);
+
+  const sent: string[] = [];
+  const skipped: { number: string; why: string }[] = [];
+
+  for (const row of invoices ?? []) {
+    const inv = await invoiceFacts(row.id as string);
+    if (!inv) continue;
+    /* Paid invoices past their due date are not overdue — status alone is not
+       enough here, because a part-payment leaves it open. */
+    if (inv.outstanding <= 0) continue;
+    const r = await emailDunning(inv.id);
+    if (r.ok) sent.push(inv.number);
+    else skipped.push({ number: inv.number, why: r.reason });
   }
 
-  const identity = await clinicIdentity(claims.clinic_id);
-  const { subject, html } = statementEmail(identity, {
-    patientName: (patient.name as string) ?? "عميلنا",
-    billed: st.billed,
-    collected: st.collected,
-    balance: st.balance,
-    lines: st.lines.map((l) => ({
-      at: dateOnly(l.at), label: l.label, delta: l.delta, balance: l.balance,
-    })),
-  });
-
-  const r = await sendClinicEmail({
-    clinicId: claims.clinic_id, to, subject, html, kind: "statement",
-    patientId, refType: "patient", refId: patientId, sentBy: claims.sub,
-  });
-  if (!r.ok) return { ok: false as const, reason: r.reason };
-
-  revalidatePath(`/accountant/patients/${patientId}`);
-  return { ok: true as const, to };
+  revalidatePath("/platform-admin/billing");
+  return { ok: true as const, sent, skipped };
 }

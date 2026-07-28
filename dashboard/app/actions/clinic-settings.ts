@@ -218,49 +218,6 @@ export async function savePaymentSettings(input: {
   return { ok: true as const };
 }
 
-/** Turn the email channel on, and set who the patient sees it from.
-
-    No API key here on purpose. Sending is the platform's, from TAWD's verified
-    domain — a clinic should not have to own a domain and verify it in order to
-    email its own patient an invoice. What the clinic controls is the name on the
-    message and the address a reply reaches, which is the part a patient
-    experiences. */
-export async function saveEmailChannel(input: {
-  enabled: boolean;
-  fromName: string | null;
-  replyTo: string | null;
-}) {
-  const claims = await getUserClaims();
-  if (!claims || claims.role !== "clinic_admin") {
-    return { ok: false as const, reason: "غير مصرح" };
-  }
-
-  const replyTo = input.replyTo?.trim() || null;
-  if (replyTo && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(replyTo)) {
-    return { ok: false as const, reason: "عنوان الرد غير صالح" };
-  }
-
-  const supabase = await createServerSupabaseClient();
-  const { error } = await supabase.from("channel_configs").upsert(
-    {
-      clinic_id: claims.clinic_id,
-      channel: "email",
-      /* NOT NULL on this table, and it means "which secret this channel uses".
-         Email has no per-clinic secret — the platform sends for everyone — so it
-         names the platform sender rather than being left empty. */
-      credentials_ref: "platform_resend",
-      is_active: input.enabled,
-      config: { from_name: input.fromName?.trim() || null, reply_to: replyTo },
-    },
-    { onConflict: "clinic_id,channel" },
-  );
-  if (error) return { ok: false as const, reason: "تعذّر حفظ إعدادات البريد" };
-
-  revalidatePath("/clinic-admin/settings");
-  revalidatePath("/accountant/invoices");
-  return { ok: true as const };
-}
-
 /** Set the clinic's Google review link (used by Sura's post-visit follow-up message). */
 export async function updateReviewLink(url: string) {
   const claims = await getUserClaims();

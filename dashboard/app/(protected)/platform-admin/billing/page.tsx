@@ -4,6 +4,7 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { BillingBoard, type InvoiceRow } from "@/components/platform/billing-board";
+import { emailStatus } from "@/lib/email";
 import { ArrowRight, Banknote, Hourglass, AlertTriangle, TrendingUp } from "lucide-react";
 
 export const metadata = { title: "التحصيل — طود" };
@@ -114,7 +115,7 @@ export default async function BillingPage() {
         ))}
       </div>
 
-      <BillingBoard invoices={rows} thisMonth={thisMonth} />
+      <BillingBoard invoices={rows} thisMonth={thisMonth} emailReady={emailStatus().configured} />
     </div>
   );
 }

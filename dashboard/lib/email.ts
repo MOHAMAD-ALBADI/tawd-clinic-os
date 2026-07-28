@@ -1,94 +1,79 @@
 import "server-only";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 
-/* Sending email, in one place.
+/* Email is TAWD writing to its clinics. Not the clinic writing to its patients.
 
-   The key is the PLATFORM's, not the clinic's. A clinic does not have a Resend
-   account and should never be asked to verify a sending domain to email its own
-   patient an invoice — so everything leaves from TAWD's verified domain, carrying
-   the clinic's name, with the clinic's own address as reply-to. A patient hitting
-   reply reaches the clinic, not us, which is the only part of the identity that
-   actually matters to them.
+   It was built the other way round first, and the direction matters more than it
+   sounds: a clinic emailing patients needs the clinic's own identity, its own
+   domain and its own consent posture. TAWD emailing the clinics it bills needs
+   none of that — it is one sender, one domain, and the recipient is a business
+   we have a contract with.
 
-   It was already half-here and in the wrong place: the error-alert path read a
-   `resend_key` out of the WHATSAPP channel_configs row. Email credentials hiding
-   inside another channel's config is the sort of thing that is invisible until
-   somebody edits the WhatsApp settings and the alerts stop. */
+   So there is one identity here and it is ours, and the addresses are the
+   clinic's own managers. What it carries is the commercial relationship: the
+   subscription invoice, the reminder when it goes unpaid, and the welcome that
+   gets a new clinic into the product. */
 
 const API = "https://api.resend.com/emails";
 
-export type EmailKind = "invoice" | "receipt" | "statement" | "appointment" | "other";
+export type EmailKind = "subscription_invoice" | "dunning" | "welcome" | "notice";
 
 export type SendResult =
   | { ok: true; id: string | null }
   | { ok: false; reason: string };
 
-/** Escape anything that goes into the HTML body.
+/** Escape anything interpolated into a body.
 
-    Every one of these messages interpolates a patient's name and a clinic's name.
-    A patient called "O'Brien & Sons <clinic>" is unlikely, but a name is data
-    someone else typed, and building markup out of it unescaped is how a stray
-    angle bracket turns a receipt into broken markup — or worse. */
+    Clinic names and manager names are data somebody else typed, and building
+    markup out of them unescaped is how a stray angle bracket turns an invoice
+    into broken markup. */
 export function esc(s: unknown): string {
   return String(s ?? "").replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
-}
-
-export type ClinicIdentity = {
-  name: string;
-  replyTo: string | null;
-  phone: string | null;
-};
-
-/** Who this clinic appears as. */
-export async function clinicIdentity(clinicId: string): Promise<ClinicIdentity> {
-  const sb = await createServiceRoleClient();
-  const [{ data: clinic }, { data: cfg }] = await Promise.all([
-    sb.from("tawd_clinics").select("name, name_ar, phone").eq("id", clinicId).maybeSingle(),
-    sb.from("channel_configs").select("config, is_active")
-      .eq("clinic_id", clinicId).eq("channel", "email").maybeSingle(),
-  ]);
-  const conf = (cfg?.config ?? {}) as Record<string, string>;
-  return {
-    name: conf.from_name?.trim() || (clinic?.name_ar ?? clinic?.name ?? "عيادة") as string,
-    replyTo: conf.reply_to?.trim() || null,
-    phone: (clinic?.phone as string | null) ?? null,
-  };
-}
-
-/** Is the email channel switched on for this clinic, and can we actually send? */
-export async function emailStatus(clinicId: string) {
-  const sb = await createServiceRoleClient();
-  const { data } = await sb.from("channel_configs")
-    .select("is_active, config").eq("clinic_id", clinicId).eq("channel", "email").maybeSingle();
-  const conf = (data?.config ?? {}) as Record<string, string>;
-  return {
-    /* Two separate things, reported separately, because the fixes are different:
-       the operator has not set up sending at all, versus this clinic has not
-       switched it on. */
-    configured: !!process.env.RESEND_API_KEY,
-    enabled: !!data?.is_active,
-    fromName: conf.from_name ?? null,
-    replyTo: conf.reply_to ?? null,
-  };
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 export const looksLikeEmail = (s: string | null | undefined) =>
   !!s && EMAIL_RE.test(s.trim());
 
-/** Send one message and write down that we did.
+/** Can the platform send at all? */
+export function emailStatus() {
+  const from = process.env.RESEND_FROM || "";
+  return {
+    configured: !!process.env.RESEND_API_KEY,
+    from: from || "onboarding@resend.dev",
+    /* Resend's shared sandbox address delivers only to the account owner, so a
+       clinic would never receive anything. Worth saying out loud rather than
+       letting the operator believe mail is going out. */
+    sandbox: !from || from.includes("resend.dev"),
+  };
+}
 
-    Always logs — including the failures, which is the whole point. A send that
-    the provider refused and nobody recorded is indistinguishable from one that
-    arrived. */
-export async function sendClinicEmail(input: {
+/** Everyone at a clinic who should receive account mail.
+
+    The managers, because this is billing and account business — not the
+    receptionist, and never the patients. */
+export async function clinicRecipients(clinicId: string): Promise<string[]> {
+  const sb = await createServiceRoleClient();
+  const { data } = await sb.from("tawd_staff_users")
+    .select("email")
+    .eq("clinic_id", clinicId).eq("role", "admin")
+    .eq("is_active", true).is("deleted_at", null);
+  return [...new Set((data ?? []).map((s) => String(s.email ?? "").trim()))]
+    .filter(looksLikeEmail);
+}
+
+/** Send, and write down that we did — including when it fails.
+
+    A refused send that nobody recorded is indistinguishable from one that
+    arrived, and "did the clinic ever get its invoice?" has to have an answer
+    before anyone suspends them over it. */
+export async function sendPlatformEmail(input: {
   clinicId: string;
-  to: string;
+  to: string[];
   subject: string;
   html: string;
   kind: EmailKind;
-  patientId?: string | null;
   refType?: string | null;
   refId?: string | null;
   sentBy?: string | null;
@@ -98,8 +83,7 @@ export async function sendClinicEmail(input: {
   const log = async (status: "sent" | "failed", providerId: string | null, error: string | null) => {
     await sb.from("email_log").insert({
       clinic_id: input.clinicId,
-      patient_id: input.patientId ?? null,
-      to_email: input.to,
+      to_email: input.to.join(", "),
       subject: input.subject,
       kind: input.kind,
       ref_type: input.refType ?? null,
@@ -111,37 +95,31 @@ export async function sendClinicEmail(input: {
     });
   };
 
-  if (!looksLikeEmail(input.to)) {
-    await log("failed", null, "عنوان بريد غير صالح");
-    return { ok: false, reason: "عنوان البريد غير صالح" };
+  const to = input.to.filter(looksLikeEmail);
+  if (!to.length) {
+    await log("failed", null, "لا يوجد بريد صالح لمديري العيادة");
+    return { ok: false, reason: "لا يوجد بريد مسجّل لمدير هذه العيادة" };
   }
 
   const key = process.env.RESEND_API_KEY;
   if (!key) {
     /* Not logged as a failed send: nothing was attempted, and a log full of
        "no key" rows would bury the real bounces. */
-    return { ok: false, reason: "البريد غير مفعّل على المنصة بعد" };
+    return { ok: false, reason: "الإرسال غير مفعّل — أضف RESEND_API_KEY" };
   }
-
-  const identity = await clinicIdentity(input.clinicId);
-  const from = process.env.RESEND_FROM || "onboarding@resend.dev";
 
   try {
     const res = await fetch(API, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        /* The clinic's name in front of our verified address — the patient sees
-           who it is from without the clinic owning a domain. */
-        from: `${identity.name} <${from}>`,
-        to: [input.to.trim()],
-        ...(identity.replyTo ? { reply_to: identity.replyTo } : {}),
+        from: process.env.RESEND_FROM || "TAWD <onboarding@resend.dev>",
+        to,
         subject: input.subject,
         html: input.html,
       }),
       cache: "no-store",
     });
-
     const body = (await res.json().catch(() => ({}))) as { id?: string; message?: string };
     if (!res.ok) {
       await log("failed", null, body.message ?? `HTTP ${res.status}`);

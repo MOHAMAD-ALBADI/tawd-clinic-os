@@ -4,11 +4,12 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Receipt, CheckCircle2, AlertTriangle, X, Banknote, Ban, Play, Trash2, ChevronLeft,
+  Receipt, CheckCircle2, AlertTriangle, X, Banknote, Ban, Play, Trash2, ChevronLeft, Mail,
 } from "lucide-react";
 import {
   issueMonthlyRun, recordPlatformPayment, voidInvoice, deletePlatformPayment,
 } from "@/app/actions/platform-billing";
+import { emailSubscriptionInvoice, emailDunning, emailAllOverdue } from "@/app/actions/email";
 import { NumField, F } from "@/components/ui/num-field";
 
 export type InvoiceRow = {
@@ -33,12 +34,45 @@ const STATUS: Record<string, { label: string; color: string }> = {
 
 type Filter = "open" | "overdue" | "paid" | "all";
 
-export function BillingBoard({ invoices, thisMonth }: { invoices: InvoiceRow[]; thisMonth: string }) {
+export function BillingBoard({
+  invoices, thisMonth, emailReady,
+}: {
+  invoices: InvoiceRow[]; thisMonth: string;
+  /** the platform can actually send — no key means no buttons rather than
+      buttons that fail */
+  emailReady: boolean;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [err, setErr] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("open");
+
+  function sendOne(i: InvoiceRow, late: boolean) {
+    start(async () => {
+      const r = late ? await emailDunning(i.id) : await emailSubscriptionInvoice(i.id);
+      if (!r.ok) { setErr(r.reason); return; }
+      ok(`أُرسلت ${i.number} إلى ${r.to}`);
+      router.refresh();
+    });
+  }
+
+  function chaseAll() {
+    start(async () => {
+      const r = await emailAllOverdue();
+      if (!r.ok) { setErr(r.reason); return; }
+      /* Both halves reported: a run that emailed four and skipped two because
+         those clinics have no manager address is not a success worth
+         announcing as one. */
+      ok(r.sent.length
+        ? `أُرسل تذكير لـ ${r.sent.length} فاتورة${r.skipped.length ? ` · تعذّر ${r.skipped.length}` : ""}`
+        : "لا فواتير متأخرة تحتاج تذكيراً");
+      if (r.skipped.length) {
+        setErr(`تعذّر الإرسال: ${r.skipped.map((s) => `${s.number} (${s.why})`).join("، ")}`);
+      }
+      router.refresh();
+    });
+  }
   const [paying, setPaying] = useState<InvoiceRow | null>(null);
   const [voiding, setVoiding] = useState<InvoiceRow | null>(null);
   const [run, setRun] = useState<{ issued: number; skipped: { clinic: string; why: string }[] } | null>(null);
@@ -106,7 +140,18 @@ export function BillingBoard({ invoices, thisMonth }: { invoices: InvoiceRow[]; 
               </button>
             );
           })}
-        <button className="btn-primary ms-auto" disabled={pending} onClick={doRun}>
+        {/* One button rather than a nightly cron, deliberately: the operator sees
+            who is about to be chased before anything leaves, and a clinic in the
+            middle of a dispute does not get a demand from a schedule at 3am. */}
+        {emailReady && counts.overdue > 0 && (
+          <button className="btn-ghost ms-auto" disabled={pending} onClick={chaseAll}
+            title="إرسال تذكير لكل العيادات المتأخرة">
+            <Mail className="w-3.5 h-3.5" style={{ color: "#fbbf24" }} />
+            تذكير المتأخرين ({counts.overdue})
+          </button>
+        )}
+        <button className={`btn-primary ${emailReady && counts.overdue > 0 ? "" : "ms-auto"}`}
+          disabled={pending} onClick={doRun}>
           <Play className="w-3.5 h-3.5" /> إصدار فواتير {thisMonth}
         </button>
       </div>
@@ -197,6 +242,16 @@ export function BillingBoard({ invoices, thisMonth }: { invoices: InvoiceRow[]; 
                               <button className="btn-ghost" disabled={pending} title="تسجيل دفعة"
                                 onClick={() => { setErr(null); setPaying(i); }}>
                                 <Banknote className="w-3.5 h-3.5" style={{ color: "#34d399" }} />
+                              </button>
+                            )}
+                            {/* The clinic never opens this screen, so an invoice
+                                that is only here has not been communicated. */}
+                            {i.status === "open" && emailReady && (
+                              <button className="btn-ghost" disabled={pending}
+                                title={late ? "إرسال تذكير بالتأخير" : "إرسال الفاتورة للعيادة"}
+                                onClick={() => { setErr(null); sendOne(i, late); }}>
+                                <Mail className="w-3.5 h-3.5"
+                                  style={{ color: late ? "#fbbf24" : "var(--text-3)" }} />
                               </button>
                             )}
                             {i.status === "open" && i.paid === 0 && (
