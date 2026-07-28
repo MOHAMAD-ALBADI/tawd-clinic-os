@@ -16,18 +16,32 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest) {
   const p = req.nextUrl.searchParams;
   const expected = process.env.IG_VERIFY_TOKEN;
+  const sent = p.get("hub.verify_token");
 
-  if (
-    expected &&
-    p.get("hub.mode") === "subscribe" &&
-    p.get("hub.verify_token") === expected
-  ) {
+  if (expected && p.get("hub.mode") === "subscribe" && sent === expected) {
     /* Plain text, not JSON — Meta compares the body byte for byte. */
     return new NextResponse(p.get("hub.challenge") ?? "", {
       status: 200,
       headers: { "content-type": "text/plain" },
     });
   }
+
+  /* A refused handshake is recorded too, and this one earns its keep more than
+     any other trace: a console that shows the callback saved while the endpoint
+     was never called looks exactly like a console that called and was rejected.
+     Only the tokens' LENGTHS are written — comparing a length difference of one
+     is enough to spot a truncated paste without copying a secret into a table
+     the dashboard renders. */
+  await trace(
+    "rejected-verify",
+    JSON.stringify({
+      mode: p.get("hub.mode"),
+      token_len_received: sent?.length ?? null,
+      token_len_expected: expected?.length ?? null,
+      match: sent === expected,
+      env_missing: !expected,
+    }),
+  );
   return new NextResponse("forbidden", { status: 403 });
 }
 
