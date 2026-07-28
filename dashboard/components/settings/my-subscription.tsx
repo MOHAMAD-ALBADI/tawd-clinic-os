@@ -1,5 +1,6 @@
 import { CheckCircle2, Lock, Receipt, Users, UserCircle, Stethoscope, MessageCircle } from "lucide-react";
 import { MODULES, MODULE_GROUPS, type Entitlements } from "@/lib/modules";
+import { PaySubscription } from "@/components/settings/pay-subscription";
 
 export type MyInvoice = {
   id: string; number: string; periodStart: string; periodEnd: string;
@@ -16,7 +17,7 @@ const DAY = new Intl.DateTimeFormat("ar", { day: "numeric", month: "long", year:
     being phone calls: what am I paying for, how close am I to my limits, and
     what do I still owe. */
 export function MySubscription({
-  entitlements, invoices, usage, planName, status, renewsAt,
+  entitlements, invoices, usage, planName, status, renewsAt, pay,
 }: {
   entitlements: Entitlements;
   invoices: MyInvoice[];
@@ -24,6 +25,8 @@ export function MySubscription({
   planName: string;
   status: string;
   renewsAt: string | null;
+  /** card payment availability, and how the last return from the gateway went */
+  pay: { configured: boolean; live: boolean; flag: string | null };
 }) {
   const included = new Set(entitlements.modules);
   const outstanding = invoices
@@ -153,6 +156,24 @@ export function MySubscription({
           ما صدر عليكم وما وصل من دفعات — نفس السجل الذي لدى فريق طود
         </p>
 
+        {/* How the last trip to the gateway ended. "Pending" is not "failed":
+            a card can still be settling when the browser comes back, and telling
+            a clinic their payment failed when it merely has not landed yet is
+            the wrong thing to be wrong about. */}
+        {pay.flag && (
+          <div className="flex items-start gap-2 text-[12px] px-3.5 py-2.5 rounded-xl mb-3"
+            style={
+              pay.flag === "paid"
+                ? { background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.25)", color: "#34d399" }
+                : { background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.25)", color: "#fbbf24" }
+            }>
+            {pay.flag === "paid" ? "وصلت دفعتكم وسُجّلت على الفاتورة ✓"
+              : pay.flag === "cancelled" ? "أُلغيت عملية الدفع — لم يُخصم شيء"
+              : pay.flag === "pending" ? "لم تصل الدفعة بعد. إن خُصم المبلغ اضغط زر التحقّق بجانب الفاتورة."
+              : "تعذّر التعرّف على عملية الدفع"}
+          </div>
+        )}
+
         {invoices.length === 0 ? (
           <p className="text-[12px] text-center py-6" style={{ color: "var(--text-4)" }}>
             لا فواتير بعد
@@ -180,10 +201,16 @@ export function MySubscription({
                   ) : i.status === "void" ? (
                     <span className="badge badge-mute">ملغاة</span>
                   ) : (
-                    <span className="text-[11.5px]" style={{ color: late ? "#fda4b4" : "#fbbf24" }}>
-                      {i.paid > 0 ? <>باقي <span className="ltr-nums">{fmt(rest)}</span></> : "غير مدفوعة"}
-                      {late && " · متأخرة"}
-                    </span>
+                    <>
+                      <span className="text-[11.5px]" style={{ color: late ? "#fda4b4" : "#fbbf24" }}>
+                        {i.paid > 0 ? <>باقي <span className="ltr-nums">{fmt(rest)}</span></> : "غير مدفوعة"}
+                        {late && " · متأخرة"}
+                      </span>
+                      {rest > 0 && (
+                        <PaySubscription invoiceId={i.id} outstanding={rest}
+                          configured={pay.configured} live={pay.live} />
+                      )}
+                    </>
                   )}
                 </div>
               );

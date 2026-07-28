@@ -11,6 +11,7 @@ import { BookingLink } from "@/components/platform/booking-link";
 import { SettingsTabs } from "@/components/settings/settings-tabs";
 import { MySubscription, type MyInvoice } from "@/components/settings/my-subscription";
 import { getEntitlements } from "@/lib/entitlements";
+import { thawaniConfig } from "@/lib/thawani";
 import { Shield } from "lucide-react";
 
 export const metadata = { title: "الإعدادات — طود" };
@@ -20,9 +21,17 @@ const PLAN_NAMES: Record<string, string> = {
   starter: "Starter", growth: "Growth", pro: "Pro", enterprise: "Enterprise",
 };
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: { searchParams: Promise<{ pay?: string }> }) {
   const claims = await getUserClaims();
   if (!claims || claims.role !== "clinic_admin") redirect("/login");
+
+  /* ?pay=… is how the clinic comes back from Thawani. It only reports what our
+     own callback already decided after asking the gateway — the flag itself
+     never settles anything. */
+  const payFlag = (await searchParams).pay ?? null;
+  const thawani = thawaniConfig();
 
   const supabase = await createServerSupabaseClient();
 
@@ -154,6 +163,7 @@ export default async function SettingsPage() {
               planName={PLAN_NAMES[sub.plan] ?? sub.plan}
               status={sub.status}
               renewsAt={(sub.renews_at as string | null) ?? null}
+              pay={{ configured: thawani.configured, live: thawani.live, flag: payFlag }}
             />
             {/* VAT number sits with billing, not with clinic details: it exists
                 because it is printed on every tax invoice. */}
