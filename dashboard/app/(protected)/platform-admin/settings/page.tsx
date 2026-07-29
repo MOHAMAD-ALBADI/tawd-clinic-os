@@ -5,6 +5,8 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { PlansManager, type PlanRow } from "@/components/platform/plans-manager";
 import { n8nApiBase } from "@/lib/n8n";
+import { platformSecrets } from "@/lib/platform-secrets";
+import { KeysSync } from "@/components/platform/keys-sync";
 import { UserCog, Plug, CheckCircle2, XCircle } from "lucide-react";
 
 export const metadata = { title: "إعدادات المنصة — طود" };
@@ -34,10 +36,12 @@ export default async function PlatformSettingsPage() {
   if (!claims || !hasRole(claims, "platform_admin")) redirect("/login");
 
   const sb = await createServiceRoleClient();
-  const [{ data: plans }, { data: subs }, { data: costs }] = await Promise.all([
+  const [{ data: plans }, { data: subs }, { data: costs }, secrets, { count: waClinics }] = await Promise.all([
     sb.from("platform_plans").select("*").order("sort_order"),
     sb.from("tawd_subscriptions").select("plan"),
     sb.from("platform_costs").select("id, name, monthly_omr").order("created_at"),
+    platformSecrets(),
+    sb.from("channel_configs").select("clinic_id", { count: "exact", head: true }).eq("channel", "whatsapp"),
   ]);
 
   const subsPerPlan = new Map<string, number>();
@@ -107,7 +111,21 @@ export default async function PlatformSettingsPage() {
             hint="الدفع الإلكتروني — بدونه لا تُنشأ روابط دفع" />
           <Integration label="PostHog" set={!!process.env.NEXT_PUBLIC_POSTHOG_KEY}
             hint="تحليلات الاستخدام" />
+
+          {/* These four are not env vars — they live in platform_secrets, which
+              no browser session can read, and are copied into each connected
+              clinic so the workflows can find them. */}
+          <Integration label="Gemini" set={!!secrets.geminiKey}
+            hint="عقل سُرى — بدونه تستقبل ولا ترد" />
+          <Integration label="Google TTS" set={!!secrets.gcpTtsKey}
+            hint="الردّ الصوتي على الرسائل الصوتية" />
+          <Integration label="Resend" set={!!secrets.resendKey}
+            hint="البريد الصادر للعيادات وتنبيهات الأخطاء" />
+          <Integration label="واتساب المنصّة" set={!!secrets.waAccessToken && !!secrets.waPhoneNumberId}
+            hint="رقم طَود نفسه — منه تُرسَل إشعارات الاشتراك" />
         </div>
+
+        <KeysSync clinics={waClinics ?? 0} />
       </div>
 
       <div className="panel flex items-center justify-between gap-3 flex-wrap" style={{ padding: "1.25rem 1.5rem" }}>

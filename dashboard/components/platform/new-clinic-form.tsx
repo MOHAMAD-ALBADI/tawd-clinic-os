@@ -206,8 +206,12 @@ export function NewClinicForm({ plans }: { plans: { code: string; name_ar: strin
           <a href={`/platform-admin/clinics/${done.clinicId}`} className="btn-primary">فتح ملف العيادة</a>
           <a href="/platform-admin/clinics/new" className="btn-ghost">إضافة عيادة أخرى</a>
         </div>
-        <p className="text-[11px] mt-4" style={{ color: "var(--text-4)" }}>
-          الخطوة التالية من ملف العيادة: إضافة الموظفين + ربط واتساب سُرى
+        {/* Not a footnote. Nothing here creates a channel row, so until this is
+            done the clinic has no Sura at all — she neither receives nor
+            answers, and the dashboard gives no other sign of it. */}
+        <p className="flex items-center justify-center gap-1.5 text-[11.5px] mt-4 font-semibold" style={{ color: "#fbbf24" }}>
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+          سُرى لن تعمل قبل ربط واتساب العيادة — من ملف العيادة
         </p>
       </div>
     );

@@ -11,6 +11,7 @@ import { getEntitlementsAsPlatform } from "@/lib/entitlements";
 import { SubscriptionCard, ClinicWhatsApp, ImpersonateButton } from "@/components/platform/manage-widgets";
 import { ImportTrigger } from "@/components/patients/import-trigger";
 import { BookingLink } from "@/components/platform/booking-link";
+import { WhatsAppConnect, type WaState } from "@/components/platform/whatsapp-connect";
 import { TawdBarsGlyph } from "@/components/shell/tawd-logo";
 import { ArrowRight, Users, MessageCircle, Scissors } from "lucide-react";
 
@@ -42,7 +43,7 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
     sb.from("tawd_clinics").select("id, name, name_ar, clinic_type, status, plan, phone, created_at, vat_number, slug").eq("id", id).maybeSingle(),
     sb.from("tawd_staff_users").select("id, name, name_ar, email, role, is_active").eq("clinic_id", id).is("deleted_at", null).order("created_at"),
     sb.from("services").select("id").eq("clinic_id", id).eq("is_active", true),
-    sb.from("channel_configs").select("is_active").eq("clinic_id", id).eq("channel", "whatsapp").limit(1).maybeSingle(),
+    sb.from("channel_configs").select("is_active, credentials_ref, config").eq("clinic_id", id).eq("channel", "whatsapp").limit(1).maybeSingle(),
     sb.from("tawd_subscriptions").select("plan, status, trial_ends_at, price_omr, current_period_end").eq("clinic_id", id).maybeSingle(),
     sb.from("tawd_clinic_settings")
       .select("sura_system_message, languages, channel_toggles, is_in_maintenance, maintenance_msg_ar")
@@ -65,6 +66,18 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
       .eq("clinic_id", id).is("deleted_at", null),
   ]);
   const activeStaff = (staff ?? []).filter((s) => s.is_active);
+
+  /* Only what the panel needs to render. The access token lives in the same
+     config object and must not cross to the browser — a rendered secret is a
+     shared secret. */
+  const waConfig = (wa?.config ?? null) as Record<string, string | null> | null;
+  const waState: WaState = {
+    connected: !!wa,
+    active: !!wa?.is_active,
+    label: (wa?.credentials_ref as string | null) ?? null,
+    phoneNumberId: waConfig?.phone_number_id ?? null,
+    hasBrain: !!waConfig?.gemini_key,
+  };
 
   const st = STATUS_META[clinic.status] ?? STATUS_META.trial;
   const created = new Intl.DateTimeFormat("ar", { day: "numeric", month: "long", year: "numeric" }).format(new Date(clinic.created_at));
@@ -156,6 +169,7 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
             periodEnd={(sub?.current_period_end as string | null) ?? (sub?.trial_ends_at as string | null)}
           />
           {clinic.slug && <BookingLink slug={clinic.slug as string} />}
+          <WhatsAppConnect clinicId={clinic.id} state={waState} />
           <ClinicWhatsApp clinicId={clinic.id} hasPhone={!!clinic.phone} />
           <ImpersonateButton clinicId={clinic.id} />
           <AddStaffForm clinicId={clinic.id} />
