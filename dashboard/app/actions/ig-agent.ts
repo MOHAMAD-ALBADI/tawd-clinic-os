@@ -42,6 +42,70 @@ export async function saveAgent(input: {
   return { ok: true as const };
 }
 
+/** Connect another Instagram account — a clinic's, or a second one of ours.
+
+    The id has to be the one Instagram puts in the webhook's `recipient`, not the
+    one `/me` returns. One account has both, they are different numbers, and
+    using the wrong one produces an assistant that receives everything and
+    answers nothing. So it is not typed: the token is exchanged for it here. */
+export async function connectInstagram(input: {
+  accessToken: string;
+  persona: string;
+  clinicId?: string | null;
+}) {
+  await requirePlatform();
+  const token = input.accessToken.trim();
+  const persona = input.persona.trim();
+  if (!token) return { ok: false as const, reason: "رمز الوصول مطلوب" };
+  if (persona.length < 40) {
+    return { ok: false as const, reason: "التعليمات قصيرة جداً — اكتب شخصية واضحة" };
+  }
+
+  let igUserId: string;
+  let username: string | null = null;
+  try {
+    const res = await fetch(
+      `https://graph.instagram.com/v21.0/me?fields=user_id,username`,
+      { headers: { Authorization: `Bearer ${token}` }, cache: "no-store", signal: AbortSignal.timeout(12_000) },
+    );
+    const body = (await res.json().catch(() => null)) as
+      | { user_id?: string; id?: string; username?: string; error?: { message?: string } }
+      | null;
+    if (!res.ok || !body || body.error) {
+      return { ok: false as const, reason: body?.error?.message ?? "الرمز غير صالح" };
+    }
+    /* user_id is the IGSID — the one the webhook sends. `id` is the app-scoped
+       id, which is what /me returns by default and is the wrong number here. */
+    igUserId = (body.user_id ?? "").toString();
+    username = body.username ?? null;
+    if (!igUserId) {
+      return { ok: false as const, reason: "لم تُرجع ميتا معرّف الحساب (user_id) — تأكد أن الرمز من نوع Instagram Login" };
+    }
+  } catch {
+    return { ok: false as const, reason: "تعذّر الاتصال بإنستغرام" };
+  }
+
+  const sb = await createServiceRoleClient();
+  const { error } = await sb.from("ig_agent").upsert(
+    {
+      ig_user_id: igUserId,
+      username,
+      access_token: token,
+      persona,
+      clinic_id: input.clinicId ?? null,
+      is_active: true,
+      paused: false,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "ig_user_id" },
+  );
+  if (error) return { ok: false as const, reason: `تعذّر الحفظ: ${error.message}` };
+
+  revalidatePath("/platform-admin/instagram");
+  if (input.clinicId) revalidatePath(`/platform-admin/clinics/${input.clinicId}`);
+  return { ok: true as const, igUserId, username };
+}
+
 /** Try the persona without messaging anyone.
 
     Editing a prompt blind and finding out how it reads from a real prospect is

@@ -1,5 +1,6 @@
 import "server-only";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { platformSecrets } from "@/lib/platform-secrets";
 
 /* Sura answering DMs on TAWD's own Instagram.
 
@@ -19,6 +20,8 @@ export type Agent = {
   username: string | null;
   persona: string;
   paused: boolean;
+  clinicId: string | null;
+  accessToken: string | null;
 };
 
 /** The agent configured for the account a message arrived at.
@@ -29,7 +32,7 @@ export type Agent = {
 export async function agentFor(igUserId: string): Promise<Agent | null> {
   const sb = await createServiceRoleClient();
   const { data } = await sb.from("ig_agent")
-    .select("ig_user_id, username, persona, paused, is_active")
+    .select("ig_user_id, username, persona, paused, is_active, clinic_id, access_token")
     .eq("ig_user_id", igUserId).eq("is_active", true).maybeSingle();
   if (!data) return null;
   return {
@@ -37,16 +40,9 @@ export async function agentFor(igUserId: string): Promise<Agent | null> {
     username: (data.username as string | null) ?? null,
     persona: data.persona as string,
     paused: !!data.paused,
+    clinicId: (data.clinic_id as string | null) ?? null,
+    accessToken: (data.access_token as string | null) ?? null,
   };
-}
-
-/** The Gemini key already lives in the clinic's channel config, where the
-    dashboard's own Ask-Sura reads it from. One key, one place. */
-async function geminiKey(): Promise<string | null> {
-  const sb = await createServiceRoleClient();
-  const { data } = await sb.from("channel_configs")
-    .select("config").eq("channel", "whatsapp").eq("is_active", true).limit(1).maybeSingle();
-  return ((data?.config ?? {}) as Record<string, string>).gemini_key ?? null;
 }
 
 /** The last few turns with this person, oldest first.
@@ -65,8 +61,13 @@ async function recentTurns(igUserId: string, senderId: string) {
 }
 
 export async function think(agent: Agent, senderId: string, text: string): Promise<string | null> {
-  const key = await geminiKey();
-  if (!key) return null;
+  /* Was "the gemini key in the first active whatsapp channel row" — a clinic's
+     row, picked by insert order. Which clinic paid for these tokens depended on
+     nothing, and deactivating that clinic's channel would have silenced this
+     account. The platform's key belongs to the platform. */
+  const { geminiKey } = await platformSecrets();
+  if (!geminiKey) return null;
+  const key = geminiKey;
 
   const history = await recentTurns(agent.igUserId, senderId);
   const transcript = history
@@ -148,9 +149,13 @@ ${text}
 
     Instagram's send endpoint sits on the account itself, not on a page — this is
     the Instagram-Login flavour of the API, where `me` IS the business account. */
-export async function reply(senderId: string, text: string): Promise<{ ok: boolean; error?: string }> {
-  const token = process.env.IG_ACCESS_TOKEN;
-  if (!token) return { ok: false, error: "IG_ACCESS_TOKEN غير مضبوط" };
+export async function reply(agent: Agent, senderId: string, text: string): Promise<{ ok: boolean; error?: string }> {
+  /* The account's own token, falling back to the env var that predates
+     multi-account — TAWD's own row was created before there was a column to put
+     it in. Without this the reply would leave from whichever account the env var
+     belongs to, so a clinic's patient would be answered by TAWD. */
+  const token = agent.accessToken ?? process.env.IG_ACCESS_TOKEN;
+  if (!token) return { ok: false, error: "لا يوجد رمز وصول لهذا الحساب" };
 
   try {
     const res = await fetch(`${IG_API}/me/messages`, {

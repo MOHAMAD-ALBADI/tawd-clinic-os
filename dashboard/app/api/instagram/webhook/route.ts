@@ -175,7 +175,7 @@ async function handle(body: { entry?: Entry[] }) {
         continue;
       }
 
-      const sent = await reply(senderId, answer);
+      const sent = await reply(agent, senderId, answer);
       await log({
         igUserId: recipientId, senderId, direction: "out", text: answer,
         status: sent.ok ? "ok" : "failed", error: sent.error ?? null,
