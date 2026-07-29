@@ -102,3 +102,38 @@ export async function resolveAppError(id: string) {
   revalidatePath("/platform-admin/automation");
   return { ok: true as const };
 }
+
+/** Close a Sura workflow error once its cause is dealt with.
+
+    The log had no way out: every row was written 'open' and nothing ever closed
+    one, so fifty-two accumulated from bugs fixed weeks earlier and the health
+    signal built on that count sat permanently red. A light that is always on is
+    one everybody learns to ignore, which is exactly when a real fire looks
+    ordinary.
+
+    The note is required. "Resolved" with no reason is indistinguishable from
+    "dismissed because it was annoying", and six weeks later nobody can tell
+    whether the underlying fault was actually fixed. */
+export async function resolveSuraError(id: string, note: string) {
+  const claims = await getUserClaims();
+  if (!claims || !hasRole(claims, "platform_admin")) {
+    return { ok: false as const, reason: "غير مصرح" };
+  }
+  const why = note.trim();
+  if (why.length < 3) return { ok: false as const, reason: "اكتب سبب الإغلاق" };
+
+  const sb = await createServiceRoleClient();
+  const { error } = await sb.from("sura_errors")
+    .update({
+      status: "resolved",
+      resolved_at: new Date().toISOString(),
+      resolved_by: claims.sub,
+      resolve_note: why,
+    })
+    .eq("id", id);
+  if (error) return { ok: false as const, reason: "تعذّر التحديث" };
+
+  revalidatePath("/platform-admin/automation");
+  revalidatePath("/platform-admin");
+  return { ok: true as const };
+}

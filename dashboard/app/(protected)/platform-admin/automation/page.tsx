@@ -3,6 +3,7 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { AppErrorsPanel, type AppErrorRow } from "@/components/platform/app-errors-panel";
+import { SuraErrorsPanel, type SuraErrorRow } from "@/components/platform/sura-errors-panel";
 import { n8nGet, n8nErrorMessage } from "@/lib/n8n";
 import { WorkflowBoard, type WorkflowRow } from "@/components/platform/workflow-board";
 import { Workflow, AlertTriangle } from "lucide-react";
@@ -42,7 +43,11 @@ export default async function AutomationPage() {
   const sb = await createServiceRoleClient();
   const [wfs, { data: errs }, { data: appErrs }] = await Promise.all([
     getWorkflows(),
-    sb.from("sura_errors").select("workflow_name, node_name, error_message, created_at").order("created_at", { ascending: false }).limit(10),
+    /* Open only. The panel used to list the newest ten whatever their status, so a
+       fault fixed weeks ago kept occupying the screen and the count that drives the
+       health signal never fell. */
+    sb.from("sura_errors").select("id, workflow_name, node_name, error_message, created_at")
+      .eq("status", "open").order("created_at", { ascending: false }).limit(10),
     sb.from("tawd_error_logs").select("id, error_message, severity, context, created_at")
       .eq("workflow_id", "dashboard-app").eq("resolved", false)
       .order("created_at", { ascending: false }).limit(15),
@@ -85,18 +90,13 @@ export default async function AutomationPage() {
           <Workflow className="w-4 h-4" style={{ color: "var(--accent-1)" }} />
           آخر الأخطاء المسجّلة
         </h3>
-        {(errs ?? []).length === 0 ? (
-          <p className="text-[12px]" style={{ color: "var(--accent-1)" }}>لا أخطاء ✓</p>
-        ) : (
-          <div className="space-y-1.5">
-            {(errs ?? []).map((e, i) => (
-              <div key={i} className="px-3 py-2 rounded-lg" style={{ background: "rgba(244,63,94,0.04)", border: "1px solid rgba(244,63,94,0.12)" }}>
-                <p className="text-[12px] font-semibold text-white">{e.workflow_name} <span style={{ color: "var(--text-4)" }}>· {e.node_name} · {ago(e.created_at)}</span></p>
-                <p className="text-[11px] mt-0.5" style={{ color: "var(--text-3)" }}>{e.error_message?.slice(0, 120)}</p>
-              </div>
-            ))}
-          </div>
-        )}
+        <SuraErrorsPanel errors={(errs ?? []).map((e) => ({
+          id: e.id as string,
+          workflowName: e.workflow_name as string,
+          nodeName: e.node_name as string,
+          message: (e.error_message as string) ?? "",
+          at: e.created_at as string,
+        })) as SuraErrorRow[]} />
       </div>
 
       <AppErrorsPanel errors={(appErrs ?? []) as unknown as AppErrorRow[]} />
