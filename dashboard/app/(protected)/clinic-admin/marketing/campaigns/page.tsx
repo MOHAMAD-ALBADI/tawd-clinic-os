@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getUserClaims }             from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { CampaignLauncherTrigger } from "@/components/marketing/campaign-launcher";
+import { CampaignActions } from "@/components/marketing/campaign-actions";
 import { Radio, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 
 export const metadata = { title: "الحملات — التسويق — طود" };
@@ -31,6 +32,41 @@ export default async function MarketingCampaignsPage() {
     .limit(100);
 
   const campaigns = data ?? [];
+
+  /* Why a send failed, in the recipient's own row. A count of failures with no
+     reason tells the clinic something is wrong and nothing about what — and the
+     commonest reason here (WhatsApp's 24-hour window) is not a fault at all. */
+  const unfinished = campaigns
+    .filter((c) => (c.failed_count ?? 0) > 0 || c.status === "running")
+    .map((c) => c.id as string);
+
+  const reasons = new Map<string, { text: string; n: number }[]>();
+  const pendingBy = new Map<string, number>();
+  if (unfinished.length > 0) {
+    /* PostgREST puts `in` lists in the URL, so long id lists are chunked. */
+    for (let i = 0; i < unfinished.length; i += 50) {
+      const { data: rows } = await sb
+        .from("campaign_recipients")
+        .select("campaign_id, status, error_message")
+        .in("campaign_id", unfinished.slice(i, i + 50))
+        .neq("status", "sent");
+      for (const r of rows ?? []) {
+        const cid = r.campaign_id as string;
+        if (r.status === "pending") {
+          pendingBy.set(cid, (pendingBy.get(cid) ?? 0) + 1);
+          continue;
+        }
+        const text = (r.error_message as string) ?? "فشل الإرسال";
+        const list = reasons.get(cid) ?? [];
+        const hit = list.find((x) => x.text === text);
+        if (hit) hit.n += 1;
+        else list.push({ text, n: 1 });
+        reasons.set(cid, list);
+      }
+    }
+    for (const list of reasons.values()) list.sort((a, b) => b.n - a.n);
+  }
+
   const running   = campaigns.filter((c) => c.status === "running").length;
   const completed = campaigns.filter((c) => c.status === "completed").length;
   const totalSent = campaigns.reduce((s, c) => s + (c.sent_count ?? 0), 0);
@@ -178,6 +214,23 @@ export default async function MarketingCampaignsPage() {
                       </div>
                     </div>
                   )}
+
+                  {(reasons.get(c.id) ?? []).length > 0 && (
+                    <div className="mt-2.5 space-y-1">
+                      {(reasons.get(c.id) ?? []).slice(0, 3).map((r) => (
+                        <p key={r.text} className="text-[11px] flex items-start gap-1.5" style={{ color: "var(--text-3)" }}>
+                          <span className="ltr-nums font-bold shrink-0" style={{ color: "#fda4b4" }}>{r.n}×</span>
+                          {r.text}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+
+                  <CampaignActions
+                    campaignId={c.id}
+                    pending={pendingBy.get(c.id) ?? 0}
+                    failed={c.failed_count ?? 0}
+                  />
                 </div>
               );
             })}

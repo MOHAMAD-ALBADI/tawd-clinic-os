@@ -141,6 +141,32 @@ export async function adjustStock(input: { item_id: string; new_qty: number; rea
   return { ok: true as const, newStock: Number(data) };
 }
 
+/** Take a spoiled or expired batch off the shelf.
+
+    Distinct from adjustStock on purpose: a stock-take correction means the count
+    was wrong, a write-off means goods were bought and then thrown away. Booking
+    both as 'adjustment' would hide the second inside the first, and the cost of
+    waste is the number worth watching. */
+export async function writeOffBatch(input: { batch_id: string; qty: number; reason?: string }) {
+  const claims = await requireAdmin();
+  const qty = Number(input.qty);
+  if (!input.batch_id) return { ok: false as const, reason: "اختر الدفعة" };
+  if (!(qty > 0)) return { ok: false as const, reason: "الكمية يجب أن تكون أكبر من صفر" };
+
+  const sb = await createServerSupabaseClient();
+  const { error } = await sb.rpc("inventory_write_off_batch", {
+    p_batch_id: input.batch_id,
+    p_qty: qty,
+    p_reason: input.reason?.trim() || null,
+    p_created_by: claims.sub,
+  });
+  /* The RPC refuses an overdraw with the quantity actually left, which is the
+     one thing the person at the shelf needs to hear. */
+  if (error) return { ok: false as const, reason: error.message || "تعذّر تسجيل الإتلاف" };
+  revalidateInventory();
+  return { ok: true as const };
+}
+
 /** Light supplier create (expands into full procurement later). */
 export async function createSupplier(input: { name: string; phone?: string; email?: string }) {
   const claims = await requireAdmin();

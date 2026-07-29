@@ -5,7 +5,9 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { InventoryBoard, type InvItem, type InvSupplier } from "@/components/inventory/inventory-board";
 import { ServiceMaterialsEditor, type SvcOption, type BomRow } from "@/components/inventory/service-materials-editor";
 import { PharmacyCounter, type Rx, type RxLine } from "@/components/inventory/pharmacy-counter";
-import { Boxes, AlertTriangle, CalendarClock, Wallet } from "lucide-react";
+import { ExpiringBatches, type ExpiringBatch } from "@/components/inventory/expiring-batches";
+import { MovementsLedger, type MoveRow, type MoveType } from "@/components/inventory/movements-ledger";
+import { Boxes, AlertTriangle, CalendarClock, Wallet, Trash2 } from "lucide-react";
 
 export const metadata = { title: "المخزون والصيدلية — طود" };
 export const dynamic = "force-dynamic";
@@ -22,7 +24,7 @@ export default async function InventoryPage() {
   const sb = await createServerSupabaseClient();
   const soon = clinicDatePlus(60);
 
-  const [itemsRes, suppliersRes, expiringRes, servicesRes, bomRes, rxRes] = await Promise.all([
+  const [itemsRes, suppliersRes, expiringRes, servicesRes, bomRes, rxRes, movesRes] = await Promise.all([
     sb.from("inventory_items")
       .select("id, name, name_ar, category, unit, current_stock, reorder_level, cost_price, tracks_expiry")
       .eq("clinic_id", claims.clinic_id).eq("is_active", true).is("deleted_at", null)
@@ -31,7 +33,7 @@ export default async function InventoryPage() {
       .select("id, name").eq("clinic_id", claims.clinic_id).eq("is_active", true)
       .is("deleted_at", null).order("name"),
     sb.from("inventory_batches")
-      .select("id, batch_number, qty_remaining, expiry_date, inventory_items!item_id(name, name_ar)")
+      .select("id, batch_number, qty_remaining, expiry_date, inventory_items!item_id(name, name_ar, unit)")
       .eq("clinic_id", claims.clinic_id).gt("qty_remaining", 0)
       .not("expiry_date", "is", null).lte("expiry_date", soon)
       .order("expiry_date").limit(20),
@@ -45,6 +47,12 @@ export default async function InventoryPage() {
       .select("id, status, created_at, patients!patient_id(name, name_ar), tawd_staff_users!doctor_id(name, name_ar), prescription_items(id, drug_name, drug_name_ar, dosage, frequency, duration, item_id, quantity, dispensed_qty, sort_order)")
       .eq("clinic_id", claims.clinic_id).eq("status", "signed").is("deleted_at", null)
       .order("created_at", { ascending: false }).limit(50),
+    /* The ledger. Batch cost rides along so waste can be valued at what the
+       clinic actually paid for those units, not at today's price. */
+    sb.from("inventory_movements")
+      .select("id, type, qty_change, reason, ref_type, created_at, inventory_items!item_id(name, name_ar, unit), inventory_batches!batch_id(cost_price), tawd_staff_users!created_by(name, name_ar)")
+      .eq("clinic_id", claims.clinic_id)
+      .order("created_at", { ascending: false }).limit(200),
   ]);
 
   const items: InvItem[] = (itemsRes.data ?? []).map((i) => ({
@@ -98,11 +106,43 @@ export default async function InventoryPage() {
 
   const lowCount = items.filter((i) => i.reorder_level > 0 && i.current_stock <= i.reorder_level).length;
   const invValue = items.reduce((s, i) => s + i.current_stock * i.cost_price, 0);
-  const expiring = (expiringRes.data ?? []).map((b) => {
-    const it = b.inventory_items as unknown as { name?: string; name_ar?: string } | null;
+  const expiring: ExpiringBatch[] = (expiringRes.data ?? []).map((b) => {
+    const it = b.inventory_items as unknown as { name?: string; name_ar?: string; unit?: string } | null;
     const days = Math.round((new Date(b.expiry_date as string).getTime() - Date.now()) / 86400_000);
-    return { id: b.id, name: it?.name_ar ?? it?.name ?? "صنف", qty: n(b.qty_remaining), date: b.expiry_date as string, days };
+    return {
+      id: b.id as string,
+      name: it?.name_ar ?? it?.name ?? "صنف",
+      batchNumber: (b.batch_number as string) ?? null,
+      qty: n(b.qty_remaining),
+      unit: it?.unit ?? "",
+      date: b.expiry_date as string,
+      days,
+    };
   });
+
+  const moves: MoveRow[] = (movesRes.data ?? []).map((m) => {
+    const it = m.inventory_items as unknown as { name?: string; name_ar?: string; unit?: string } | null;
+    const by = m.tawd_staff_users as unknown as NameJoin;
+    return {
+      id: m.id as string,
+      at: m.created_at as string,
+      item: it?.name_ar ?? it?.name ?? "صنف",
+      unit: it?.unit ?? "",
+      type: m.type as MoveType,
+      qty: n(m.qty_change),
+      reason: (m.reason as string) ?? null,
+      refType: (m.ref_type as string) ?? null,
+      by: by?.name_ar ?? by?.name ?? null,
+    };
+  });
+
+  /* Waste is valued at what the clinic paid for those units, taken from the batch
+     it came out of — today's cost price would quietly re-price last year's loss. */
+  const wasteValue = (movesRes.data ?? []).reduce((s, m) => {
+    if (m.type !== "waste") return s;
+    const batch = m.inventory_batches as unknown as { cost_price?: number } | null;
+    return s + Math.abs(n(m.qty_change)) * n(batch?.cost_price);
+  }, 0);
 
   const kpis = [
     { label: "إجمالي الأصناف", value: String(items.length), Icon: Boxes, color: "var(--accent-1)" },
@@ -110,6 +150,7 @@ export default async function InventoryPage() {
     { label: "تنتهي خلال ٦٠ يوم", value: String(expiring.length), Icon: CalendarClock, color: expiring.length > 0 ? "#fbbf24" : "var(--text-3)" },
     { label: "وصفات بانتظار الصرف", value: String(prescriptions.length), Icon: Boxes, color: prescriptions.length > 0 ? "#38bdf8" : "var(--text-3)" },
     { label: "قيمة المخزون (ر.ع)", value: fmt(invValue), Icon: Wallet, color: "var(--accent-1)" },
+    { label: "قيمة الهالك (ر.ع)", value: fmt(wasteValue), Icon: Trash2, color: wasteValue > 0 ? "#fda4b4" : "var(--text-3)" },
   ];
 
   return (
@@ -134,32 +175,13 @@ export default async function InventoryPage() {
         ))}
       </div>
 
-      {expiring.length > 0 && (
-        <div className="panel" style={{ padding: "1.1rem 1.25rem", border: "1px solid rgba(251,191,36,0.22)" }}>
-          <div className="section-title mb-3">
-            <CalendarClock className="w-3.5 h-3.5" style={{ color: "#fbbf24" }} />
-            <h2>دفعات تقترب من الانتهاء</h2>
-          </div>
-          <div className="space-y-1.5">
-            {expiring.map((e) => (
-              <div key={e.id} className="flex items-center justify-between text-[12px] px-3 py-2 rounded-xl"
-                style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--hairline)" }}>
-                <span className="font-bold text-white">{e.name}</span>
-                <span style={{ color: "var(--text-3)" }} className="ltr-nums">
-                  {fmt(e.qty)} · تنتهي {e.date}{" "}
-                  <span style={{ color: e.days <= 14 ? "#fda4b4" : "#fbbf24" }}>
-                    ({e.days <= 0 ? "منتهية" : `خلال ${e.days} يوم`})
-                  </span>
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <ExpiringBatches batches={expiring} />
 
       <PharmacyCounter prescriptions={prescriptions} items={items} />
 
       <InventoryBoard items={items} suppliers={suppliers} />
+
+      <MovementsLedger rows={moves} />
 
       {items.length > 0 && services.length > 0 && (
         <ServiceMaterialsEditor services={services} items={items} materials={bom} />

@@ -9,8 +9,11 @@ const PG_CRED = { id: "NDrVeK2iQy3c33J3", name: "TAWD Supabase Postgres" };
 const ERR_ID = "W8N7vDeYzuZLnlWW";
 
 const SQL = `WITH cfg AS (
-  SELECT config->>'access_token' AS token, config->>'phone_number_id' AS pnid
-  FROM public.channel_configs WHERE channel='whatsapp' AND is_active LIMIT 1
+  -- The PLATFORM's own sender. This used to read the first active whatsapp
+  -- channel row, which belongs to a CLINIC: with two customers a suspension
+  -- notice would arrive from a competitor's number.
+  SELECT wa_access_token AS token, wa_phone_number_id AS pnid
+  FROM public.platform_secrets LIMIT 1
 ),
 due AS (
   SELECT s.clinic_id FROM public.tawd_subscriptions s

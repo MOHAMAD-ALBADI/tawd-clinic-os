@@ -14,7 +14,7 @@ const AUDIENCES: { value: CampaignAudience; label: string; hint: string }[] = [
 function LauncherModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [done, setDone] = useState<number | null>(null);
+  const [done, setDone] = useState<{ sent: number; failed: number; pending: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [audience, setAudience] = useState<CampaignAudience>("all");
@@ -27,9 +27,11 @@ function LauncherModal({ onClose }: { onClose: () => void }) {
     startTransition(async () => {
       try {
         const res = await launchCampaign({ name: name.trim(), message: message.trim(), audience });
-        setDone(res.recipients);
+        setDone({ sent: res.sent, failed: res.failed, pending: res.pending });
         router.refresh();
-        setTimeout(onClose, 1600);
+        /* Long enough to read a result that may include failures — the old
+           screen closed after 1.6s because there was nothing to read. */
+        setTimeout(onClose, res.failed > 0 || res.pending > 0 ? 6000 : 2200);
       } catch (e) {
         setError(e instanceof Error ? e.message : "تعذّر إطلاق الحملة");
       }
@@ -53,13 +55,27 @@ function LauncherModal({ onClose }: { onClose: () => void }) {
 
         {done !== null ? (
           <div className="flex flex-col items-center justify-center py-10 gap-3">
-            <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: "rgba(52,211,153,0.14)" }}>
-              <CheckCircle2 className="w-7 h-7" style={{ color: "var(--color-ok)" }} />
+            <div className="w-14 h-14 rounded-full flex items-center justify-center"
+              style={{ background: done.failed > 0 ? "rgba(251,191,36,0.14)" : "rgba(52,211,153,0.14)" }}>
+              <CheckCircle2 className="w-7 h-7" style={{ color: done.failed > 0 ? "#fbbf24" : "var(--color-ok)" }} />
             </div>
-            <p className="text-white font-bold">انطلقت الحملة!</p>
-            <p className="text-[13px]" style={{ color: "var(--text-2)" }}>
-              يتم الإرسال إلى <span className="ltr-nums font-bold text-white">{done}</span> مريض عبر سُرى…
+            <p className="text-white font-bold">
+              {done.sent > 0 ? "أُرسِلت الحملة" : "لم تصل أي رسالة"}
             </p>
+            <p className="text-[13px] text-center" style={{ color: "var(--text-2)" }}>
+              وصلت <span className="ltr-nums font-bold text-white">{done.sent}</span> رسالة
+              {done.failed > 0 && (
+                <> · فشلت <span className="ltr-nums font-bold" style={{ color: "#fda4b4" }}>{done.failed}</span></>
+              )}
+              {done.pending > 0 && (
+                <> · بقيت <span className="ltr-nums font-bold" style={{ color: "#fbbf24" }}>{done.pending}</span></>
+              )}
+            </p>
+            {done.failed > 0 && (
+              <p className="text-[11px] text-center" style={{ color: "var(--text-4)" }}>
+                سبب كل إخفاق مذكور في صفحة الحملات — ومن هناك يمكن إعادة المحاولة
+              </p>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
