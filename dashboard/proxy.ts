@@ -27,9 +27,17 @@ export async function proxy(request: NextRequest) {
   const role = (claims?.app_metadata?.role ?? "clinic_admin") as Role;
   const path = request.nextUrl.pathname;
 
-  // Public routes: patient booking page, auth callbacks, and api routes
-  // (which authenticate themselves and return JSON) — never gate these.
-  const PUBLIC_PREFIXES = ["/book", "/auth"];
+  /* Public routes: anything a person who is not staff has to be able to open,
+     plus api routes (which authenticate themselves and return JSON).
+
+     /pay is where the payment gateway returns the PATIENT after paying. It was
+     gated, so a patient who had just paid was shown a staff login screen — the
+     worst possible moment to look broken.
+
+     /legal has to be reachable by anyone, including Meta's app reviewer. A
+     privacy policy behind a login is a privacy policy nobody can check, and the
+     review is refused for exactly that. */
+  const PUBLIC_PREFIXES = ["/book", "/auth", "/pay", "/legal"];
   const isPublic =
     path.startsWith("/api/") ||
     PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
