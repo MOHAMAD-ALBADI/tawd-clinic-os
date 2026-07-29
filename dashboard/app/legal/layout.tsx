@@ -21,6 +21,7 @@ export default function LegalLayout({ children }: { children: React.ReactNode })
         <nav className="flex items-center gap-4 text-[12px]" style={{ color: "var(--text-3)" }}>
           <Link href="/legal/privacy">سياسة الخصوصية</Link>
           <Link href="/legal/terms">شروط الاستخدام</Link>
+          <Link href="/legal/data-deletion">حذف البيانات</Link>
         </nav>
       </header>
 
