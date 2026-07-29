@@ -78,6 +78,15 @@ export default function LoginPage() {
         <p className="text-[11px] text-center mt-5" style={{ color: "var(--text-4)" }}>
           مدعوم بـ سُرى — المساعدة الذكية للعيادات
         </p>
+
+        {/* Reachable from the product itself, not only from a link pasted into a
+            review form — Meta checks that these exist where a user can find
+            them, and a clinic's legal review asks for the same. */}
+        <p className="text-[11px] text-center mt-2 flex items-center justify-center gap-3" style={{ color: "var(--text-4)" }}>
+          <a href="/legal/privacy">سياسة الخصوصية</a>
+          <span aria-hidden>·</span>
+          <a href="/legal/terms">شروط الاستخدام</a>
+        </p>
       </div>
     </main>
   );

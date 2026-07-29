@@ -12,6 +12,7 @@ import { SubscriptionCard, ClinicWhatsApp, ImpersonateButton } from "@/component
 import { ImportTrigger } from "@/components/patients/import-trigger";
 import { BookingLink } from "@/components/platform/booking-link";
 import { WhatsAppConnect, type WaState } from "@/components/platform/whatsapp-connect";
+import { EmbeddedSignup } from "@/components/platform/embedded-signup";
 import { TawdBarsGlyph } from "@/components/shell/tawd-logo";
 import { ArrowRight, Users, MessageCircle, Scissors } from "lucide-react";
 
@@ -169,6 +170,14 @@ export default async function ClinicDetailPage({ params }: { params: Promise<{ i
             periodEnd={(sub?.current_period_end as string | null) ?? (sub?.trial_ends_at as string | null)}
           />
           {clinic.slug && <BookingLink slug={clinic.slug as string} />}
+          {/* The way a clinic connects itself, above the way we connect it by
+              hand — the manual panel stays for our own numbers and for when a
+              clinic's Meta account is not usable. */}
+          <EmbeddedSignup
+            clinicId={clinic.id}
+            appId={process.env.NEXT_PUBLIC_META_APP_ID ?? null}
+            configId={process.env.NEXT_PUBLIC_META_ES_CONFIG_ID ?? null}
+          />
           <WhatsAppConnect clinicId={clinic.id} state={waState} />
           <ClinicWhatsApp clinicId={clinic.id} hasPhone={!!clinic.phone} />
           <ImpersonateButton clinicId={clinic.id} />
