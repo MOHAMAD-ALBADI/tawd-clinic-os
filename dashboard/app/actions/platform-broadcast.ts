@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { hasRole } from "@/lib/auth/role-redirect";
+import { platformSecrets } from "@/lib/platform-secrets";
 import type { AudienceFilter, Recipient } from "@/lib/broadcast-audience";
 import { audienceLabel, resolveBody } from "@/lib/broadcast-audience";
 
@@ -140,11 +141,18 @@ async function sendOne(
   }
 }
 
-async function platformSender() {
-  const sb = await createServiceRoleClient();
-  const { data: cfg } = await sb.from("channel_configs")
-    .select("config").eq("channel", "whatsapp").eq("is_active", true).limit(1).maybeSingle();
-  return (cfg?.config as Record<string, string> | null) ?? null;
+/** TAWD's own WhatsApp number.
+
+    This used to be "the first active whatsapp channel row", which belongs to a
+    CLINIC. Every broadcast TAWD sent — renewal notices, outage warnings, price
+    changes — left from whichever customer's number sorted first, so a clinic
+    would receive an announcement about its own subscription from a competitor's
+    WhatsApp. The same bug was just removed from WF-AutoSuspend, which sends the
+    suspension notice. */
+async function platformSender(): Promise<Record<string, string> | null> {
+  const s = await platformSecrets();
+  if (!s.waAccessToken || !s.waPhoneNumberId) return null;
+  return { access_token: s.waAccessToken, phone_number_id: s.waPhoneNumberId };
 }
 
 /** Send the message to one number — yours — before sending it to customers. */
@@ -157,7 +165,7 @@ export async function sendBroadcastTest(body: string, phone: string) {
 
   const conf = await platformSender();
   if (!conf?.access_token || !conf?.phone_number_id) {
-    return { ok: false as const, reason: "لا يوجد مرسل واتساب مفعّل للمنصة" };
+    return { ok: false as const, reason: "لا يوجد رقم واتساب للمنصّة — أضِفه في مفاتيح المنصّة قبل الإرسال" };
   }
 
   const r = await sendOne(conf, to, resolveBody(text, {
@@ -180,7 +188,7 @@ export async function sendBroadcast(input: {
 
   const conf = await platformSender();
   if (!conf?.access_token || !conf?.phone_number_id) {
-    return { ok: false as const, reason: "لا يوجد مرسل واتساب مفعّل للمنصة" };
+    return { ok: false as const, reason: "لا يوجد رقم واتساب للمنصّة — أضِفه في مفاتيح المنصّة قبل الإرسال" };
   }
 
   const { recipients, skippedNoPhone } = await resolveAudience(input.filter);
