@@ -138,31 +138,6 @@ export function Proof() {
   );
 }
 
-export function Depth() {
-  const { t } = useSite();
-  const h = t.home;
-  return (
-    <section className="s-section">
-      <div className="s-wrap">
-        <Reveal style={{ marginBottom: "3rem" }}>
-          <h2 className="s-h2">{h.depthTitle}</h2>
-          <p className="s-lede">{h.depthLede}</p>
-        </Reveal>
-
-        {/* Bento rather than a uniform grid: the first and last tiles run wide,
-            so the eye is given a path through instead of six identical boxes. */}
-        <div className="s-bento">
-          {h.depth.map((d, i) => (
-            <Reveal key={d.t} delay={i * 70} className="s-card s-card--lift">
-              <h3 className="s-card__t">{d.t}</h3>
-              <p className="s-card__d">{d.d}</p>
-            </Reveal>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
 
 export function ClosingCta() {
   const { t } = useSite();
