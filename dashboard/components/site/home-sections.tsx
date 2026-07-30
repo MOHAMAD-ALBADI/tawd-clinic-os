@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRef } from "react";
 import { ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
 import { useSite } from "@/components/site/lang";
 import { Signature } from "@/components/site/signature";
 import { Reveal } from "@/components/site/reveal";
+import { Counter } from "@/components/site/counter";
 
 /* An arrow that points the way the language reads. A left arrow on an Arabic
    page points backwards. */
@@ -17,8 +19,27 @@ function Arrow() {
 export function Hero() {
   const { t } = useSite();
   const h = t.home;
+  const stage = useRef<HTMLDivElement | null>(null);
+
+  /* The panel turns toward the pointer. Written straight onto the element as
+     custom properties and read by CSS transforms — no React state, so moving
+     the mouse never triggers a render. */
+  function track(e: React.MouseEvent<HTMLDivElement>) {
+    const el = stage.current;
+    if (!el) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    el.style.setProperty("--mx", String(((e.clientX - r.left) / r.width - 0.5) * 2));
+    el.style.setProperty("--my", String(((e.clientY - r.top) / r.height - 0.5) * -2));
+  }
+  function reset() {
+    const el = stage.current;
+    if (!el) return;
+    el.style.setProperty("--mx", "0");
+    el.style.setProperty("--my", "0");
+  }
+
   return (
-    <section className="s-hero">
+    <section className="s-hero" onMouseMove={track} onMouseLeave={reset} ref={stage}>
       <div className="s-wrap s-hero__grid">
         <Reveal>
           <span className="s-eyebrow"><Sparkles size={12} /> {h.eyebrow}</span>
@@ -101,7 +122,7 @@ export function Proof() {
         <div className="s-stats">
           {h.proof.map((p, i) => (
             <Reveal key={p.l} delay={i * 80} className="s-card s-card--lift s-stat">
-              <p className="s-stat__v s-num">{p.v}</p>
+              <p className="s-stat__v s-num"><Counter value={p.v} /></p>
               <p className="s-stat__l">{p.l}</p>
             </Reveal>
           ))}

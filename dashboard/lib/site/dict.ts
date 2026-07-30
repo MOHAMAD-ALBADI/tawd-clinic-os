@@ -207,9 +207,9 @@ export const dict = {
       ],
       founderTitle: "المؤسّس",
       founderName: "محمد البادي",
-      founderRole: "المؤسّس · يقود المنتج والهندسة",
+      founderRole: "المؤسّس والرئيس التنفيذي",
       founderBio:
-        "أدرس الذكاء الاصطناعي في كلية البريمي التعليمية، وبنيت طَود لأن الفرق بين نموذج يجاوب على سؤال ونظام يتّخذ قراراً داخل بيانات حقيقية هو ما يشدّني فعلاً. كل قرار في هذا المنتج — من شكل الفاتورة إلى ما تقوله سُرى للمريض — مرّ من يدي.",
+        "بنيت طَود بالكامل — النظام، وسُرى، وكل قرار فيهما. من شكل الفاتورة إلى الكلمة التي تقولها سُرى لمريض يكتب في منتصف الليل.\n\nأعمل مع العيادات مباشرة، بلا طبقة بيني وبينها. حين تتصل عيادة، أنا من يردّ.",
       principlesTitle: "ما نلتزم به",
       principles: [
         { t: "بياناتك لك", d: "لا نستخدم بيانات عيادة لغرضنا، ولا نشاركها مع عيادة أخرى، وتخرج بها متى شئت." },
@@ -444,9 +444,9 @@ export const dict = {
       ],
       founderTitle: "Founder",
       founderName: "Mohammed Al Badi",
-      founderRole: "Founder · leads product and engineering",
+      founderRole: "Founder & CEO",
       founderBio:
-        "I study artificial intelligence at Al Buraimi College, and I built TAWD because the gap between a model that answers a question and a system that makes a decision inside real data is what genuinely interests me. Every decision in this product — from the shape of an invoice to what Sura says to a patient — passed through my hands.",
+        "I built TAWD end to end — the system, Sura, and every decision in both. From the shape of an invoice to the words Sura chooses for a patient writing at midnight.\n\nI work with clinics directly, with no layer between us. When a clinic calls, I answer.",
       principlesTitle: "What we hold to",
       principles: [
         { t: "Your data is yours", d: "We do not use one clinic's data for our own purposes, never share it with another clinic, and you leave with it whenever you choose." },

@@ -106,8 +106,8 @@
 
 /* ── layout ───────────────────────────────────────────────── */
 .s-wrap { max-width: var(--s-max); margin-inline: auto; padding-inline: var(--s-pad); }
-.s-section { padding-block: clamp(5rem, 12vw, 9.5rem); position: relative; }
-.s-section--tight { padding-block: clamp(3rem, 7vw, 5rem); position: relative; }
+.s-section { padding-block: clamp(3.2rem, 6vw, 5.2rem); position: relative; }
+.s-section--tight { padding-block: clamp(2.4rem, 4vw, 3.4rem); position: relative; }
 
 .s-eyebrow {
   display: inline-flex; align-items: center; gap: 0.5rem;
@@ -119,8 +119,8 @@
   border: 1px solid rgba(91,147,255,0.2);
   backdrop-filter: blur(10px);
 }
-.s-h2 { font-size: clamp(2rem, 5vw, 3.5rem); margin-block: 1rem 0; }
-.s-lede { font-size: clamp(1rem, 1.5vw, 1.16rem); line-height: 1.9; color: var(--s-text-2); max-width: 60ch; margin-top: 1.1rem; }
+.s-h2 { font-size: clamp(1.7rem, 3.4vw, 2.5rem); margin-block: 1rem 0; }
+.s-lede { font-size: clamp(0.94rem, 1.1vw, 1.02rem); line-height: 1.8; color: var(--s-text-2); max-width: 60ch; margin-top: 1.1rem; }
 
 /* ── controls ─────────────────────────────────────────────── */
 .s-btn {
@@ -145,7 +145,7 @@
   background: linear-gradient(180deg, var(--glass-hi), var(--glass));
   border: 1px solid var(--s-line);
   border-radius: var(--r);
-  padding: 1.7rem;
+  padding: 1.3rem;
   backdrop-filter: blur(var(--blur)) saturate(150%);
   box-shadow: var(--e2);
   transition: transform 0.28s cubic-bezier(0.2,0.7,0.3,1), box-shadow 0.28s ease, border-color 0.28s ease;
@@ -160,8 +160,8 @@
 .s-card__d { font-size: 0.89rem; line-height: 1.82; color: var(--s-text-3); }
 
 /* ── HERO ─────────────────────────────────────────────────── */
-.s-hero { padding-block: clamp(4rem, 10vw, 8rem) clamp(5rem, 11vw, 9rem); }
-.s-hero__grid { display: grid; gap: clamp(3rem, 6vw, 4rem); grid-template-columns: 1fr; align-items: center; }
+.s-hero { padding-block: clamp(2.5rem, 5vw, 4rem) clamp(3.5rem, 6vw, 5rem); }
+.s-hero__grid { display: grid; gap: clamp(2rem, 4vw, 3rem); grid-template-columns: 1fr; align-items: center; }
 @media (min-width: 1000px) {
   /* The stage carries the tilted panel plus the chat hanging below it, so it is
      taller than the copy. Aligning to the top keeps the headline where the eye
@@ -169,7 +169,7 @@
   .s-hero__grid { grid-template-columns: 0.92fr 1.08fr; align-items: start; padding-block-start: 1.5rem; }
 }
 
-.s-hero h1 { font-size: clamp(2.5rem, 7vw, 5rem); margin-block: 1.3rem 0; }
+.s-hero h1 { font-size: clamp(2rem, 4.4vw, 3.4rem); margin-block: 1.3rem 0; }
 .s-hero__accent {
   display: block;
   background: linear-gradient(100deg, #7fb0ff 0%, var(--s-blue-lit) 40%, #9d8bff 100%);
@@ -185,29 +185,45 @@
   filter: blur(38px); pointer-events: none;
 }
 
-/* The dashboard capture, tilted away from the reader. */
+/* The dashboard capture.
+
+   The tilt was 13° and the screen became unreadable — a product shot nobody can
+   read proves nothing. It is nearly flat now (the depth comes from elevation
+   and the light, not from throwing the panel away from the reader), and it
+   follows the pointer: --mx/--my are written by the hero on mousemove, so the
+   panel turns toward wherever you are. That is the motion the page was missing —
+   something that answers you, rather than a loop that plays regardless. */
 .s-stage__shot {
   position: relative;
-  border-radius: 18px; overflow: hidden;
+  border-radius: 14px; overflow: hidden;
   border: 1px solid var(--s-line-strong);
   box-shadow: var(--e4);
-  transform: rotateY(-13deg) rotateX(7deg) rotateZ(1.2deg) translateZ(0);
+  transform:
+    perspective(2200px)
+    rotateY(calc(var(--mx, 0) * -5deg))
+    rotateX(calc(var(--my, 0) * 3.5deg))
+    translateY(var(--floaty, 0px));
   transform-origin: 50% 50%;
-  animation: s-float 9s ease-in-out infinite alternate;
+  transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.3, 1);
+  animation: s-float 7s ease-in-out infinite alternate;
   will-change: transform;
 }
-/* Mirror the tilt so the page always turns toward the reader's start edge. */
-.site-root[dir="rtl"] .s-stage__shot { transform: rotateY(13deg) rotateX(7deg) rotateZ(-1.2deg); }
 .s-stage__shot img { display: block; width: 100%; height: auto; }
-/* Screen glare across the panel. */
+/* Screen glare that slides with the pointer, the way glass actually behaves. */
 .s-stage__shot::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(115deg, rgba(255,255,255,0.10) 0%, transparent 32%, transparent 70%, rgba(46,107,240,0.14) 100%);
+  background: linear-gradient(
+    calc(115deg + var(--mx, 0) * 18deg),
+    rgba(255,255,255,0.09) 0%, transparent 34%,
+    transparent 68%, rgba(46,107,240,0.16) 100%);
+  transition: background 0.5s ease;
 }
 @keyframes s-float {
-  from { translate: 0 -8px; }
-  to   { translate: 0 10px; }
+  from { --floaty: -7px; }
+  to   { --floaty: 8px; }
 }
+/* Custom properties only animate if the browser knows their type. */
+@property --floaty { syntax: "<length>"; inherits: false; initial-value: 0px; }
 
 /* The conversation, overlapping the dashboard's lower start corner.
 
