@@ -37,3 +37,6 @@ Thumbs.db
 
 # local low-memory typecheck scratch config
 dashboard/tsconfig.scoped.json
+
+.vercel
+.env*

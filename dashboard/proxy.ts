@@ -38,8 +38,17 @@ export async function proxy(request: NextRequest) {
      privacy policy behind a login is a privacy policy nobody can check, and the
      review is refused for exactly that. */
   const PUBLIC_PREFIXES = ["/book", "/auth", "/pay", "/legal"];
+
+  /* The company site. It lives at the root and is open to everyone —
+     including staff who are already signed in. Redirecting a signed-in visitor
+     away from the homepage would mean the company's own site is unreachable to
+     the people who work here, and to anyone we hand the link to. The header's
+     "دخول" button is how they get to their dashboard. */
+  const SITE_PATHS = ["/", "/product", "/pricing", "/faq", "/about", "/contact"];
+
   const isPublic =
     path.startsWith("/api/") ||
+    SITE_PATHS.includes(path) ||
     PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
   if (isPublic) return response;
 
