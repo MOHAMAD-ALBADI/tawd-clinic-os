@@ -1,5 +1,6 @@
 import { Hero, ProblemStrip, Flow, Proof, ClosingCta } from "@/components/site/home-sections";
 import { Channels, FeatureRows, Modules, FaqPreview } from "@/components/site/feature-rows";
+import { RoiCalculator } from "@/components/site/roi";
 
 /* Nine sections, not six.
 
@@ -15,6 +16,7 @@ export default function HomePage() {
       <ProblemStrip />
       <Flow />
       <FeatureRows />
+      <RoiCalculator />
       <Proof />
       <Modules />
       <FaqPreview />

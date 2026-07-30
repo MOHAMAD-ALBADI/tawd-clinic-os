@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { motion } from "motion/react";
 import { Check, RotateCcw } from "lucide-react";
 import { useSite } from "@/components/site/lang";
 
@@ -78,7 +79,15 @@ export function Signature() {
           statistics further down are taken from. The conversation then sits in
           front of it, so the message and the system it writes into occupy one
           object rather than two unrelated pictures. */}
-      <div className="s-stage__shot">
+      <motion.div
+        className="s-stage__shot"
+        /* Physics, not a linear tween — the panel settles the way an object
+           with mass settles, which is the whole difference between smooth and
+           cheap. */
+        initial={{ opacity: 0, y: 40, rotateX: 14, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
+        transition={{ type: "spring", stiffness: 70, damping: 18, mass: 1.1, delay: 0.15 }}
+      >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/shots/finance.png"
@@ -90,7 +99,7 @@ export function Signature() {
           loading="eager"
           decoding="async"
         />
-      </div>
+      </motion.div>
 
       <div className="s-stage__chat">
       <div className="s-chat">
