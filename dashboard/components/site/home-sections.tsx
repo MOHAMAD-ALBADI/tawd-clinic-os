@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
 import { useSite } from "@/components/site/lang";
 import { Signature } from "@/components/site/signature";
+import { Reveal } from "@/components/site/reveal";
 
 /* An arrow that points the way the language reads. A left arrow on an Arabic
-   page points back, not forward. */
+   page points backwards. */
 function Arrow() {
   const { lang } = useSite();
   const I = lang === "ar" ? ArrowLeft : ArrowRight;
@@ -18,24 +19,25 @@ export function Hero() {
   const h = t.home;
   return (
     <section className="s-hero">
-      <span className="s-bloom" aria-hidden />
       <div className="s-wrap s-hero__grid">
-        <div>
-          <span className="s-eyebrow">{h.eyebrow}</span>
+        <Reveal>
+          <span className="s-eyebrow"><Sparkles size={12} /> {h.eyebrow}</span>
           <h1>
             {h.title1}
             <span className="s-hero__accent">{h.title2}</span>
           </h1>
           <p className="s-lede">{h.lede}</p>
-          <div style={{ display: "flex", gap: "0.7rem", flexWrap: "wrap", marginTop: "2rem" }}>
+          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginTop: "2.2rem" }}>
             <Link href="/contact" className="s-btn s-btn--primary">
               {h.ctaPrimary} <Arrow />
             </Link>
             <Link href="/product" className="s-btn s-btn--ghost">{h.ctaSecondary}</Link>
           </div>
-        </div>
+        </Reveal>
 
-        <Signature />
+        <Reveal delay={140}>
+          <Signature />
+        </Reveal>
       </div>
     </section>
   );
@@ -44,12 +46,14 @@ export function Hero() {
 export function ProblemStrip() {
   const { t } = useSite();
   return (
-    <section className="s-section--tight" style={{ borderBlock: "1px solid var(--s-line)", background: "var(--s-bg-2)" }}>
-      <div className="s-wrap" style={{ paddingBlock: "2.6rem" }}>
-        <h2 className="s-display" style={{ fontSize: "clamp(1.3rem, 3vw, 1.9rem)", maxWidth: "24ch" }}>
-          {t.home.stripTitle}
-        </h2>
-        <p className="s-lede" style={{ marginTop: "0.9rem" }}>{t.home.stripBody}</p>
+    <section className="s-section--tight">
+      <div className="s-wrap">
+        <Reveal className="s-card" style={{ padding: "clamp(2rem, 5vw, 3.4rem)" }}>
+          <h2 className="s-display" style={{ fontSize: "clamp(1.4rem, 3.2vw, 2.1rem)", maxWidth: "26ch" }}>
+            {t.home.stripTitle}
+          </h2>
+          <p className="s-lede" style={{ marginTop: "1rem" }}>{t.home.stripBody}</p>
+        </Reveal>
       </div>
     </section>
   );
@@ -60,21 +64,24 @@ export function Flow() {
   const h = t.home;
   return (
     <section className="s-section">
-      <div className="s-wrap" style={{ marginBottom: "2.8rem" }}>
-        <span className="s-eyebrow">01 — 04</span>
-        <h2 className="s-h2">{h.flowTitle}</h2>
-        <p className="s-lede">{h.flowLede}</p>
-      </div>
-      {/* Numbered because it genuinely is a sequence: each step can only happen
-          after the one before it. */}
-      <div className="s-flow">
-        {h.flow.map((s) => (
-          <div key={s.n} className="s-flow__step">
-            <span className="s-flow__n s-num">{s.n}</span>
-            <h3 className="s-flow__t">{s.t}</h3>
-            <p className="s-flow__d">{s.d}</p>
-          </div>
-        ))}
+      <div className="s-wrap">
+        <Reveal style={{ marginBottom: "3rem" }}>
+          <span className="s-eyebrow">01 — 04</span>
+          <h2 className="s-h2">{h.flowTitle}</h2>
+          <p className="s-lede">{h.flowLede}</p>
+        </Reveal>
+
+        {/* Numbered because it genuinely is a sequence: each step can only
+            happen after the one before it. */}
+        <div className="s-flow">
+          {h.flow.map((s, i) => (
+            <Reveal key={s.n} delay={i * 90} className="s-card s-card--lift">
+              <span className="s-flow__n">{s.n}</span>
+              <h3 className="s-flow__t">{s.t}</h3>
+              <p className="s-flow__d">{s.d}</p>
+            </Reveal>
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -84,23 +91,27 @@ export function Proof() {
   const { t } = useSite();
   const h = t.home;
   return (
-    <section className="s-section">
+    <section className="s-section--tight">
       <div className="s-wrap">
-        <span className="s-eyebrow">{h.proofTitle}</span>
-        <p className="s-lede" style={{ marginBottom: "2rem" }}>{h.proofLede}</p>
+        <Reveal style={{ marginBottom: "2.2rem" }}>
+          <span className="s-eyebrow">{h.proofTitle}</span>
+          <p className="s-lede">{h.proofLede}</p>
+        </Reveal>
 
         <div className="s-stats">
-          {h.proof.map((p) => (
-            <div key={p.l} className="s-stat">
+          {h.proof.map((p, i) => (
+            <Reveal key={p.l} delay={i * 80} className="s-card s-card--lift s-stat">
               <p className="s-stat__v s-num">{p.v}</p>
               <p className="s-stat__l">{p.l}</p>
-            </div>
+            </Reveal>
           ))}
         </div>
 
-        <p style={{ fontSize: "0.78rem", color: "var(--s-text-4)", marginTop: "1rem", lineHeight: 1.7 }}>
-          {h.proofNote}
-        </p>
+        <Reveal delay={200}>
+          <p style={{ fontSize: "0.78rem", color: "var(--s-text-4)", marginTop: "1.1rem", lineHeight: 1.7 }}>
+            {h.proofNote}
+          </p>
+        </Reveal>
       </div>
     </section>
   );
@@ -110,16 +121,21 @@ export function Depth() {
   const { t } = useSite();
   const h = t.home;
   return (
-    <section className="s-section" style={{ background: "var(--s-bg-2)", borderBlock: "1px solid var(--s-line)" }}>
+    <section className="s-section">
       <div className="s-wrap">
-        <h2 className="s-h2">{h.depthTitle}</h2>
-        <p className="s-lede" style={{ marginBottom: "2.5rem" }}>{h.depthLede}</p>
-        <div className="s-grid s-grid--2 s-grid--3">
-          {h.depth.map((d) => (
-            <div key={d.t} className="s-card">
+        <Reveal style={{ marginBottom: "3rem" }}>
+          <h2 className="s-h2">{h.depthTitle}</h2>
+          <p className="s-lede">{h.depthLede}</p>
+        </Reveal>
+
+        {/* Bento rather than a uniform grid: the first and last tiles run wide,
+            so the eye is given a path through instead of six identical boxes. */}
+        <div className="s-bento">
+          {h.depth.map((d, i) => (
+            <Reveal key={d.t} delay={i * 70} className="s-card s-card--lift">
               <h3 className="s-card__t">{d.t}</h3>
               <p className="s-card__d">{d.d}</p>
-            </div>
+            </Reveal>
           ))}
         </div>
       </div>
@@ -131,14 +147,15 @@ export function ClosingCta() {
   const { t } = useSite();
   const h = t.home;
   return (
-    <section className="s-section" style={{ position: "relative", overflow: "hidden" }}>
-      <span className="s-bloom" style={{ insetBlockStart: "-60%", opacity: 0.7 }} aria-hidden />
-      <div className="s-wrap" style={{ position: "relative", zIndex: 1, textAlign: "center" }}>
-        <h2 className="s-h2" style={{ maxWidth: "20ch", marginInline: "auto" }}>{h.ctaTitle}</h2>
-        <p className="s-lede" style={{ marginInline: "auto" }}>{h.ctaBody}</p>
-        <Link href="/contact" className="s-btn s-btn--primary" style={{ marginTop: "2rem" }}>
-          {h.ctaButton} <Arrow />
-        </Link>
+    <section className="s-section">
+      <div className="s-wrap">
+        <Reveal className="s-card" style={{ padding: "clamp(2.5rem, 6vw, 4.5rem)", textAlign: "center" }}>
+          <h2 className="s-h2" style={{ maxWidth: "20ch", marginInline: "auto" }}>{h.ctaTitle}</h2>
+          <p className="s-lede" style={{ marginInline: "auto" }}>{h.ctaBody}</p>
+          <Link href="/contact" className="s-btn s-btn--primary" style={{ marginTop: "2.2rem" }}>
+            {h.ctaButton} <Arrow />
+          </Link>
+        </Reveal>
       </div>
     </section>
   );

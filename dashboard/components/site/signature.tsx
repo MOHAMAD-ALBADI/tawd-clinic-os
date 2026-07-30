@@ -71,6 +71,28 @@ export function Signature() {
 
   return (
     <div className="s-stage">
+      {/* The light behind the product. */}
+      <span className="s-stage__glow" aria-hidden />
+
+      {/* The real system, tilted away from the reader — the same clinic the
+          statistics further down are taken from. The conversation then sits in
+          front of it, so the message and the system it writes into occupy one
+          object rather than two unrelated pictures. */}
+      <div className="s-stage__shot">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/shots/finance.png"
+          alt={lang === "ar"
+            ? "لوحة المالية في طَود — إيراد الشهر والمصروفات وصافي الربح"
+            : "TAWD's finance screen — monthly revenue, expenses and net profit"}
+          width={1440}
+          height={1000}
+          loading="eager"
+          decoding="async"
+        />
+      </div>
+
+      <div className="s-stage__chat">
       <div className="s-chat">
         <div className="s-chat__bar">
           <span className="s-chat__dot" />
@@ -114,6 +136,7 @@ export function Signature() {
           {h.replay}
         </button>
       )}
+      </div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { Hero, ProblemStrip, Flow, Proof, Depth, ClosingCta } from "@/components/site/home-sections";
-import { ScreenHighlight } from "@/components/site/screens";
 
+/* The finance screen used to appear again here, under the stats. It now leads
+   the hero in 3D, so a second flat copy of it a page later only weakened both. */
 export default function HomePage() {
   return (
     <>
@@ -8,9 +9,6 @@ export default function HomePage() {
       <ProblemStrip />
       <Flow />
       <Proof />
-      {/* The screen the numbers above came from, immediately after them — so the
-          claim and its source are read together rather than a page apart. */}
-      <ScreenHighlight />
       <Depth />
       <ClosingCta />
     </>

@@ -40,6 +40,10 @@ export function LangProvider({ children }: { children: React.ReactNode }) {
       {/* dir lives here rather than on <html>: the dashboard owns that element
           and is permanently RTL. */}
       <div dir={t.dir} lang={lang} className={`site-root site-${lang}`}>
+        {/* One light source behind everything, drifting, plus fine grain over
+            it — without the grain a large flat gradient bands visibly. */}
+        <span className="s-aurora" aria-hidden />
+        <span className="s-grain" aria-hidden />
         {children}
       </div>
     </LangCtx.Provider>

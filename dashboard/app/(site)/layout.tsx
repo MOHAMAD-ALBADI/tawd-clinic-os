@@ -26,6 +26,13 @@ export const metadata: Metadata = {
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className={siteFontVars}>
+      {/* The reveal animation hides sections until they scroll into view. If the
+          script never runs, every section below the hero would stay invisible
+          forever — a page that looks empty rather than one that looks static.
+          This is the only correct place to undo it. */}
+      <noscript>
+        <style>{`.s-rev { opacity: 1 !important; translate: none !important; }`}</style>
+      </noscript>
       <LangProvider>
         <SiteHeader />
         <main>{children}</main>
