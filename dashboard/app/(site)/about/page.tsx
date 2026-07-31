@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useState } from "react";
 import { useSite } from "@/components/site/lang";
 
@@ -20,24 +19,23 @@ export default function AboutPage() {
 
   return (
     <>
-      <section className="s-section" style={{ position: "relative" }}>
-        <span className="s-bloom" aria-hidden />
-        <div className="s-wrap" style={{ position: "relative", zIndex: 1 }}>
-          <span className="s-eyebrow">{a.eyebrow}</span>
+      <section className="sec" style={{ position: "relative" }}>
+        <div className="wrap" style={{ position: "relative", zIndex: 1 }}>
+          <span className="pill">{a.eyebrow}</span>
           <h1 style={{ fontSize: "clamp(2.6rem, 8vw, 5rem)", marginBlock: "0.8rem 0.6rem" }}>{a.title}</h1>
-          <p className="s-num" style={{ fontSize: "0.85rem", color: "var(--s-text-3)" }}>{a.meaning}</p>
-          <p className="s-lede">{a.lede}</p>
+          <p className="mono" style={{ fontSize: "0.85rem", color: "var(--tx-3)" }}>{a.meaning}</p>
+          <p className="lede">{a.lede}</p>
         </div>
       </section>
 
-      <section className="s-section--tight" style={{ borderBlock: "1px solid var(--s-line)", background: "var(--s-bg-2)" }}>
-        <div className="s-wrap" style={{ paddingBlock: "3.4rem", maxWidth: 780 }}>
-          <h2 className="s-h2" style={{ fontSize: "clamp(1.5rem, 3.4vw, 2.1rem)", marginBottom: "1.6rem" }}>
+      <section className="sec--tight" style={{ borderBlock: "1px solid var(--line)", background: "var(--bg-2)" }}>
+        <div className="wrap" style={{ paddingBlock: "3.4rem", maxWidth: 780 }}>
+          <h2 className="h2" style={{ fontSize: "clamp(1.5rem, 3.4vw, 2.1rem)", marginBottom: "1.6rem" }}>
             {a.storyTitle}
           </h2>
           <div style={{ display: "grid", gap: "1.3rem" }}>
             {a.story.map((para) => (
-              <p key={para.slice(0, 24)} style={{ fontSize: "1rem", lineHeight: 2, color: "var(--s-text-2)" }}>
+              <p key={para.slice(0, 24)} style={{ fontSize: "1rem", lineHeight: 2, color: "var(--tx-2)" }}>
                 {para}
               </p>
             ))}
@@ -45,20 +43,20 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="s-section">
-        <div className="s-wrap">
-          <span className="s-eyebrow">{a.founderTitle}</span>
+      <section className="sec">
+        <div className="wrap">
+          <span className="pill">{a.founderTitle}</span>
           <div
             style={{
               display: "grid", gap: "2rem", marginTop: "1.6rem", alignItems: "start",
               gridTemplateColumns: "minmax(0, 1fr)",
             }}
-            className="s-founder"
+            className="founder"
           >
             <div
               style={{
                 width: 168, height: 168, borderRadius: 20, overflow: "hidden",
-                border: "1px solid var(--s-line-strong)", background: "var(--s-bg-3)",
+                border: "1px solid var(--line-2)", background: "var(--bg-3)",
                 display: "grid", placeItems: "center", flexShrink: 0,
               }}
             >
@@ -77,42 +75,42 @@ export default function AboutPage() {
                   onError={() => setPortraitOk(false)}
                 />
               ) : (
-                <span className="s-display" style={{ fontSize: "2.4rem", color: "var(--s-text-4)" }}>م ب</span>
+                <span className="disp" style={{ fontSize: "2.4rem", color: "var(--tx-3)" }}>م ب</span>
               )}
             </div>
 
             <div style={{ maxWidth: "60ch" }}>
-              <h2 className="s-card__t" style={{ fontSize: "1.3rem" }}>{a.founderName}</h2>
-              <p className="s-num" style={{ fontSize: "0.78rem", color: "var(--s-blue-lit)", marginBottom: "1rem" }}>
+              <h2 className="card__t" style={{ fontSize: "1.3rem" }}>{a.founderName}</h2>
+              <p className="mono" style={{ fontSize: "0.78rem", color: "var(--blue-lit)", marginBottom: "1rem" }}>
                 {a.founderRole}
               </p>
-              <p style={{ fontSize: "0.96rem", lineHeight: 2, color: "var(--s-text-2)" }}>{a.founderBio}</p>
+              <p style={{ fontSize: "0.96rem", lineHeight: 2, color: "var(--tx-2)" }}>{a.founderBio}</p>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="s-section" style={{ borderTop: "1px solid var(--s-line)" }}>
-        <div className="s-wrap">
-          <h2 className="s-h2" style={{ marginBottom: "2.2rem" }}>{a.principlesTitle}</h2>
-          <div className="s-grid s-grid--3">
+      <section className="sec" style={{ borderTop: "1px solid var(--line)" }}>
+        <div className="wrap">
+          <h2 className="h2" style={{ marginBottom: "2.2rem" }}>{a.principlesTitle}</h2>
+          <div className="grid2 grid3">
             {a.principles.map((p) => (
-              <div key={p.t} className="s-card">
-                <h3 className="s-card__t">{p.t}</h3>
-                <p className="s-card__d">{p.d}</p>
+              <div key={p.t} className="card">
+                <h3 className="card__t">{p.t}</h3>
+                <p className="card__d">{p.d}</p>
               </div>
             ))}
           </div>
 
           <div style={{ marginTop: "2.6rem" }}>
-            <Link href="/contact" className="s-btn s-btn--primary">{t.home.ctaButton}</Link>
+            <Link href="/contact" className="btn btn--pri">{t.home.ctaButton}</Link>
           </div>
         </div>
       </section>
 
       <style jsx>{`
         @media (min-width: 720px) {
-          .s-founder { grid-template-columns: auto minmax(0, 1fr) !important; }
+          .founder { grid-template-columns: auto minmax(0, 1fr) !important; }
         }
       `}</style>
     </>
