@@ -824,3 +824,154 @@
 
 .s-head { background: rgba(0,0,0,0.80); }
 .s-foot { background: rgba(0,0,0,0.6); }
+
+/* ═══════════════════════════════════════════════════════════
+   DIRECTION CHANGE — "INSTRUMENT"
+   ───────────────────────────────────────────────────────────
+   Everything above this line was the generic dark-SaaS look:
+   pill buttons, 24px glass cards, bright #5b93ff on black, an
+   airy centred layout. That is exactly the vocabulary a
+   generator reaches for, which is why it read as generated.
+
+   This is the opposite argument. A clinic owner is buying
+   infrastructure for their business, not a consumer app, so the
+   page should carry itself like a bank or an instrument maker:
+   hard geometry, a visible structural grid, one deep accent
+   used sparingly, density instead of air.
+
+   Rules, not glass. Corners, not pills. Navy, not sky.
+   ═══════════════════════════════════════════════════════════ */
+.site-root {
+  --s-bg: #000000;
+  --s-bg-2: #070708;
+  --s-bg-3: #0d0d0f;
+
+  /* Deep royal, not sky. The bright blue read cheap on black and was
+     doing duty as text colour, accent and glow all at once. */
+  --s-blue: #1e40d8;
+  --s-blue-lit: #4a6cf5;
+  --s-blue-deep: #12277f;
+
+  --s-line: rgba(255,255,255,0.10);
+  --s-line-strong: rgba(255,255,255,0.20);
+
+  --s-text: #f2f1ee;
+  --s-text-2: #a8a49e;
+  --s-text-3: #7a766f;
+  --s-text-4: #4f4c47;
+
+  --r: 4px;
+  --glass: rgba(255,255,255,0.022);
+  --glass-hi: rgba(255,255,255,0.04);
+}
+
+/* Ambient wash gone — structure carries the page now. */
+.s-aurora { display: none; }
+.s-spot { display: none; }
+.s-grain { opacity: 0.15; }
+
+/* ── a visible structural grid ─────────────────────────────
+   Two hairlines marking the content column, running the full height
+   of every section. This is the single strongest signal that a
+   layout was drawn rather than generated. */
+.s-wrap { position: relative; }
+.s-section::before,
+.s-section::after,
+.s-hero2::before,
+.s-hero2::after {
+  content: ""; position: absolute; inset-block: 0; width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(255,255,255,0.075) 12%, rgba(255,255,255,0.075) 88%, transparent);
+  pointer-events: none; z-index: 0;
+}
+.s-section::before, .s-hero2::before { inset-inline-start: max(var(--s-pad), calc(50% - var(--s-max) / 2)); }
+.s-section::after,  .s-hero2::after  { inset-inline-end:   max(var(--s-pad), calc(50% - var(--s-max) / 2)); }
+@media (max-width: 760px) {
+  .s-section::before, .s-section::after, .s-hero2::before, .s-hero2::after { display: none; }
+}
+
+/* ── header: a rule, not a floating pill bar ──────────────── */
+.s-head { background: rgba(0,0,0,0.92); backdrop-filter: none; border-bottom: 1px solid var(--s-line); }
+.s-head__in { height: 62px; }
+.s-head__brand { font-size: 1rem; letter-spacing: 0.02em; }
+.s-head__nav { gap: 2rem; font-size: 0.82rem; }
+.s-head__nav a { color: var(--s-text-3); position: relative; padding-block: 0.3rem; }
+.s-head__nav a[data-active="true"] { color: var(--s-text); }
+.s-head__nav a[data-active="true"]::after {
+  content: ""; position: absolute; inset-inline: 0; inset-block-end: -1px; height: 2px; background: var(--s-blue-lit);
+}
+.s-lang { border-radius: 2px; border-color: var(--s-line-strong); background: none; }
+.s-lang button { border-radius: 0; padding: 0.3rem 0.6rem; }
+.s-burger { border-radius: 2px; background: none; }
+
+/* ── buttons: rectangles ──────────────────────────────────── */
+.s-btn { border-radius: 2px; padding: 0.9rem 1.6rem; font-size: 0.86rem; letter-spacing: 0.01em; }
+.s-btn--primary { background: var(--s-blue); box-shadow: none; border: 1px solid var(--s-blue-lit); }
+.s-btn--primary:hover { background: #2549e8; transform: none; box-shadow: 0 0 0 3px rgba(30,64,216,0.22); }
+.s-btn--ghost { background: none; border-color: var(--s-line-strong); backdrop-filter: none; }
+.s-btn--ghost:hover { transform: none; background: rgba(255,255,255,0.04); border-color: var(--s-text-3); }
+
+/* ── surfaces: bordered panels, no glass, no glow ─────────── */
+.s-card {
+  border-radius: var(--r); backdrop-filter: none; box-shadow: none;
+  background: var(--s-bg-2); border: 1px solid var(--s-line); padding: 1.5rem;
+}
+.s-card::before { display: none; }
+.s-card--lift:hover { transform: none; border-color: var(--s-line-strong); background: var(--s-bg-3); box-shadow: none; }
+
+.s-eyebrow {
+  border-radius: 2px; background: none; border: none; padding: 0;
+  color: var(--s-text-3); backdrop-filter: none;
+  letter-spacing: 0.28em; font-size: 0.62rem;
+}
+.s-eyebrow svg { display: none; }
+
+/* ── type: heavier, tighter, more confident ───────────────── */
+.s-hero2 h1 { font-size: clamp(2.5rem, 6.4vw, 5.6rem); max-width: 15ch; }
+.s-hero__accent { background: none; color: var(--s-blue-lit); -webkit-text-fill-color: var(--s-blue-lit); }
+.s-h2 { font-size: clamp(1.8rem, 3.6vw, 2.7rem); }
+
+/* ── stats: figures on rules, not tiles ───────────────────── */
+.s-stats { gap: 0; border: 1px solid var(--s-line); border-radius: var(--r); overflow: hidden; }
+.s-stat {
+  background: var(--s-bg-2); border: none; border-inline-end: 1px solid var(--s-line);
+  box-shadow: none; border-radius: 0; padding: 2.2rem 1.2rem; text-align: start;
+}
+.s-stat:last-child { border-inline-end: none; }
+.s-stat::after { display: none; }
+.s-stat__v { background: none; color: var(--s-text); -webkit-text-fill-color: var(--s-text); font-weight: 500; }
+.s-stat__l { color: var(--s-text-3); }
+
+/* ── flow: numbered rules, not floating chips ─────────────── */
+.s-flow__n {
+  width: 100%; height: auto; border-radius: 0; background: none; border: none; box-shadow: none;
+  color: var(--s-blue-lit); font-size: 0.72rem; letter-spacing: 0.2em; font-weight: 600;
+  padding-bottom: 0.9rem; margin-bottom: 0.9rem; border-bottom: 1px solid var(--s-line);
+  display: block;
+}
+.s-mods__i {
+  border-radius: 2px; background: none; border: 1px solid var(--s-line-strong);
+  color: var(--s-blue-lit); box-shadow: none; width: 40px; height: 40px;
+}
+
+.s-chip { border-radius: 2px; background: none; backdrop-filter: none; }
+.s-chip:hover { transform: none; }
+.s-frame, .s-shot { border-radius: var(--r); }
+.s-frame:hover, .s-shot:hover { transform: none; }
+.s-acc { border-radius: var(--r); background: var(--s-bg-2); backdrop-filter: none; }
+.s-input, .s-textarea { border-radius: 2px; }
+.s-roi__out {
+  border-radius: var(--r); background: var(--s-bg-2); border-color: var(--s-line-strong);
+  box-shadow: none; backdrop-filter: none;
+}
+.s-roi__big { background: none; color: var(--s-text); -webkit-text-fill-color: var(--s-text); }
+.s-cta {
+  border-radius: var(--r); box-shadow: none; border-color: var(--s-line-strong);
+  background: linear-gradient(180deg, rgba(30,64,216,0.14), transparent 70%);
+}
+.s-strip { border-radius: var(--r); background: var(--s-bg-2); border-color: var(--s-line); box-shadow: none; }
+.s-lit { background: var(--s-bg-2); }
+.s-deck__panel { border-radius: var(--r); }
+.s-chat { border-radius: var(--r); backdrop-filter: none; background: var(--s-bg-3); }
+.s-bubble { border-radius: var(--r); }
+.s-bubble--out { background: var(--s-blue); box-shadow: none; }
+.s-ledger { border-radius: var(--r); backdrop-filter: none; background: var(--s-bg-3); box-shadow: none; }
