@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "motion/react";
-import {ArrowLeft, ArrowRight, Sparkles, MessageCircle, AtSign, Globe, CreditCard} from "lucide-react";
+import { ArrowLeft, ArrowRight, Sparkles, MessageCircle, AtSign, Globe, CreditCard, Workflow, Database } from "lucide-react";
 import { useSite } from "@/components/site/lang";
 import { ProductPanel } from "@/components/site/panel";
 import { Reveal } from "@/components/site/reveal";
@@ -30,20 +30,20 @@ const COPY = {
   },
 } as const;
 
-/* The channels a clinic connects, under the hero.
+/* Named because they are real and verifiable — the channels Sura runs on and the
+   platforms the product is built on.
 
-   The reference has a row of six customer logos here. This row says what the
-   system plugs into instead — which is what a clinic owner is actually
-   checking, and which is verifiable.
-
-   What TAWD itself is built on used to be listed here too. It was removed: the
-   platforms behind the product are a supplier list, and a supplier list tells a
-   competitor how to copy the stack while telling a buyer nothing. */
+   The reference has a row of six clinic logos under the hero. TAWD has no
+   customers yet, and inventing six would be the one thing on this page a
+   prospect could catch us out on. This slot earns its place with something
+   true instead of leaving a hole where credibility should go. */
 const STACK = [
   { n: "WhatsApp", s: "Business Platform", i: MessageCircle },
   { n: "Instagram", s: "Messaging API", i: AtSign },
+  { n: "Supabase", s: "Postgres · RLS", i: Database },
+  { n: "Vercel", s: "Edge Network", i: Globe },
   { n: "Thawani", s: "Payments · Oman", i: CreditCard },
-  { n: "Web chat", s: "On your site", i: Globe },
+  { n: "n8n", s: "Automation", i: Workflow },
 ] as const;
 
 function Arrow() {

@@ -9,27 +9,21 @@ export type NavLeaf = { href: string; ar: string; en: string; arD?: string; enD?
 export type NavGroup = { ar: string; en: string; items: NavLeaf[] };
 
 export const NAV: { key: string; ar: string; en: string; href?: string; groups?: NavGroup[]; feature?: NavLeaf }[] = [
-  /* One company, one product.
-
-     There were three sub-brands here — ClinicOS, TAWD AI, TAWD Analytics —
-     invented to fill a menu. They made a single system look like a product
-     line a buyer has to assemble, and they put the company's own name third.
-     The product is طَود. Sura is part of it. */
   {
-    key: "product",
-    ar: "النظام", en: "The system",
+    key: "products",
+    ar: "المنتجات", en: "Products",
     groups: [
       {
-        ar: "نظام طَود", en: "The TAWD system",
+        ar: "المنتجات", en: "Products",
         items: [
-          { href: "/products", ar: "نظرة عامة", en: "Overview", arD: "النظام كاملاً في صفحة", enD: "The whole system on one page" },
-          { href: "/products/clinic", ar: "إدارة العيادة", en: "Clinic management", arD: "المواعيد والملفات والفوترة والمخزون", enD: "Appointments, records, billing and stock" },
-          { href: "/ai", ar: "سُرى", en: "Sura", arD: "الذكاء الذي يردّ على مرضاك ويحجز", enD: "The intelligence that answers your patients and books" },
-          { href: "/integrations", ar: "التكاملات", en: "Integrations", arD: "واتساب وإنستغرام والمدفوعات", enD: "WhatsApp, Instagram and payments" },
+          { href: "/products", ar: "نظرة عامة", en: "Overview", arD: "كل ما تبنيه طَود", enD: "Everything TAWD builds" },
+          { href: "/products/clinic", ar: "ClinicOS", en: "ClinicOS", arD: "نظام تشغيل العيادة الكامل", enD: "The full clinic operating system" },
+          { href: "/products/ai", ar: "TAWD AI", en: "TAWD AI", arD: "طبقة الذكاء تحت كل منتج", enD: "The intelligence layer beneath everything" },
+          { href: "/products/analytics", ar: "TAWD Analytics", en: "TAWD Analytics", arD: "قريباً", enD: "In development" },
         ],
       },
     ],
-    feature: { href: "/security", ar: "الأمان والخصوصية", en: "Security & privacy", arD: "عزل كامل لبيانات كل عيادة", enD: "Every clinic's data fully isolated" },
+    feature: { href: "/ai", ar: "منصّة الذكاء الاصطناعي", en: "AI Platform", arD: "سُرى، والوكلاء، والصوت", enD: "Sura, agents and voice" },
   },
   {
     key: "solutions",
@@ -54,7 +48,7 @@ export const NAV: { key: string; ar: string; en: string; href?: string; groups?:
       },
     ],
   },
-  { key: "sura", ar: "سُرى", en: "Sura", href: "/ai" },
+  { key: "ai", ar: "الذكاء الاصطناعي", en: "AI Platform", href: "/ai" },
   {
     key: "resources",
     ar: "الموارد", en: "Resources",
@@ -64,6 +58,7 @@ export const NAV: { key: string; ar: string; en: string; href?: string; groups?:
         items: [
           { href: "/resources", ar: "المركز", en: "Hub" },
           { href: "/resources/changelog", ar: "سجلّ التحديثات", en: "Changelog", arD: "كل ما شُحن، بتاريخه", enD: "Everything shipped, dated" },
+          { href: "/resources/api", ar: "واجهة البرمجة", en: "API reference" },
           { href: "/resources/faq", ar: "أسئلة شائعة", en: "FAQ" },
         ],
       },
@@ -99,11 +94,11 @@ export const NAV: { key: string; ar: string; en: string; href?: string; groups?:
    not in a header someone is trying to buy from. */
 export const FOOTER: NavGroup[] = [
   {
-    ar: "النظام", en: "The system",
+    ar: "المنتجات", en: "Products",
     items: [
-      { href: "/products", ar: "نظرة عامة", en: "Overview" },
-      { href: "/products/clinic", ar: "إدارة العيادة", en: "Clinic management" },
-      { href: "/ai", ar: "سُرى", en: "Sura" },
+      { href: "/products/clinic", ar: "ClinicOS", en: "ClinicOS" },
+      { href: "/products/ai", ar: "TAWD AI", en: "TAWD AI" },
+      { href: "/ai", ar: "منصّة الذكاء", en: "AI Platform" },
       { href: "/integrations", ar: "التكاملات", en: "Integrations" },
       { href: "/pricing", ar: "الأسعار", en: "Pricing" },
     ],
@@ -121,7 +116,7 @@ export const FOOTER: NavGroup[] = [
     ar: "الموارد", en: "Resources",
     items: [
       { href: "/resources/changelog", ar: "سجلّ التحديثات", en: "Changelog" },
-      { href: "/resources", ar: "مركز الموارد", en: "Resource hub" },
+      { href: "/resources/api", ar: "واجهة البرمجة", en: "API" },
       { href: "/resources/faq", ar: "أسئلة شائعة", en: "FAQ" },
       { href: "/early-access", ar: "الوصول المبكر", en: "Early access" },
     ],
