@@ -1,25 +1,50 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
-import { ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Sparkles, MessageCircle, AtSign, Globe, CreditCard, Workflow, Database } from "lucide-react";
 import { useSite } from "@/components/site/lang";
-import { Conversation } from "@/components/site/signature";
+import { ProductPanel } from "@/components/site/panel";
+import { Reveal } from "@/components/site/reveal";
 
-/* The hero, rebuilt.
+const COPY = {
+  ar: {
+    badge: "شركة ذكاء اصطناعي للقطاع الصحي",
+    h1a: "نُعيد تعريف إدارة العيادات",
+    h1b: "بالذكاء الاصطناعي",
+    lede:
+      "طَود شركة عُمانية تبني أنظمة ذكية تساعد مقدّمي الرعاية الصحية على خدمة أفضل، وكفاءة أعلى، ونمو يمكن قياسه.",
+    cta1: "احجز عرضاً توضيحياً",
+    cta2: "استكشف المنتج",
+    stackT: "مبنيّ على بنية تحتية تعتمد عليها الشركات",
+  },
+  en: {
+    badge: "An AI company for healthcare",
+    h1a: "Redefining clinic operations",
+    h1b: "with artificial intelligence",
+    lede:
+      "TAWD is an Omani company building intelligent systems that help healthcare providers deliver better care, run more efficiently, and grow measurably.",
+    cta1: "Book a demo",
+    cta2: "Explore the product",
+    stackT: "Built on infrastructure enterprises rely on",
+  },
+} as const;
 
-   The 50/50 split — copy one side, a slightly tilted screenshot the other — is
-   the layout every SaaS template ships with, and a picture rotated a few
-   degrees reads as a rotated picture rather than an object with a position in
-   space. Worse: a dark interface on a dark page has no edge, so the product
-   sank into the background instead of sitting in front of it.
+/* Named because they are real and verifiable — the channels Sura runs on and the
+   platforms the product is built on.
 
-   This gives the headline the fold on its own, then lays the product back on a
-   perspective floor beneath it — rim-lit so it separates from the page, with
-   its own reflection, and the conversation hovering above it at a nearer depth.
-   It rises toward the reader as it enters view, which is the moment the flat
-   version never had. */
+   The reference has a row of six clinic logos under the hero. TAWD has no
+   customers yet, and inventing six would be the one thing on this page a
+   prospect could catch us out on. This slot earns its place with something
+   true instead of leaving a hole where credibility should go. */
+const STACK = [
+  { n: "WhatsApp", s: "Business Platform", i: MessageCircle },
+  { n: "Instagram", s: "Messaging API", i: AtSign },
+  { n: "Supabase", s: "Postgres · RLS", i: Database },
+  { n: "Vercel", s: "Edge Network", i: Globe },
+  { n: "Thawani", s: "Payments · Oman", i: CreditCard },
+  { n: "n8n", s: "Automation", i: Workflow },
+] as const;
 
 function Arrow() {
   const { lang } = useSite();
@@ -28,65 +53,90 @@ function Arrow() {
 }
 
 export function Hero() {
-  const { t, lang } = useSite();
-  const h = t.home;
-  const deck = useRef<HTMLDivElement | null>(null);
-  const [lifted, setLifted] = useState(false);
-
-  /* The deck settles from steeply laid back to nearly upright once it is on
-     screen. Done with a class rather than a scroll listener: one transition,
-     no work on every frame of the scroll. */
-  useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setLifted(true); return; }
-    const id = setTimeout(() => setLifted(true), 420);
-    return () => clearTimeout(id);
-  }, []);
-
-  const alt = lang === "ar"
-    ? "لوحة المالية في طَود — إيراد الشهر والمصروفات وصافي الربح"
-    : "TAWD's finance screen — monthly revenue, expenses and net profit";
+  const { lang } = useSite();
+  const c = COPY[lang];
 
   return (
-    <section className="s-hero2">
-      <div className="s-wrap s-hero2__inner">
-        <motion.div
-          initial={{ opacity: 0, y: 22 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ type: "spring", stiffness: 80, damping: 20 }}
-        >
-          <span className="s-eyebrow"><Sparkles size={12} /> {h.eyebrow}</span>
-          <h1>
-            {h.title1} <span className="s-hero__accent">{h.title2}</span>
-          </h1>
-          <p className="s-hero2__lede">{h.lede}</p>
-          <div className="s-hero2__cta">
-            <Link href="/contact" className="s-btn s-btn--primary">
-              {h.ctaPrimary} <Arrow />
-            </Link>
-            <Link href="/product" className="s-btn s-btn--ghost">{h.ctaSecondary}</Link>
-          </div>
-        </motion.div>
+    <>
+      <section className="hero">
+        <div className="wrap hero__grid">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: "spring", stiffness: 78, damping: 20 }}
+          >
+            <span className="pill"><Sparkles size={13} /> {c.badge}</span>
+            <h1>
+              {c.h1a}
+              <span className="hero__blue">{c.h1b}</span>
+            </h1>
+            <p className="hero__lede">{c.lede}</p>
+            <div className="hero__btns">
+              <Link href="/contact" className="btn btn--pri">{c.cta1} <Arrow /></Link>
+              <Link href="/product" className="btn btn--out">{c.cta2}</Link>
+            </div>
+          </motion.div>
 
-        <div className="s-deck" ref={deck} data-lift={lifted}>
-          <span className="s-deck__pool" aria-hidden />
+          <motion.div
+            initial={{ opacity: 0, y: 34, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ type: "spring", stiffness: 62, damping: 19, delay: 0.12 }}
+          >
+            <ProductPanel />
+          </motion.div>
+        </div>
+      </section>
 
-          <div className="s-deck__panel">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/shots/finance.png" alt={alt} width={1440} height={1000}
-              loading="eager" decoding="async" />
-          </div>
-
-          {/* The floor. Purely decorative, and hidden from assistive tech —
-              a screen reader announcing the same screenshot twice is noise. */}
-          <div className="s-deck__mirror" aria-hidden>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/shots/finance.png" alt="" width={1440} height={1000} />
-          </div>
-
-          <div className="s-deck__chat">
-            <Conversation />
+      <section className="logos sec--tight">
+        <div className="wrap">
+          <p className="logos__t">{c.stackT}</p>
+          <div className="logos__row">
+            {STACK.map((s) => (
+              <span key={s.n} className="logos__i">
+                <s.i size={19} />
+                <span>{s.n}<em>{s.s}</em></span>
+              </span>
+            ))}
           </div>
         </div>
+      </section>
+    </>
+  );
+}
+
+/* The three-object row. Each card carries one isometric object, matching the
+   reference's composition without copying its shapes. */
+import { ObjLayers, ObjShield, ObjCards } from "@/components/site/objects";
+
+const TRI = {
+  ar: [
+    { t: "أنظمة ذكية", d: "ذكاء اصطناعي يردّ على مرضاك ويحجز لهم فعلياً — لا ردّ آلي، بل قرار داخل نظام العيادة.", A: ObjLayers },
+    { t: "أمان موثوق", d: "عزل بين العيادات مفروض في قاعدة البيانات نفسها، وسجلّ عمليات لا يُعدَّل ولا يُحذف.", A: ObjShield },
+    { t: "كل شيء في مكان واحد", d: "المواعيد والمرضى والفواتير والمخزون والرواتب والتأمين — من لوحة واحدة.", A: ObjCards },
+  ],
+  en: [
+    { t: "Intelligent systems", d: "An AI that answers your patients and actually books them — a decision inside the clinic's system, not a canned reply.", A: ObjLayers },
+    { t: "Security you can check", d: "Isolation between clinics enforced by the database itself, and an audit log that cannot be edited or deleted.", A: ObjShield },
+    { t: "Everything in one place", d: "Appointments, patients, invoicing, stock, payroll and insurance — from a single console.", A: ObjCards },
+  ],
+} as const;
+
+export function TriCards() {
+  const { lang } = useSite();
+  const items = TRI[lang];
+  return (
+    <section className="sec">
+      <div className="wrap tri">
+        {items.map((x, i) => (
+          <Reveal key={x.t} delay={i * 90} className="fcard">
+            <div>
+              <h3 className="fcard__t">{x.t}</h3>
+              <p className="fcard__d">{x.d}</p>
+              <span className="fcard__go"><Arrow /></span>
+            </div>
+            <div className="fcard__art"><x.A /></div>
+          </Reveal>
+        ))}
       </div>
     </section>
   );

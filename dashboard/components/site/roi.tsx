@@ -69,20 +69,20 @@ export function RoiCalculator() {
   ];
 
   return (
-    <section className="s-section">
-      <div className="s-wrap">
-        <div className="s-roi">
+    <section className="sec">
+      <div className="wrap">
+        <div className="roi">
           <div>
-            <span className="s-eyebrow"><TrendingUp size={12} /> {c.tag}</span>
-            <h2 className="s-h2">{c.title}</h2>
-            <p className="s-lede">{c.lede}</p>
+            <span className="pill"><TrendingUp size={12} /> {c.tag}</span>
+            <h2 className="h2">{c.title}</h2>
+            <p className="lede">{c.lede}</p>
 
-            <div className="s-roi__controls">
+            <div className="roi__ctl">
               {rows.map((r) => (
-                <div key={r.label} className="s-roi__ctl">
+                <div key={r.label} className="roi__ctl">
                   <label htmlFor={r.label}>
                     {r.label}
-                    <b className="s-num">
+                    <b className="mono">
                       {lang === "ar" ? fmt(r.v) : r.v}
                       {r.suffix === " ر.ع" ? (lang === "ar" ? " ر.ع" : " OMR") : r.suffix}
                     </b>
@@ -93,7 +93,7 @@ export function RoiCalculator() {
                     min={r.min} max={r.max} step={r.step}
                     value={r.v}
                     onChange={(e) => r.set(Number(e.target.value))}
-                    className="s-range"
+                    className="range"
                   />
                 </div>
               ))}
@@ -101,18 +101,18 @@ export function RoiCalculator() {
           </div>
 
           <motion.div
-            className="s-roi__out"
+            className="roi__out"
             initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.3 }}
             transition={{ type: "spring", stiffness: 120, damping: 18 }}
           >
-            <span className="s-roi__label">{c.resultLabel}</span>
+            <span className="roi__lab">{c.resultLabel}</span>
             {/* Keyed on the value so the figure re-animates as the sliders move,
                 which is what makes the tool feel like it is responding. */}
             <motion.p
               key={year}
-              className="s-roi__big s-num"
+              className="roi__big mono"
               initial={{ opacity: 0.35, filter: "blur(6px)" }}
               animate={{ opacity: 1, filter: "blur(0px)" }}
               transition={{ duration: 0.35 }}
@@ -120,11 +120,11 @@ export function RoiCalculator() {
               {fmt(year)}
               <em>{lang === "ar" ? "ر.ع" : "OMR"}</em>
             </motion.p>
-            <p className="s-roi__sub s-num">
+            <p className="roi__sub mono">
               ≈ {fmt(month)} {lang === "ar" ? "ر.ع" : "OMR"} · {c.per}
             </p>
-            <p className="s-roi__note">{c.note}</p>
-            <a href="/contact" className="s-btn s-btn--primary" style={{ marginTop: "1.4rem" }}>
+            <p className="roi__note">{c.note}</p>
+            <a href="/contact" className="btn btn--pri" style={{ marginTop: "1.4rem" }}>
               {c.cta}
             </a>
           </motion.div>

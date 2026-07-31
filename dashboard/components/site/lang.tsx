@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { dict, type Lang, type Dict } from "@/lib/site/dict";
-import { Spotlight } from "@/components/site/spotlight";
 
 /* Language is client state, not a route.
 
@@ -43,9 +42,7 @@ export function LangProvider({ children }: { children: React.ReactNode }) {
       <div dir={t.dir} lang={lang} className={`site-root site-${lang}`}>
         {/* One light source behind everything, drifting, plus fine grain over
             it — without the grain a large flat gradient bands visibly. */}
-        <span className="s-aurora" aria-hidden />
-        <Spotlight />
-        <span className="s-grain" aria-hidden />
+        <span className="atmos" aria-hidden />
         {children}
       </div>
     </LangCtx.Provider>

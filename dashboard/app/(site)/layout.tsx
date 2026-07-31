@@ -31,7 +31,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
           forever — a page that looks empty rather than one that looks static.
           This is the only correct place to undo it. */}
       <noscript>
-        <style>{`.s-rev { opacity: 1 !important; translate: none !important; }`}</style>
+        <style>{`.rev { opacity: 1 !important; translate: none !important; }`}</style>
       </noscript>
       <LangProvider>
         <SiteHeader />

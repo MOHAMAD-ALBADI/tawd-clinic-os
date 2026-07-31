@@ -50,7 +50,7 @@ export function Reveal({
   return (
     <P
       ref={ref as React.Ref<HTMLElement>}
-      className={`s-rev ${className}`}
+      className={`rev ${className}`}
       data-in={shown}
       style={style}
     >

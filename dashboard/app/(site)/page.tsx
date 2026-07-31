@@ -1,24 +1,24 @@
-import { ProblemStrip, Flow, Proof, ClosingCta } from "@/components/site/home-sections";
-import { Hero } from "@/components/site/hero";
-import { Channels, FeatureRows, Modules, FaqPreview } from "@/components/site/feature-rows";
+import { Hero, TriCards } from "@/components/site/hero";
+import { StatsBar } from "@/components/site/stats";
+import { Flow, FeatureRows, Modules, ProblemStrip, FaqPreview, ClosingCta } from "@/components/site/sections";
 import { RoiCalculator } from "@/components/site/roi";
 
-/* Nine sections, not six.
+/* The company homepage.
 
-   The first two versions had a hero, four cards, four numbers and a button, and
-   read as unfinished because it was. What was missing was the spine every real
-   landing page has: one large, readable product screen per claim, sides
-   alternating, with the evidence beside it. */
+   Order follows what a clinic owner needs to decide, not what we want to say:
+   what this is → what it runs on → why it matters → what it costs them today →
+   how it works → the product itself → what it would save → the rest of the
+   system → the questions everyone asks → the ask. */
 export default function HomePage() {
   return (
     <>
       <Hero />
-      <Channels />
+      <TriCards />
+      <StatsBar />
       <ProblemStrip />
       <Flow />
       <FeatureRows />
       <RoiCalculator />
-      <Proof />
       <Modules />
       <FaqPreview />
       <ClosingCta />
