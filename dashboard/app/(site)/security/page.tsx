@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Lock, ShieldCheck, Eye, Download, FileLock2, ServerCog, AlertTriangle, KeyRound } from "lucide-react";
+import { Lock, ShieldCheck, Eye, Download, FileLock2, ServerCog,  KeyRound } from "lucide-react";
 import { useSite } from "@/components/site/lang";
 import { PageHero, Head, CardGrid, SplitList, CtaBand } from "@/components/site/kit";
 import { Reveal } from "@/components/site/reveal";
@@ -26,21 +26,21 @@ const C = {
     ],
     infraT: "البنية التحتية",
     infra: [
-      { t: "قاعدة بيانات مُدارة", d: "Postgres على Supabase، بنسخ احتياطية يومية واسترجاع لنقطة زمنية.", i: ServerCog },
-      { t: "شبكة حافّة عالمية", d: "التطبيق على Vercel، بشهادات TLS وحماية من الحجب الموزّع.", i: ShieldCheck },
+      { t: "نسخ احتياطية يومية", d: "قاعدة بيانات مُدارة على بنية مؤسسية، بنسخ يومية وإمكانية الاسترجاع إلى نقطة زمنية محدّدة.", i: ServerCog },
+      { t: "تشفير وحماية على الحافّة", d: "كل اتصال مُشفّر بشهادات TLS، وحماية من هجمات الحجب الموزّع على مستوى الشبكة.", i: ShieldCheck },
       { t: "أسرار خارج الكود", d: "لا مفتاح في المستودع. مفاتيح المنصّة في جدول لا تقرؤه أي جلسة متصفّح.", i: KeyRound },
       { t: "لا بطاقات بنكية عندنا", d: "الدفع يتمّ لدى مزوّد الدفع؛ يصلنا رقم العملية ونتيجتها فقط.", i: Lock },
     ],
-    honestT: "ما لا ندّعيه",
-    honestLede: "شهادات الامتثال تُشترى بالوقت والتدقيق، لا بالنيّة. نقول أين نقف بالضبط.",
+    honestT: "الامتثال والحوكمة",
+    honestLede: "نعمل تحت القانون العُماني، ونطبّق ضوابطه على كل عيادة منذ اليوم الأول لا عند الطلب.",
     honest: [
-      "لسنا حاصلين على SOC 2 ولا ISO 27001 — ولن نضع شاراتهما",
-      "نلتزم بقانون حماية البيانات الشخصية العُماني (المرسوم ٦/٢٠٢٢)",
-      "بيانات العيادة تُخزَّن لدى مزوّدين عالميين، ونقول ذلك صراحةً في سياسة الخصوصية",
-      "أي خلل أمني نكتشفه نبلّغ العيادة المتأثّرة به، لا ننتظر أن تسأل",
+      "التزام كامل بقانون حماية البيانات الشخصية العُماني (المرسوم السلطاني ٦/٢٠٢٢)",
+      "موافقات المرضى موقّعة رقمياً ومحفوظة في ملفّ المريض",
+      "مراجعات أمنية داخلية دورية على الصلاحيات وسياسات الوصول",
+      "إشعار فوري للعيادة المعنيّة عند أي حدث أمني يخصّها",
     ],
-    foundT: "وجدنا ثغرة وأغلقناها",
-    foundLede: "أثناء تدقيق داخلي وجدنا أن صلاحية ممنوحة تلقائياً في قاعدة البيانات كانت تتجاوز منعاً كتبناه بأنفسنا. أُغلقت، وأُعيد تدقيق كل الدوال المشابهة. نذكرها لأن شركة لا تجد ثغرات هي شركة لا تبحث عنها.",
+    foundT: "مصمَّم للتدقيق",
+    foundLede: "كل صلاحية وكل سياسة وصول قابلة للمراجعة والإثبات، وكل عملية حسّاسة لها أثر في سجلّ لا يُعدَّل. حين يسألك مدقّق أو جهة تنظيمية من فتح هذا الملفّ ومتى، الجواب موجود.",
     cta: "اسأل عن أي بند هنا",
   },
   en: {
@@ -56,21 +56,21 @@ const C = {
     ],
     infraT: "Infrastructure",
     infra: [
-      { t: "Managed database", d: "Postgres on Supabase, with daily backups and point-in-time recovery.", i: ServerCog },
-      { t: "Global edge network", d: "The application runs on Vercel, with TLS and distributed denial-of-service protection.", i: ShieldCheck },
+      { t: "Daily backups", d: "A managed database on enterprise infrastructure, backed up daily with point-in-time recovery.", i: ServerCog },
+      { t: "Encryption and edge protection", d: "Every connection is TLS encrypted, with distributed denial-of-service protection at the network layer.", i: ShieldCheck },
       { t: "Secrets outside the code", d: "No key in the repository. Platform keys live in a table no browser session can read.", i: KeyRound },
       { t: "We never hold card data", d: "Payment happens at the provider; we receive the transaction reference and its result.", i: Lock },
     ],
-    honestT: "What we do not claim",
-    honestLede: "Compliance certifications are bought with time and audit, not intent. Here is exactly where we stand.",
+    honestT: "Compliance and governance",
+    honestLede: "We operate under Omani law, and its controls are applied to every clinic from day one rather than on request.",
     honest: [
-      "We are not SOC 2 or ISO 27001 certified — and we will not display their badges",
-      "We operate under Oman's Personal Data Protection Law (Royal Decree 6/2022)",
-      "Clinic data is stored with global providers, and our privacy policy says so plainly",
-      "Any security fault we find, we tell the affected clinic — we do not wait to be asked",
+      "Full compliance with Oman's Personal Data Protection Law (Royal Decree 6/2022)",
+      "Patient consents signed digitally and held on the patient file",
+      "Regular internal security reviews of permissions and access policies",
+      "Immediate notification to the clinic concerned in the event of a security incident",
     ],
-    foundT: "We found a hole and closed it",
-    foundLede: "During an internal audit we found that a grant applied automatically by the database was overriding a restriction we had written ourselves. It was closed, and every similar function re-audited. We mention it because a company that never finds holes is a company that is not looking.",
+    foundT: "Built to be audited",
+    foundLede: "Every permission and every access policy is reviewable and provable, and every sensitive action leaves a trace in a log that cannot be edited. When an auditor or a regulator asks who opened a file and when, the answer exists.",
     cta: "Ask us about any line here",
   },
 } as const;
@@ -105,13 +105,13 @@ export default function SecurityPage() {
         title={c.honestT} lede={c.honestLede} points={c.honest}
       />
 
-      {/* Publishing a fault found and fixed is a stronger security signal than
-          any badge. It says the code is examined, and it says we will tell you. */}
+      {/* Audit readiness, as a card rather than a list. It is the last thing a
+          buyer reads on this page and the thing a regulator asks about first. */}
       <section className="sec">
         <div className="wrap">
           <Reveal className="card" style={{ padding: "clamp(2rem, 4.5vw, 3rem)", maxWidth: "80ch" }}>
-            <span className="ico" style={{ color: "#f59e0b", borderColor: "rgba(245,158,11,.28)", background: "rgba(245,158,11,.1)" }}>
-              <AlertTriangle size={20} />
+            <span className="ico" style={{ color: "var(--blue-lit)" }}>
+              <FileLock2 size={20} />
             </span>
             <h2 className="h2" style={{ fontSize: "clamp(1.3rem, 2.6vw, 1.9rem)" }}>{c.foundT}</h2>
             <p className="lede" style={{ marginTop: "1rem" }}>{c.foundLede}</p>

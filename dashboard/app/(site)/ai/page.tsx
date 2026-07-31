@@ -5,15 +5,18 @@ import { useSite } from "@/components/site/lang";
 import { PageHero, Head, CardGrid, Steps, CtaBand, SplitList } from "@/components/site/kit";
 import { SuraDemo } from "@/components/site/sura-demo";
 
-/* The AI platform page.
+/* Sura's page.
 
-   Everything here describes behaviour that exists — and the limits section is
-   not a disclaimer bolted on the end. In healthcare, what an assistant refuses
-   to do is a feature a buyer is actively checking for, so it sits in the middle
-   of the page where it will be read. */
+   There were two pages about Sura — this one and /products/ai — competing for
+   the same search and splitting the same argument. This is the one that
+   survived; the other redirects here.
+
+   The guardrail section is not a disclaimer bolted on the end. In healthcare,
+   knowing exactly where an assistant stops is something a buyer actively
+   checks for, so it sits in the middle of the page where it gets read. */
 const C = {
   ar: {
-    tag: "منصّة الذكاء الاصطناعي",
+    tag: "سُرى",
     h1: "ذكاء يتّخذ قراراً داخل بيانات حقيقية",
     lede: "الفرق بين نموذج يجاوب على سؤال ونظام يفعل شيئاً هو كل شيء. سُرى تقرأ حالة العيادة وتكتب فيها — لا تعد بأن أحداً سيتواصل معك.",
     capT: "ما تفعله سُرى",
@@ -32,8 +35,8 @@ const C = {
       { n: "٠٣", t: "تتحقّق قبل أن تعد", d: "التعارض والدوام والإجازات تُفحص قبل أن تُذكر ساعة واحدة للمريض." },
       { n: "٠٤", t: "تكتب وتؤكّد", d: "الموعد يُكتب، والتأكيد يصل، والتذكير يُجدول." },
     ],
-    limT: "ما لا تفعله",
-    limLede: "الحدود ليست تنويهاً في الأسفل. في الرعاية الصحية، ما يرفض المساعد فعله هو ما يبحث عنه المشتري.",
+    limT: "ضوابط مهنية مبنيّة في صميمها",
+    limLede: "في الرعاية الصحية، انضباط المساعد لا يقلّ أهمية عن ذكائه. سُرى مصمّمة لتعرف أين يقف دورها بالضبط.",
     lims: [
       "لا تشخّص ولا تصف علاجاً ولا تعطي رأياً طبياً",
       "لا تعد بنتيجة علاج ولا تتفاوض على سعر",
@@ -49,7 +52,7 @@ const C = {
     ],
   },
   en: {
-    tag: "AI Platform",
+    tag: "Sura",
     h1: "Intelligence that makes a decision inside real data",
     lede: "The gap between a model that answers a question and a system that does something is everything. Sura reads the clinic's state and writes to it — it does not promise that someone will call you back.",
     capT: "What Sura does",
@@ -68,8 +71,8 @@ const C = {
       { n: "03", t: "Check before promising", d: "Clashes, hours and leave are checked before a single time is offered." },
       { n: "04", t: "Write and confirm", d: "The appointment is written, the confirmation goes out, the reminder is scheduled." },
     ],
-    limT: "What it does not do",
-    limLede: "Limits are not a footnote. In healthcare, what an assistant refuses to do is what the buyer is checking for.",
+    limT: "Professional guardrails, built in",
+    limLede: "In healthcare an assistant's discipline matters as much as its intelligence. Sura is built to know exactly where its role ends.",
     lims: [
       "No diagnosis, no prescriptions, no medical opinion",
       "No promises about outcomes and no negotiating on price",
@@ -94,7 +97,7 @@ export default function AiPlatformPage() {
       <PageHero
         tag={c.tag} title={c.h1} lede={c.lede}
         cta={{ href: "/contact", label: lang === "ar" ? "احجز عرضاً توضيحياً" : "Book a demo" }}
-        cta2={{ href: "/products/clinic", label: lang === "ar" ? "شوف المنتج" : "See the product" }}
+        cta2={{ href: "/products/clinic", label: lang === "ar" ? "شوف النظام كاملاً" : "See the whole system" }}
       />
 
       <SuraDemo />
@@ -113,7 +116,7 @@ export default function AiPlatformPage() {
         </div>
       </section>
 
-      <SplitList tag={lang === "ar" ? "الحدود" : "Limits"} title={c.limT} lede={c.limLede} points={c.lims} />
+      <SplitList tag={lang === "ar" ? "الانضباط" : "Discipline"} title={c.limT} lede={c.limLede} points={c.lims} />
 
       <section className="sec" style={{ borderBlock: "1px solid var(--line)", background: "rgba(255,255,255,.012)" }}>
         <div className="wrap">

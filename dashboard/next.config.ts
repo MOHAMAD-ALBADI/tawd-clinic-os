@@ -13,6 +13,14 @@ const nextConfig: NextConfig = {
       { source: "/product", destination: "/products/clinic", permanent: true },
       { source: "/faq", destination: "/resources/faq", permanent: true },
       { source: "/about", destination: "/company/about", permanent: true },
+
+      /* The sub-brands are gone. There is one company and one system, so
+         /products/ai was a second page about Sura competing with /ai for the
+         same search, and the other two described things the system does not
+         need a separate page for. */
+      { source: "/products/ai", destination: "/ai", permanent: true },
+      { source: "/products/analytics", destination: "/products", permanent: true },
+      { source: "/resources/api", destination: "/resources", permanent: true },
     ];
   },
 };

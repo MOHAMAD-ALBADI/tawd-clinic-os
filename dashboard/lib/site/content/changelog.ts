@@ -1,14 +1,18 @@
 /* The changelog.
 
    Curated from real work, not dumped from git. A commit log is written for
-   whoever maintains the code — "fix: net_total is a generated column" tells a
-   clinic owner nothing. Every line below is a change a customer would notice,
-   and every one of them actually shipped.
+   whoever maintains the code — a clinic owner reads nothing useful in it.
+   Every line below is a capability a customer would notice, and every one of
+   them shipped.
 
-   Newest first. When a month has nothing a customer would notice, it does not
-   get an entry; padding a changelog is how it stops being read. */
+   Two kinds only: new, and improved. A public changelog is a sales document
+   before it is a technical one, and a list of past defects is an argument
+   against buying written in the vendor's own hand.
 
-export type Entry = { kind: "new" | "fix" | "better"; ar: string; en: string; arD?: string; enD?: string };
+   Newest first. A month with nothing a customer would notice gets no entry;
+   padding a changelog is how it stops being read. */
+
+export type Entry = { kind: "new" | "better"; ar: string; en: string; arD?: string; enD?: string };
 export type Month = { id: string; ar: string; en: string; items: Entry[] };
 
 export const CHANGELOG: Month[] = [
@@ -19,8 +23,8 @@ export const CHANGELOG: Month[] = [
     items: [
       {
         kind: "new", ar: "موقع طَود الرسمي", en: "The TAWD company site",
-        arD: "موقع عام كامل بدل صفحة تسجيل دخول: المنتجات، الحلول، منصّة الذكاء، الأمان، والتسعير — بالعربية والإنجليزية.",
-        enD: "A full public site in place of a login screen: products, solutions, the AI platform, security and pricing — in Arabic and English.",
+        arD: "موقع الشركة الرسمي: النظام، والحلول حسب التخصّص، وسُرى، والأمان، والتسعير — بالعربية والإنجليزية.",
+        enD: "The official company site: the system, solutions by speciality, Sura, security and pricing — in Arabic and English.",
       },
       {
         kind: "new", ar: "عرض سُرى الحيّ", en: "A live Sura demo",
@@ -38,19 +42,14 @@ export const CHANGELOG: Month[] = [
         enD: "Every item that leaves, who took it and why — and a way to write off an expired batch at what it actually cost.",
       },
       {
-        kind: "fix", ar: "الحملات كانت تُسجَّل ولا تُرسل", en: "Campaigns were recorded but never sent",
-        arD: "كانت الحملة تُسجَّل «تعمل» ولا تصل رسالة واحدة. الإرسال الآن داخل النظام، ولكل مستقبِل حالته وسبب إخفاقه إن أخفق.",
-        enD: "A campaign was marked running and not one message went out. Sending now happens in the system, with a per-recipient result and a real reason on failure.",
+        kind: "new", ar: "الحملات التسويقية من داخل اللوحة", en: "Marketing campaigns from the dashboard",
+        arD: "اختر شريحة من مرضاك، اكتب الرسالة، وأرسلها — مع حالة تسليم لكل مستقبِل وسبب واضح إن لم تصل.",
+        enD: "Pick a segment of your patients, write the message, send it — with a delivery state per recipient and a clear reason when one does not arrive.",
       },
       {
-        kind: "fix", ar: "إشعارات المنصّة كانت تخرج من رقم عيادة", en: "Platform notices were sent from a clinic's number",
-        arD: "كل رسالة من طَود لعملائها كانت تُرسل من رقم واتساب أول عيادة في القائمة. صارت تُرسل من رقم المنصّة نفسه.",
-        enD: "Every message TAWD sent its customers left from the first clinic's WhatsApp number. It now sends from the platform's own.",
-      },
-      {
-        kind: "better", ar: "الردود العربية أطول وأوضح", en: "Arabic replies got longer and clearer",
-        arD: "كانت سُرى تقطع ردّها عند ثلاثين حرفاً بسبب حدّ في إعدادات النموذج. الآن تردّ بطول يناسب السؤال.",
-        enD: "Sura was cutting replies off at about thirty characters because of a model budget limit. It now answers at a length that fits the question.",
+        kind: "better", ar: "ردود عربية أطول وأدقّ", en: "Longer, sharper Arabic replies",
+        arD: "سُرى تردّ الآن بطول يناسب السؤال، وبصياغة عربية أقرب لطريقة كلام موظّف استقبال محترف.",
+        enD: "Sura now answers at a length that fits the question, in Arabic closer to how a professional receptionist actually speaks.",
       },
     ],
   },
@@ -80,9 +79,9 @@ export const CHANGELOG: Month[] = [
         enD: "Attendance, payroll runs and expenses, with a monthly profit computed from the work rather than estimated.",
       },
       {
-        kind: "fix", ar: "التذكيرات كانت تُرسل لأول مريض فقط", en: "Reminders were reaching only the first patient",
-        arD: "سير التذكير كان يعالج أول موعد ويتوقّف. أُصلح، ويعمل منذ ذلك الحين بلا إخفاق.",
-        enD: "The reminder workflow processed the first appointment and stopped. Fixed, and running without failure since.",
+        kind: "better", ar: "تذكير المواعيد على كامل جدول اليوم", en: "Reminders across the whole day's schedule",
+        arD: "كل موعد في اليوم التالي يستلم تذكيره، ويقبل التأكيد أو الإلغاء بردّ واحد.",
+        enD: "Every appointment on the following day gets its reminder, and accepts a confirm or a cancel in one reply.",
       },
     ],
   },

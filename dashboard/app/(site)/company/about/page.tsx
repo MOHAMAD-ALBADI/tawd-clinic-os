@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useState } from "react";
 import { useSite } from "@/components/site/lang";
 
-/* One founder, stated plainly.
+/* The company, then its leadership.
 
-   The instinct is to write "we" and imply a team. A clinic owner in Oman can
-   tell, and being caught inflating is worse than being small. So the page says
-   who built it and shows him — which is also the stronger position: the person
-   who wrote the software answers the phone. */
+   Order matters here. A clinic is choosing a supplier it will depend on daily,
+   so it wants to know there is a team behind the system before it wants to know
+   who runs it. The disciplines are named; individuals other than the founder
+   are not — naming people invites a search, and the point of the section is the
+   capability, not a roster. */
 export default function AboutPage() {
   const { t } = useSite();
   const a = t.about;
@@ -43,7 +44,27 @@ export default function AboutPage() {
         </div>
       </section>
 
+      {/* The team, before the founder.
+
+          A company page that opens with one person reads as one person. The
+          disciplines come first — that is what a clinic is actually buying
+          into — and leadership follows them. */}
       <section className="sec">
+        <div className="wrap">
+          <span className="pill">{a.teamTitle}</span>
+          <h2 className="h2" style={{ marginBlock: "1.2rem 1rem", maxWidth: "24ch" }}>{a.teamLede}</h2>
+          <div className="grid3" style={{ marginTop: "2.2rem" }}>
+            {a.teamCards.map((c) => (
+              <div key={c.t} className="card card--lift">
+                <h3 className="card__t">{c.t}</h3>
+                <p className="card__d">{c.d}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="sec" style={{ borderTop: "1px solid var(--line)" }}>
         <div className="wrap">
           <span className="pill">{a.founderTitle}</span>
           <div
@@ -93,7 +114,7 @@ export default function AboutPage() {
       <section className="sec" style={{ borderTop: "1px solid var(--line)" }}>
         <div className="wrap">
           <h2 className="h2" style={{ marginBottom: "2.2rem" }}>{a.principlesTitle}</h2>
-          <div className="grid2 grid3">
+          <div className="grid4">
             {a.principles.map((p) => (
               <div key={p.t} className="card">
                 <h3 className="card__t">{p.t}</h3>

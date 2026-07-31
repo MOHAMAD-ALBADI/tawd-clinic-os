@@ -19,7 +19,7 @@ const C = {
     ],
     stepsT: "أين نحن، وإلى أين",
     steps: [
-      { t: "اليوم — نظام تشغيل عيادة", d: "ClinicOS كامل مع سُرى، مُختبَر على بيئة تشغيل حقيقية، ويُشغَّل مع أول العيادات.", i: Layers },
+      { t: "اليوم — نظام تشغيل عيادة", d: "نظام طَود كاملاً مع سُرى، يعمل على بيئة تشغيل حقيقية، ويُشغَّل مع أول العيادات في عُمان.", i: Layers },
       { t: "التالي — منصّة ذكاء", d: "وكلاء يتعاملون مع المتابعة والتحصيل وقوائم الانتظار من أنفسهم، لا سُرى وحدها.", i: Target },
       { t: "بعدها — بيانات القطاع", d: "حين تعمل عيادات كثيرة على نظام واحد، تصير المقارنة المجهولة الهوية قيمة لكل واحدة منها.", i: Globe2 },
       { t: "دائماً — العيادة تملك بياناتها", d: "أي توسّع لا يمسّ هذا. البيانات للعيادة، وتخرج معها متى شاءت.", i: HandHeart },
@@ -28,7 +28,7 @@ const C = {
     principles: [
       { t: "لن نبيع بيانات المرضى", d: "لا لمعلن، ولا لشركة تأمين، ولا لباحث. أبداً ولا بأي شكل مجهول الهوية يقبل إعادة التعريف." },
       { t: "لن نقفل عليك بياناتك", d: "التصدير حقّ دائم لا ميزة في باقة أعلى." },
-      { t: "لن نعد بما لم يُبنَ", d: "ما هو قيد البناء مكتوب أنه قيد البناء، على كل صفحة." },
+      { t: "نبني ما يُستخدم فعلاً", d: "كل ميزة تدخل النظام لأن عيادة احتاجتها، لا لأنها تُحسّن شريحة عرض." },
     ],
   },
   en: {
@@ -44,7 +44,7 @@ const C = {
     ],
     stepsT: "Where we are, and where this goes",
     steps: [
-      { t: "Today — a clinic operating system", d: "ClinicOS complete with Sura, tested against a real operating environment, going live with the first clinics.", i: Layers },
+      { t: "Today — a clinic operating system", d: "The TAWD system complete with Sura, running against a real operating environment, going live with the first clinics in Oman.", i: Layers },
       { t: "Next — an intelligence platform", d: "Agents handling follow-up, collections and waitlists on their own, not Sura alone.", i: Target },
       { t: "After — sector data", d: "When many clinics run on one system, anonymised benchmarking becomes valuable to every one of them.", i: Globe2 },
       { t: "Always — the clinic owns its data", d: "No expansion touches this. The data belongs to the clinic and leaves with it whenever it wants.", i: HandHeart },

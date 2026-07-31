@@ -202,23 +202,42 @@ export const dict = {
       title: "طَود",
       meaning: "طَود: الجبل الراسخ الذي لا يتزحزح.",
       lede:
-        "شركة برمجيات عُمانية تبني نظام تشغيل للعيادات، ووكيلاً ذكياً يردّ على مرضاها.",
-      storyTitle: "لماذا بُني",
+        "شركة تقنية عُمانية تبني نظام تشغيل متكامل للعيادات، وذكاءً اصطناعياً يردّ على مرضاها ويحجز لهم.",
+      storyTitle: "لماذا بنينا طَود",
       story: [
-        "أغلب العيادات في عُمان تُدار على دفتر ومجموعة واتساب. لا لأن أصحابها لا يريدون أفضل، بل لأن ما هو معروض عليهم إمّا نظام أجنبي لا يعرف الضريبة العُمانية ولا يكتب العربية بشكل صحيح، أو تطبيق حجز لا يعرف شيئاً عمّا يحدث بعد الحجز.",
-        "وفي الحالتين تبقى نفس المشكلة: الرسائل تصل بعد الدوام ولا يقرؤها أحد، والمريض الذي لم يُردّ عليه يذهب لغيرك ولا يخبرك لماذا.",
-        "طَود بُني لهذا: أن يُردّ على المريض في اللحظة التي كتب فيها، وأن يتحوّل ردّه إلى موعد وفاتورة وسجلّ — دون أن يكتب أحد شيئاً مرتين.",
+        "أغلب العيادات في عُمان تُدار على دفتر ومجموعة واتساب. لا لأن أصحابها لا يريدون أفضل، بل لأن المعروض عليهم إمّا نظام أجنبي لا يعرف الضريبة العُمانية ولا يكتب العربية كما ينبغي، أو تطبيق حجز لا يعرف شيئاً عمّا يحدث بعد الحجز.",
+        "وفي الحالتين تبقى نفس الخسارة: الرسالة تصل بعد الدوام فلا يقرؤها أحد، والمريض الذي لم يجد رداً يذهب لعيادة أخرى ولا يخبرك لماذا. عيادة واحدة تفقد بهذا عشرات المواعيد شهرياً، ولا يظهر ذلك في أي تقرير.",
+        "بنينا طَود ليُردّ على المريض في اللحظة التي كتب فيها، وليتحوّل ردّه إلى موعد وفاتورة وسجلّ — دون أن يكتب أحد شيئاً مرتين. نظام واحد يُدير العيادة من أول رسالة إلى إقفال اليوم.",
+        "نبنيه هنا، بالعربية أولاً، على ضريبة عُمان وطريقة عملها الحقيقية — لا ترجمة لنظام صُمّم لسوق آخر.",
       ],
-      founderTitle: "المؤسّس",
+      teamTitle: "من نحن",
+      teamLede:
+        "فريق عُماني من مهندسي برمجيات ومختصّي ذكاء اصطناعي وتشغيل، يعمل على طَود يومياً.",
+      teamCards: [
+        {
+          t: "هندسة المنتج",
+          d: "بناء النظام وصيانته: قاعدة البيانات، والواجهات، والتكاملات مع واتساب والمدفوعات.",
+        },
+        {
+          t: "الذكاء الاصطناعي",
+          d: "تطوير سُرى وضبط سلوكها — دقّة الفهم، وجودة الردّ بالعربية، وحدودها المهنية.",
+        },
+        {
+          t: "التشغيل ونجاح العملاء",
+          d: "ربط العيادة وتدريب فريقها والوقوف معها بعد التشغيل، لا عند التوقيع فقط.",
+        },
+      ],
+      founderTitle: "القيادة",
       founderName: "محمد البادي",
       founderRole: "المؤسّس والرئيس التنفيذي",
       founderBio:
-        "بنيت طَود بالكامل — النظام، وسُرى، وكل قرار فيهما. من شكل الفاتورة إلى الكلمة التي تقولها سُرى لمريض يكتب في منتصف الليل.\n\nأعمل مع العيادات مباشرة، بلا طبقة بيني وبينها. حين تتصل عيادة، أنا من يردّ.",
+        "يقود طَود منذ يومه الأول — من تصميم النظام وسُرى إلى العمل المباشر مع العيادات على أرض الواقع.\n\nقرارٌ ثابت عندنا: من يبني النظام هو من يجلس مع العيادة. لهذا يصل رأي الطبيب وموظّف الاستقبال إلى المنتج في أيام، لا في دورة إصدار سنوية.",
       principlesTitle: "ما نلتزم به",
       principles: [
-        { t: "بياناتك لك", d: "لا نستخدم بيانات عيادة لغرضنا، ولا نشاركها مع عيادة أخرى، وتخرج بها متى شئت." },
-        { t: "لا نَعِد بما لم يُبنَ", d: "ما تراه في هذا الموقع موجود ويعمل. وما لم يُبنَ بعد نقوله كما هو." },
+        { t: "بياناتك لك وحدك", d: "بيانات كل عيادة معزولة تماماً، لا تُشارَك ولا تُستخدم لغرضنا، وتخرج بها متى شئت." },
+        { t: "نظام يعمل، لا عرض تقديمي", d: "كل ما تراه هنا مبنيّ ويعمل على بيئة تشغيل حقيقية — تراه بنفسك في عرض مباشر." },
         { t: "الطبّ للطبيب", d: "طَود أداة تشغيل. القرار السريري لصاحبه، وسُرى لا تقترب منه." },
+        { t: "نقف معك بعد التشغيل", d: "الربط والتدريب والمتابعة جزء من الخدمة، لا بنداً إضافياً على الفاتورة." },
       ],
     },
 
@@ -443,23 +462,42 @@ export const dict = {
       title: "TAWD",
       meaning: "طَود (tawd): a towering mountain that does not move.",
       lede:
-        "An Omani software company building a clinic operating system, and an AI agent that answers its patients.",
-      storyTitle: "Why it was built",
+        "An Omani technology company building a complete clinic operating system, and the AI that answers its patients and books them in.",
+      storyTitle: "Why we built TAWD",
       story: [
         "Most clinics in Oman run on a paper diary and a WhatsApp group. Not because their owners want less, but because what is offered to them is either foreign software that does not know Omani VAT and sets Arabic badly, or a booking app that knows nothing about what happens after the booking.",
-        "Either way the same problem remains: messages arrive after hours and nobody reads them, and the patient who went unanswered goes elsewhere without telling you why.",
-        "TAWD was built for that: to answer the patient in the moment they wrote, and to turn that answer into an appointment, an invoice and a record — without anyone typing anything twice.",
+        "Either way the loss is the same: a message arrives after hours and nobody reads it, and the patient who went unanswered books somewhere else without telling you why. A single clinic loses dozens of appointments a month this way, and it shows up in no report.",
+        "We built TAWD to answer the patient in the moment they wrote, and to turn that answer into an appointment, an invoice and a record — without anyone typing anything twice. One system that runs the clinic from the first message to the daily close.",
+        "We build it here, in Arabic first, on Omani VAT and the way a clinic actually works — not a translation of software designed for another market.",
       ],
-      founderTitle: "Founder",
+      teamTitle: "Who we are",
+      teamLede:
+        "An Omani team of software engineers, AI specialists and operations people, working on TAWD every day.",
+      teamCards: [
+        {
+          t: "Product engineering",
+          d: "Building and maintaining the system: the database, the interfaces, and the integrations with WhatsApp and payments.",
+        },
+        {
+          t: "Artificial intelligence",
+          d: "Developing Sura and tuning how it behaves — comprehension, the quality of its Arabic, and its professional boundaries.",
+        },
+        {
+          t: "Operations & customer success",
+          d: "Connecting the clinic, training its team, and standing with it after go-live rather than at signature.",
+        },
+      ],
+      founderTitle: "Leadership",
       founderName: "Mohammed Al Badi",
       founderRole: "Founder & CEO",
       founderBio:
-        "I built TAWD end to end — the system, Sura, and every decision in both. From the shape of an invoice to the words Sura chooses for a patient writing at midnight.\n\nI work with clinics directly, with no layer between us. When a clinic calls, I answer.",
+        "Has led TAWD from its first day — from designing the system and Sura to working directly with clinics on the ground.\n\nOne rule we hold to: the people who build the system are the people who sit with the clinic. That is why a doctor's or a receptionist's view reaches the product in days rather than in an annual release cycle.",
       principlesTitle: "What we hold to",
       principles: [
-        { t: "Your data is yours", d: "We do not use one clinic's data for our own purposes, never share it with another clinic, and you leave with it whenever you choose." },
-        { t: "We don't promise what isn't built", d: "What you see on this site exists and runs. What isn't built yet, we say so plainly." },
+        { t: "Your data is yours alone", d: "Every clinic's data is fully isolated, never shared, never used for our own purposes, and you leave with it whenever you choose." },
+        { t: "A working system, not a deck", d: "Everything here is built and running against a real operating environment — and you see it yourself in a live demo." },
         { t: "Medicine belongs to the clinician", d: "TAWD is operational software. The clinical decision is the doctor's, and Sura does not go near it." },
+        { t: "We stay after go-live", d: "Connection, training and follow-through are part of the service, not a line item on the invoice." },
       ],
     },
 

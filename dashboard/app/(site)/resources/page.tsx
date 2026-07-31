@@ -1,6 +1,6 @@
 "use client";
 
-import { History, Braces, HelpCircle, ShieldCheck, Plug, Sparkles } from "lucide-react";
+import { History, HelpCircle, ShieldCheck, Plug, Sparkles, Rocket } from "lucide-react";
 import { useSite } from "@/components/site/lang";
 import { PageHero, CardGrid, CtaBand } from "@/components/site/kit";
 
@@ -14,31 +14,31 @@ export default function ResourcesHub() {
         tag={ar ? "الموارد" : "Resources"}
         title={ar ? "كل ما تحتاج معرفته قبل أن تقرّر" : "Everything you need before you decide"}
         lede={ar
-          ? "ما شُحن فعلاً، وكيف يُربط النظام، والأسئلة التي تُسأل فعلاً — بلا تسويق."
-          : "What actually shipped, how it connects, and the questions people really ask — without the marketing."}
+          ? "سجلّ ما نضيفه للنظام، وكيف يُربط، والأسئلة التي يسألها أصحاب العيادات قبل أن يقرّروا."
+          : "What we add to the system, how it connects, and the questions clinic owners ask before they decide."}
       />
 
       <section className="sec">
         <div className="wrap">
           <CardGrid items={[
             { t: ar ? "سجلّ التحديثات" : "Changelog",
-              d: ar ? "كل ما شُحن، بتاريخه. طَود يُبنى ويُصان يومياً." : "Everything shipped, dated. TAWD is built and maintained daily.",
+              d: ar ? "كل ما أضفناه للنظام، بتاريخه." : "Everything we have added to the system, dated.",
               i: History, href: "/resources/changelog" },
-            { t: ar ? "واجهة البرمجة" : "API reference",
-              d: ar ? "نقاط النهاية المتاحة اليوم، بأشكال الطلب والردّ الحقيقية." : "The endpoints available today, with their real request and response shapes.",
-              i: Braces, href: "/resources/api" },
             { t: ar ? "أسئلة شائعة" : "FAQ",
               d: ar ? "رقم واتساب، الخصوصية، الخروج بالبيانات، ومدّة التشغيل." : "The WhatsApp number, privacy, leaving with your data, and how long setup takes.",
               i: HelpCircle, href: "/resources/faq" },
             { t: ar ? "الأمان" : "Security",
-              d: ar ? "العزل والسجلّ والبنية — وما لا ندّعيه." : "Isolation, the audit log, the infrastructure — and what we do not claim.",
+              d: ar ? "كيف تُعزل بيانات عيادتك، وما الذي يضمن أنها لك وحدك." : "How your clinic's data is isolated, and what guarantees it is yours alone.",
               i: ShieldCheck, href: "/security" },
             { t: ar ? "التكاملات" : "Integrations",
-              d: ar ? "ما يعمل اليوم، وما هو قيد البناء، بحالته الحقيقية." : "What is live today and what is in development, with its real state.",
+              d: ar ? "واتساب وإنستغرام والمدفوعات — ما يتّصل به النظام." : "WhatsApp, Instagram and payments — what the system connects to.",
               i: Plug, href: "/integrations" },
-            { t: ar ? "منصّة الذكاء" : "AI Platform",
-              d: ar ? "كيف تقرّر سُرى، وما لا تفعله." : "How Sura decides, and what it will not do.",
+            { t: ar ? "سُرى" : "Sura",
+              d: ar ? "كيف تقرّر سُرى، وأين تقف حدودها المهنية." : "How Sura decides, and where its professional boundaries sit.",
               i: Sparkles, href: "/ai" },
+            { t: ar ? "الوصول المبكّر" : "Early access",
+              d: ar ? "طَود يفتح لعدد محدود من العيادات في عُمان." : "TAWD is opening to a limited number of clinics in Oman.",
+              i: Rocket, href: "/early-access" },
           ]} />
         </div>
       </section>

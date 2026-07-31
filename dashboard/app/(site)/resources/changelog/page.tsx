@@ -40,8 +40,8 @@ export default function ChangelogPage() {
                 <Reveal key={it.en} delay={Math.min(i * 40, 240)} className="clog__row">
                   <span className={`clog__tag clog__tag--${it.kind}`}>
                     {lang === "ar"
-                      ? it.kind === "new" ? "جديد" : it.kind === "fix" ? "إصلاح" : "تحسين"
-                      : it.kind === "new" ? "New" : it.kind === "fix" ? "Fix" : "Improved"}
+                      ? it.kind === "new" ? "جديد" : "تحسين"
+                      : it.kind === "new" ? "New" : "Improved"}
                   </span>
                   <div>
                     <b>{lang === "ar" ? it.ar : it.en}</b>

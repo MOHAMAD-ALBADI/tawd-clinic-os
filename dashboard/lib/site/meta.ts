@@ -14,42 +14,34 @@ import type { Metadata } from "next";
 
    Arabic, because the site opens in Arabic and a page has one title regardless
    of which way the visitor later flips the toggle. Product names stay in Latin
-   script — someone searching "TAWD ClinicOS" should find the page. */
+   script where it is the product's own name. */
 
 type Entry = { t: string; d: string };
 
 const TABLE: Record<string, Entry> = {
   "products": {
-    t: "المنتجات",
-    d: "ClinicOS لتشغيل العيادة، وTAWD AI للردّ على مرضاها، وAnalytics قيد البناء. ما تبنيه طَود، بحالته الحقيقية.",
+    t: "النظام",
+    d: "نظام واحد يُدير العيادة من أول رسالة إلى إقفال اليوم: المواعيد والملفات والفوترة والمخزون، ومعه سُرى التي تردّ على مرضاك وتحجز لهم.",
   },
   "products/clinic": {
-    t: "ClinicOS — نظام تشغيل العيادة",
-    d: "المواعيد والملفات والفوترة والمخزون والرواتب والتأمين والخطط العلاجية في نظام واحد، بالعربية وضريبة عُمان.",
-  },
-  "products/ai": {
-    t: "TAWD AI — سُرى",
-    d: "سُرى تردّ على واتساب وإنستغرام بالعربية والإنجليزية، تحجز في تقويمك فعلاً، وتُصعّد الحالة الطارئة لإنسان في ثوانٍ.",
-  },
-  "products/analytics": {
-    t: "TAWD Analytics — قيد التطوير",
-    d: "تقارير عيادتك تعمل اليوم داخل ClinicOS. مقارنة الفروع والتنبّؤ بالطلب قيد البناء — ونقول لماذا لم تُشحن بعد.",
+    t: "إدارة العيادة",
+    d: "المواعيد والملفات الطبية والفوترة والمخزون والرواتب والتأمين والخطط العلاجية في نظام واحد، بالعربية وضريبة عُمان.",
   },
   "solutions": {
     t: "الحلول",
     d: "الأسنان والجلدية والتجميل والعلاج الطبيعي، والعيادة المستقلة والمجمّع الطبي والمجموعة متعدّدة الفروع.",
   },
   "ai": {
-    t: "منصّة الذكاء الاصطناعي",
-    d: "كيف تُقرّر سُرى، وعلى أي بيانات، وما الذي ترفض فعله — الحدود مكتوبة بالكامل لا ملمّح إليها.",
+    t: "سُرى",
+    d: "ذكاء اصطناعي يردّ على مرضى عيادتك في واتساب وإنستغرام بالعربية والإنجليزية، ويحجز لهم مواعيد حقيقية في جدول الطبيب.",
   },
   "security": {
     t: "الأمان والخصوصية",
-    d: "عزل بيانات كل عيادة على مستوى قاعدة البيانات، سجلّ تدقيق، وموافقات المرضى الرقمية. وما لا ندّعيه.",
+    d: "عزل بيانات كل عيادة على مستوى قاعدة البيانات، سجلّ تدقيق لا يُعدَّل، وموافقات المرضى الرقمية — والتزام بقانون حماية البيانات العُماني.",
   },
   "integrations": {
     t: "التكاملات",
-    d: "واتساب وإنستغرام وثواني والبريد — كل بند بحالته الحقيقية: يعمل الآن، أو قيد البناء.",
+    d: "واتساب وإنستغرام والمحادثة على موقعك، ومدفوعات ثواني والفوترة الضريبية العُمانية — يعمل مع ما تستخدمه عيادتك اليوم.",
   },
   "pricing": {
     t: "الأسعار",
@@ -65,15 +57,11 @@ const TABLE: Record<string, Entry> = {
   },
   "resources": {
     t: "الموارد",
-    d: "ما شُحن فعلاً، وكيف يُربط النظام، والأسئلة التي تُسأل حقاً — بلا تسويق.",
+    d: "سجلّ التحديثات، والتكاملات، والأسئلة التي يسألها أصحاب العيادات فعلاً قبل أن يقرّروا.",
   },
   "resources/changelog": {
     t: "سجلّ التحديثات",
-    d: "كل ما شُحن، بتاريخه. طَود يُبنى ويُصان يومياً — هذه قائمة بما تغيّر فعلاً لا خارطة طريق.",
-  },
-  "resources/api": {
-    t: "واجهة البرمجة",
-    d: "نقاط النهاية المتاحة اليوم بمصادقتها الحقيقية. لا توثيق لما لم يُبنَ.",
+    d: "كل ما أضفناه للنظام، بتاريخه. طَود يُبنى ويُطوَّر يومياً.",
   },
   "resources/faq": {
     t: "أسئلة شائعة",
@@ -81,7 +69,7 @@ const TABLE: Record<string, Entry> = {
   },
   "company/about": {
     t: "عن طَود",
-    d: "من نحن، ولماذا بُني هذا النظام في عُمان، ومن يقف خلفه.",
+    d: "فريق عُماني يبني نظام تشغيل العيادات والذكاء الذي يردّ على مرضاها — من نحن، ولماذا بنينا طَود.",
   },
   "company/vision": {
     t: "الرؤية",
@@ -94,8 +82,8 @@ const TABLE: Record<string, Entry> = {
    There are two title templates above this: the root layout brands the whole
    app, and an intermediate segment that sets a plain title (like /products)
    consumes the template and leaves its own children unbranded. The result was
-   /pricing reading "الأسعار | طَود" while /products/ai read "TAWD AI — سُرى"
-   with no brand at all, and the homepage reading the brand twice.
+   /pricing reading "الأسعار | طَود" while a nested page read its title with
+   no brand at all, and the homepage reading the brand twice.
 
    `absolute` opts out of every template above, so each page states its full
    title and nothing upstream can change it. */
