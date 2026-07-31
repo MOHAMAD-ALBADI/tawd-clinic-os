@@ -26,13 +26,16 @@ export function Problem() {
           <p className="lede" style={{ marginTop: "1rem" }}>{c.lede}</p>
         </Reveal>
 
+        {/* Not `.mono`.
+
+            IBM Plex Mono has no real Arabic-Indic digits, so ٦٨٪ came out
+            thin and mis-spaced and the lone ٠ rendered as a speck. These are
+            set in the display face, which draws them properly. */}
         <div className="grid3">
           {c.points.map((p, i) => (
-            <Reveal key={p.l} delay={i * 80} className="card">
-              <p className="mono" style={{ fontSize: "clamp(2rem, 4vw, 2.9rem)", fontWeight: 700, color: "var(--blue-lit)" }}>
-                {p.v}
-              </p>
-              <p className="card__d" style={{ marginTop: "0.6rem" }}>{p.l}</p>
+            <Reveal key={p.l} delay={i * 80} className="card card--lift">
+              <p className="figure">{p.v}</p>
+              <p className="card__d" style={{ marginTop: "0.7rem" }}>{p.l}</p>
             </Reveal>
           ))}
         </div>

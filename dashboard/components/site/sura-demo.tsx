@@ -2,7 +2,10 @@
 
 import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Send, Check, Calendar, Sparkles } from "lucide-react";
+import {
+  Send, Check, Calendar, Sparkles,
+  CalendarCheck, UserRound, BellRing, ReceiptText,
+} from "lucide-react";
 import { useSite } from "@/components/site/lang";
 import { homeContent } from "@/lib/site/content/home";
 
@@ -149,6 +152,26 @@ export function SuraDemo() {
     ? ["أبي موعد تنظيف بكرة", "متى تفتحون؟", "كم سعر التنظيف؟"]
     : ["Book me a cleaning tomorrow", "What are your hours?", "How much is a cleaning?"];
 
+  const ar = lang === "ar";
+
+  /* The chain a single booking sets off. This is the actual argument of the
+     section: a chatbot writes a reply, an agent writes to four places. Each
+     step lights up in turn rather than all at once, because the sequence is
+     the thing being demonstrated. */
+  const CHAIN = ar
+    ? [
+        { i: CalendarCheck, t: "الموعد كُتب في جدول الطبيب", s: "بعد فحص التعارض والدوام" },
+        { i: UserRound, t: "ملفّ المريض حُدّث", s: "أو أُنشئ إن كان أول مرّة" },
+        { i: BellRing, t: "التذكير جُدول", s: "يصله قبل الموعد بيوم" },
+        { i: ReceiptText, t: "الخدمة جاهزة للفوترة", s: "بسعرها من جدول خدماتك" },
+      ]
+    : [
+        { i: CalendarCheck, t: "Written into the doctor's calendar", s: "after checking clashes and hours" },
+        { i: UserRound, t: "Patient record updated", s: "or created, on a first visit" },
+        { i: BellRing, t: "Reminder scheduled", s: "reaches them the day before" },
+        { i: ReceiptText, t: "Service queued for invoicing", s: "at the price in your own list" },
+      ];
+
   return (
     <section className="sec">
       <div className="wrap">
@@ -159,30 +182,43 @@ export function SuraDemo() {
         </div>
 
         <div className="demo">
-          {/* the conversation */}
+          {/* ── the conversation, as a real thread ── */}
           <div className="demo__chat">
             <div className="demo__head">
-              <span className="demo__dot" />
-              {lang === "ar" ? "واتساب العيادة" : "Clinic WhatsApp"}
+              <span className="demo__av">س</span>
+              <span className="demo__who">
+                <b>{ar ? "سُرى · عيادة الواحة" : "Sura · Al Waha Clinic"}</b>
+                <em><span className="demo__dot" /> {ar ? "تردّ الآن" : "Online now"}</em>
+              </span>
+              <span className="demo__ch">{ar ? "واتساب" : "WhatsApp"}</span>
             </div>
 
             <div className="demo__body" ref={box}>
-              {msgs.length === 0 && (
-                <p className="demo__hint">{c.hint}</p>
-              )}
+              {/* Sura opens the thread, so the panel is never an empty box —
+                  and an empty box is what a visitor reads as "unfinished". */}
+              <div className="bub bub--sura">
+                {kb.greet}
+                <span className="bub__t">{ar ? "الآن" : "now"}</span>
+              </div>
+
               {msgs.map((m, i) => (
                 <motion.div
                   key={i}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
                   transition={{ type: "spring", stiffness: 300, damping: 26 }}
                   className={m.who === "them" ? "bub bub--them" : "bub bub--sura"}
                 >
                   {m.text}
+                  <span className="bub__t">
+                    {ar ? "الآن" : "now"}
+                    {m.who === "them" && <Check size={11} className="bub__tick" />}
+                  </span>
                 </motion.div>
               ))}
+
               {typing && (
-                <div className="bub bub--sura" aria-label={c.thinking}>
+                <div className="bub bub--sura bub--typing" aria-label={c.thinking}>
                   <span className="dots"><i /><i /><i /></span>
                 </div>
               )}
@@ -194,10 +230,7 @@ export function SuraDemo() {
               ))}
             </div>
 
-            <form
-              className="demo__bar"
-              onSubmit={(e) => { e.preventDefault(); send(); }}
-            >
+            <form className="demo__bar" onSubmit={(e) => { e.preventDefault(); send(); }}>
               <input
                 className="demo__inp"
                 value={input}
@@ -211,7 +244,7 @@ export function SuraDemo() {
             </form>
           </div>
 
-          {/* what happened in the system */}
+          {/* ── what the system did about it ── */}
           <div className="demo__sys">
             <div className="demo__sysh">
               <Calendar size={14} /> {c.ledgerT}
@@ -219,29 +252,60 @@ export function SuraDemo() {
 
             <AnimatePresence mode="wait">
               {booking ? (
-                <motion.div
-                  key={booking.time + booking.service}
-                  initial={{ opacity: 0, y: 16, scale: .97 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ type: "spring", stiffness: 170, damping: 20 }}
-                  className="demo__row"
-                >
-                  <div className="demo__rowtop">
-                    <span className="mono demo__time">{booking.time}</span>
-                    <span className="demo__ok"><Check size={12} /> {lang === "ar" ? "مؤكّد" : "Confirmed"}</span>
+                <motion.div key={booking.time + booking.service} className="demo__stack"
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 16, scale: .97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ type: "spring", stiffness: 170, damping: 20 }}
+                    className="demo__row"
+                  >
+                    <div className="demo__rowtop">
+                      <span className="demo__time">{booking.time}</span>
+                      <span className="demo__ok"><Check size={12} /> {ar ? "مؤكّد" : "Confirmed"}</span>
+                    </div>
+                    <p className="demo__svc">{booking.service}</p>
+                    <p className="demo__meta">{booking.doctor} · {booking.date}</p>
+                  </motion.div>
+
+                  <div className="demo__chain">
+                    {CHAIN.map((s, i) => (
+                      <motion.div
+                        key={s.t} className="demo__step"
+                        initial={{ opacity: 0, x: ar ? 14 : -14 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.18 + i * 0.13, type: "spring", stiffness: 220, damping: 24 }}
+                      >
+                        <span className="demo__stepic"><s.i size={14} /></span>
+                        <span className="demo__steptx"><b>{s.t}</b><em>{s.s}</em></span>
+                        <Check size={13} className="demo__stepok" />
+                      </motion.div>
+                    ))}
                   </div>
-                  <p className="demo__svc">{booking.service}</p>
-                  <p className="demo__meta">{booking.doctor} · {booking.date}</p>
                 </motion.div>
               ) : (
-                <motion.p
-                  key="empty"
-                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                  className="demo__empty"
-                >
-                  {c.empty}
-                </motion.p>
+                /* Not blank while waiting: the day's real schedule, so the
+                   panel reads as a system with a state rather than a hole. */
+                <motion.div key="idle" className="demo__stack"
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                  <p className="demo__empty">{c.empty}</p>
+                  <div className="demo__chain demo__chain--idle">
+                    {(ar
+                      ? [["٠٩:٠٠", "كشف وتشخيص"], ["١٠:٠٠", "حشوة الأسنان"], ["١١:٠٠", "تبييض الأسنان"]]
+                      : [["09:00", "Exam & diagnosis"], ["10:00", "Dental filling"], ["11:00", "Whitening"]]
+                    ).map(([t, s]) => (
+                      <div key={t} className="demo__slot">
+                        <span className="demo__slott">{t}</span>
+                        <span className="demo__slots">{s}</span>
+                      </div>
+                    ))}
+                    <div className="demo__slot demo__slot--free">
+                      <span className="demo__slott">{ar ? "١٢:٠٠" : "12:00"}</span>
+                      <span className="demo__slots">{ar ? "شاغر" : "Free"}</span>
+                    </div>
+                  </div>
+                </motion.div>
               )}
             </AnimatePresence>
           </div>

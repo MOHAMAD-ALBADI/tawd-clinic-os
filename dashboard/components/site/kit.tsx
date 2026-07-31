@@ -140,7 +140,14 @@ export function Steps({ steps }: { steps: readonly { n: string; t: string; d: st
 
 /** A closing band. Every page ends with one — a page with no next step is a
     dead end, and on a company site that is a lost enquiry. */
-export function CtaBand({ title, lede, btn, btn2 }: { title: string; lede?: string; btn?: string; btn2?: string }) {
+export function CtaBand({
+  title, lede, btn, btn2, href = "/contact", href2 = "/pricing",
+}: {
+  title: string; lede?: string; btn?: string; btn2?: string;
+  /* The second button defaults to pricing, which on the pricing page itself
+     is a link back to where the reader already is. */
+  href?: string; href2?: string;
+}) {
   const { lang } = useSite();
   return (
     <section className="sec">
@@ -149,10 +156,10 @@ export function CtaBand({ title, lede, btn, btn2 }: { title: string; lede?: stri
           <h2 className="h2" style={{ maxWidth: "22ch", marginInline: "auto" }}>{title}</h2>
           {lede && <p className="lede" style={{ marginInline: "auto", marginTop: "1rem" }}>{lede}</p>}
           <div style={{ display: "flex", gap: "0.8rem", justifyContent: "center", flexWrap: "wrap", marginTop: "2.2rem" }}>
-            <Link href="/contact" className="btn btn--pri">
+            <Link href={href} className="btn btn--pri">
               {btn ?? (lang === "ar" ? "احجز عرضاً توضيحياً" : "Book a demo")} <Arrow />
             </Link>
-            <Link href="/pricing" className="btn btn--out">
+            <Link href={href2} className="btn btn--out">
               {btn2 ?? (lang === "ar" ? "شوف الأسعار" : "See pricing")}
             </Link>
           </div>

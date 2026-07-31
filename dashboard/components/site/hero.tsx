@@ -108,16 +108,21 @@ export function Hero() {
    reference's composition without copying its shapes. */
 import { ObjLayers, ObjShield, ObjCards } from "@/components/site/objects";
 
+/* Each card carries a destination.
+
+   They shipped with an arrow button that went nowhere: three cards on the
+   homepage that look clickable, invite the click, and answer it with
+   nothing. The arrow is the affordance, so the whole card is the link. */
 const TRI = {
   ar: [
-    { t: "أنظمة ذكية", d: "ذكاء اصطناعي يردّ على مرضاك ويحجز لهم فعلياً — لا ردّ آلي، بل قرار داخل نظام العيادة.", A: ObjLayers },
-    { t: "أمان موثوق", d: "عزل بين العيادات مفروض في قاعدة البيانات نفسها، وسجلّ عمليات لا يُعدَّل ولا يُحذف.", A: ObjShield },
-    { t: "كل شيء في مكان واحد", d: "المواعيد والمرضى والفواتير والمخزون والرواتب والتأمين — من لوحة واحدة.", A: ObjCards },
+    { t: "أنظمة ذكية", href: "/ai", d: "ذكاء اصطناعي يردّ على مرضاك ويحجز لهم فعلياً — لا ردّ آلي، بل قرار داخل نظام العيادة.", A: ObjLayers },
+    { t: "أمان موثوق", href: "/security", d: "عزل بين العيادات مفروض في قاعدة البيانات نفسها، وسجلّ عمليات لا يُعدَّل ولا يُحذف.", A: ObjShield },
+    { t: "كل شيء في مكان واحد", href: "/products/clinic", d: "المواعيد والمرضى والفواتير والمخزون والرواتب والتأمين — من لوحة واحدة.", A: ObjCards },
   ],
   en: [
-    { t: "Intelligent systems", d: "An AI that answers your patients and actually books them — a decision inside the clinic's system, not a canned reply.", A: ObjLayers },
-    { t: "Security you can check", d: "Isolation between clinics enforced by the database itself, and an audit log that cannot be edited or deleted.", A: ObjShield },
-    { t: "Everything in one place", d: "Appointments, patients, invoicing, stock, payroll and insurance — from a single console.", A: ObjCards },
+    { t: "Intelligent systems", href: "/ai", d: "An AI that answers your patients and actually books them — a decision inside the clinic's system, not a canned reply.", A: ObjLayers },
+    { t: "Security you can check", href: "/security", d: "Isolation between clinics enforced by the database itself, and an audit log that cannot be edited or deleted.", A: ObjShield },
+    { t: "Everything in one place", href: "/products/clinic", d: "Appointments, patients, invoicing, stock, payroll and insurance — from a single console.", A: ObjCards },
   ],
 } as const;
 
@@ -128,13 +133,15 @@ export function TriCards() {
     <section className="sec">
       <div className="wrap tri">
         {items.map((x, i) => (
-          <Reveal key={x.t} delay={i * 90} className="fcard">
-            <div>
-              <h3 className="fcard__t">{x.t}</h3>
-              <p className="fcard__d">{x.d}</p>
-              <span className="fcard__go"><Arrow /></span>
-            </div>
-            <div className="fcard__art"><x.A /></div>
+          <Reveal key={x.t} delay={i * 90} as="div">
+            <Link href={x.href} className="fcard">
+              <div>
+                <h3 className="fcard__t">{x.t}</h3>
+                <p className="fcard__d">{x.d}</p>
+                <span className="fcard__go"><Arrow /></span>
+              </div>
+              <div className="fcard__art"><x.A /></div>
+            </Link>
           </Reveal>
         ))}
       </div>

@@ -6,6 +6,7 @@ import {
   LifeBuoy, LogOut, Menu, X, Wallet, UserPlus, CheckCircle2, Clock, Sparkles,
 } from "lucide-react";
 import { useSite } from "@/components/site/lang";
+import { ObjLayers, ObjShield, ObjCards } from "@/components/site/objects";
 
 /* The product panel in the hero.
 
@@ -138,22 +139,24 @@ export function ProductPanel() {
   const stage = useRef<HTMLDivElement | null>(null);
   const [showSura, setShowSura] = useState(true);
 
-  /* The panel turns a few degrees toward the pointer. Custom properties written
-     straight onto the node — no React state, so moving the mouse does not
-     re-render the tree sixty times a second. */
+  /* The panel turns toward the pointer, and the objects around it move further
+     than the panel does — that mismatch is what reads as depth.
+
+     The properties are written to the stage rather than the panel, because
+     custom properties inherit: one write drives the console and all three
+     orbiting shapes. No React state, so moving the mouse does not re-render
+     the tree sixty times a second. */
   useEffect(() => {
     const el = stage.current;
     if (!el) return;
     if (!window.matchMedia("(pointer: fine)").matches) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-    const panel = el.querySelector(".panel") as HTMLElement | null;
-    if (!panel) return;
     let queued = false, mx = 0, my = 0;
     const write = () => {
       queued = false;
-      panel.style.setProperty("--mx", String(mx));
-      panel.style.setProperty("--my", String(my));
+      el.style.setProperty("--mx", String(mx));
+      el.style.setProperty("--my", String(my));
     };
     const move = (e: MouseEvent) => {
       const r = el.getBoundingClientRect();
@@ -171,10 +174,22 @@ export function ProductPanel() {
     <div className="stage" ref={stage}>
       <span className="stage__glow" aria-hidden />
 
+      {/* Three objects orbiting the console at different depths. They drift on
+          their own and lag the pointer by different amounts, which is what
+          sells the panel as an object in space rather than a picture of one.
+          aria-hidden throughout — decoration, nothing to announce. */}
+      <span className="orb orb--1" aria-hidden><ObjLayers /></span>
+      <span className="orb orb--2" aria-hidden><ObjShield /></span>
+      <span className="orb orb--3" aria-hidden><ObjCards /></span>
+
       <div className="panel">
+        <span className="panel__sheen" aria-hidden />
         <div className="panel__top">
           <Menu size={13} />
           {c.win}
+          <span className="panel__live">
+            <i /> {lang === "ar" ? "مباشر" : "Live"}
+          </span>
         </div>
 
         <div className="panel__body">
@@ -193,12 +208,15 @@ export function ProductPanel() {
           </nav>
 
           <div className="panel__main">
+            {/* Tiles and rows arrive in sequence rather than all at once. The
+                console should look like it is loading real data, because that
+                is the claim the panel is making. */}
             <div className="kpis">
-              {c.kpis.map((k) => (
-                <div key={k.l} className="kpi">
+              {c.kpis.map((k, i) => (
+                <div key={k.l} className="kpi kpi--in" style={{ animationDelay: `${0.35 + i * 0.09}s` }}>
                   <div className="kpi__t">{k.l} <k.i size={12} /></div>
-                  <div className="kpi__v mono">{k.v}</div>
-                  <div className="kpi__d mono">{k.d}</div>
+                  <div className="kpi__v">{k.v}</div>
+                  <div className="kpi__d">{k.d}</div>
                 </div>
               ))}
             </div>
@@ -206,12 +224,12 @@ export function ProductPanel() {
             <div className="duo">
               <div className="box">
                 <div className="box__h">{c.apptsT} <Clock size={12} /></div>
-                {c.appts.map((a) => (
-                  <div key={a.n} className="appt">
+                {c.appts.map((a, i) => (
+                  <div key={a.n} className="appt appt--in" style={{ animationDelay: `${0.75 + i * 0.1}s` }}>
                     <span className="appt__av" />
                     <span className="appt__n">{a.n}</span>
                     <span className="tag">{a.s}</span>
-                    <span className="appt__t mono">{a.t}</span>
+                    <span className="appt__t">{a.t}</span>
                   </div>
                 ))}
               </div>
