@@ -1,10 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRef } from "react";
-import { ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useSite } from "@/components/site/lang";
-import { Signature } from "@/components/site/signature";
 import { Reveal } from "@/components/site/reveal";
 import { Counter } from "@/components/site/counter";
 
@@ -14,54 +12,6 @@ function Arrow() {
   const { lang } = useSite();
   const I = lang === "ar" ? ArrowLeft : ArrowRight;
   return <I size={16} />;
-}
-
-export function Hero() {
-  const { t } = useSite();
-  const h = t.home;
-  const stage = useRef<HTMLDivElement | null>(null);
-
-  /* The panel turns toward the pointer. Written straight onto the element as
-     custom properties and read by CSS transforms — no React state, so moving
-     the mouse never triggers a render. */
-  function track(e: React.MouseEvent<HTMLDivElement>) {
-    const el = stage.current;
-    if (!el) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    el.style.setProperty("--mx", String(((e.clientX - r.left) / r.width - 0.5) * 2));
-    el.style.setProperty("--my", String(((e.clientY - r.top) / r.height - 0.5) * -2));
-  }
-  function reset() {
-    const el = stage.current;
-    if (!el) return;
-    el.style.setProperty("--mx", "0");
-    el.style.setProperty("--my", "0");
-  }
-
-  return (
-    <section className="s-hero" onMouseMove={track} onMouseLeave={reset} ref={stage}>
-      <div className="s-wrap s-hero__grid">
-        <Reveal>
-          <span className="s-eyebrow"><Sparkles size={12} /> {h.eyebrow}</span>
-          <h1>
-            {h.title1}
-            <span className="s-hero__accent">{h.title2}</span>
-          </h1>
-          <p className="s-lede">{h.lede}</p>
-          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginTop: "2.2rem" }}>
-            <Link href="/contact" className="s-btn s-btn--primary">
-              {h.ctaPrimary} <Arrow />
-            </Link>
-            <Link href="/product" className="s-btn s-btn--ghost">{h.ctaSecondary}</Link>
-          </div>
-        </Reveal>
-
-        <Reveal delay={140}>
-          <Signature />
-        </Reveal>
-      </div>
-    </section>
-  );
 }
 
 export function ProblemStrip() {

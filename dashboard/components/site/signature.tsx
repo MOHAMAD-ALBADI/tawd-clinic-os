@@ -30,7 +30,7 @@ function tomorrow(lang: "ar" | "en") {
   }).format(d);
 }
 
-export function Signature() {
+export function Conversation() {
   const { t, lang } = useSite();
   const h = t.home;
 
@@ -71,37 +71,7 @@ export function Signature() {
   useEffect(() => { run(); return clear; }, [run, lang]);
 
   return (
-    <div className="s-stage">
-      {/* The light behind the product. */}
-      <span className="s-stage__glow" aria-hidden />
-
-      {/* The real system, tilted away from the reader — the same clinic the
-          statistics further down are taken from. The conversation then sits in
-          front of it, so the message and the system it writes into occupy one
-          object rather than two unrelated pictures. */}
-      <motion.div
-        className="s-stage__shot"
-        /* Physics, not a linear tween — the panel settles the way an object
-           with mass settles, which is the whole difference between smooth and
-           cheap. */
-        initial={{ opacity: 0, y: 40, rotateX: 14, scale: 0.96 }}
-        animate={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
-        transition={{ type: "spring", stiffness: 70, damping: 18, mass: 1.1, delay: 0.15 }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/shots/finance.png"
-          alt={lang === "ar"
-            ? "لوحة المالية في طَود — إيراد الشهر والمصروفات وصافي الربح"
-            : "TAWD's finance screen — monthly revenue, expenses and net profit"}
-          width={1440}
-          height={1000}
-          loading="eager"
-          decoding="async"
-        />
-      </motion.div>
-
-      <div className="s-stage__chat">
+    <>
       <div className="s-chat">
         <div className="s-chat__bar">
           <span className="s-chat__dot" />
@@ -145,7 +115,6 @@ export function Signature() {
           {h.replay}
         </button>
       )}
-      </div>
-    </div>
+    </>
   );
 }

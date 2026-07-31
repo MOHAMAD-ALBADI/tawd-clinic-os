@@ -642,3 +642,109 @@
   font-size: 0.66rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 999px;
   background: rgba(52,211,153,0.14); color: var(--s-confirm); border: 1px solid rgba(52,211,153,0.3);
 }
+
+/* ═══════════════════════════════════════════════════════════
+   HERO v2 — cinematic, centred, product laid back in space
+   ───────────────────────────────────────────────────────────
+   The 50/50 split was the template every SaaS page uses, and
+   the panel beside it was a flat image tilted a few degrees —
+   which reads as a rotated picture, not as an object in space.
+   Worse, dark UI on a dark page had no edge, so it sank into
+   the background instead of sitting in front of it.
+
+   Now: the headline owns the fold, and the product lies back
+   below it on a real perspective floor, rim-lit so it
+   separates, with its own reflection under it.
+   ═══════════════════════════════════════════════════════════ */
+
+.s-hero2 {
+  position: relative;
+  padding-block: clamp(3.5rem, 9vh, 7rem) 0;
+  text-align: center;
+  overflow: hidden;
+}
+.s-hero2__inner { position: relative; z-index: 3; }
+
+.s-hero2 h1 {
+  font-size: clamp(2.4rem, 6.2vw, 5.4rem);
+  max-width: 17ch; margin-inline: auto; margin-block: 1.4rem 0;
+}
+.site-en .s-hero2 h1 { max-width: 15ch; }
+.s-hero2__lede {
+  font-size: clamp(1rem, 1.35vw, 1.2rem); line-height: 1.85;
+  color: var(--s-text-2); max-width: 56ch; margin: 1.3rem auto 0;
+}
+.s-hero2__cta { display: flex; gap: 0.8rem; justify-content: center; flex-wrap: wrap; margin-top: 2.4rem; }
+
+/* ── the product, laid back on a floor ────────────────────── */
+.s-deck {
+  position: relative;
+  margin-top: clamp(3rem, 6vw, 5rem);
+  perspective: 1700px;
+  perspective-origin: 50% 0%;
+}
+
+/* A wide pool of light the panel sits in — this is what gives the
+   dark screenshot an edge against the dark page. */
+.s-deck__pool {
+  position: absolute; inset-inline: -12%; inset-block-start: -14%;
+  height: 130%;
+  background:
+    radial-gradient(45% 42% at 50% 30%, rgba(91,147,255,0.42), transparent 68%),
+    radial-gradient(70% 55% at 50% 55%, rgba(46,107,240,0.18), transparent 72%);
+  filter: blur(28px); pointer-events: none;
+}
+
+.s-deck__panel {
+  position: relative;
+  transform: rotateX(26deg) translateZ(0) scale(0.98);
+  transform-origin: 50% 0%;
+  border-radius: 16px 16px 6px 6px;
+  overflow: hidden;
+  /* Rim light: a bright hairline all the way round so the panel has an
+     edge no matter how dark the screenshot behind it is. */
+  border: 1px solid rgba(255,255,255,0.22);
+  box-shadow:
+    0 -1px 0 rgba(255,255,255,0.28) inset,
+    0 60px 120px -20px rgba(0,0,0,0.9),
+    0 0 90px rgba(46,107,240,0.30);
+  transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.s-deck[data-lift="true"] .s-deck__panel { transform: rotateX(13deg) scale(1); }
+.s-deck__panel img { display: block; width: 100%; height: auto; }
+/* Light falling across the laid-back surface. */
+.s-deck__panel::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(178deg, rgba(255,255,255,0.14) 0%, transparent 26%, rgba(0,0,0,0.32) 100%);
+}
+
+/* Its reflection on the floor. */
+.s-deck__mirror {
+  position: relative; margin-top: 2px;
+  height: clamp(80px, 12vw, 170px); overflow: hidden;
+  transform: rotateX(26deg) scaleY(-1); transform-origin: 50% 0%;
+  opacity: 0.16;
+  mask-image: linear-gradient(to top, transparent 5%, #000 95%);
+  -webkit-mask-image: linear-gradient(to top, transparent 5%, #000 95%);
+  pointer-events: none;
+}
+.s-deck__mirror img { display: block; width: 100%; height: auto; }
+
+/* The conversation floats above the deck at a different depth. */
+.s-deck__chat {
+  position: absolute; z-index: 5;
+  inset-block-start: clamp(2rem, 6vw, 5rem);
+  inset-inline-start: clamp(0.5rem, 3vw, 3rem);
+  width: min(322px, 44%);
+  filter: drop-shadow(0 30px 60px rgba(0,0,0,0.75));
+  animation: s-hover 8s ease-in-out infinite alternate;
+}
+@keyframes s-hover { from { translate: 0 -10px; } to { translate: 0 12px; } }
+@media (max-width: 820px) {
+  .s-deck__chat { position: relative; inset: auto; width: 100%; margin-top: -1.5rem; animation: none; }
+  .s-deck__mirror { display: none; }
+  .s-deck__panel { transform: none; border-radius: 14px; }
+}
+
+/* Hide the old split-hero chat wrapper's negative pull inside the deck. */
+.s-deck .s-stage__chat { margin: 0; width: 100%; animation: none; }

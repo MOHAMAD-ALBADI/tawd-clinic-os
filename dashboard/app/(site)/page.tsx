@@ -1,4 +1,5 @@
-import { Hero, ProblemStrip, Flow, Proof, ClosingCta } from "@/components/site/home-sections";
+import { ProblemStrip, Flow, Proof, ClosingCta } from "@/components/site/home-sections";
+import { Hero } from "@/components/site/hero";
 import { Channels, FeatureRows, Modules, FaqPreview } from "@/components/site/feature-rows";
 import { RoiCalculator } from "@/components/site/roi";
 
