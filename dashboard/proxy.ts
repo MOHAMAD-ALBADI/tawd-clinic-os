@@ -54,6 +54,10 @@ export async function proxy(request: NextRequest) {
   const isPublic =
     path.startsWith("/api/") ||
     path === "/" ||
+    /* Gating these sends a crawler a login redirect instead of the file, and a
+       sitemap nobody can fetch is a sitemap that does not exist. */
+    path === "/sitemap.xml" ||
+    path === "/robots.txt" ||
     SITE_PREFIXES.some((x) => path === x || path.startsWith(x + "/")) ||
     PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
   if (isPublic) return response;

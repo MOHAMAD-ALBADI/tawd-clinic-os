@@ -60,8 +60,17 @@ export function Head({ tag, title, lede, center }: { tag?: string; title: string
 
 export type Item = { t: string; d: string; i?: LucideIcon; href?: string };
 
+/* Every list prop below is `readonly`.
+
+   The bilingual content objects are written `as const`, which makes their
+   arrays readonly, and a readonly array is not assignable to a mutable one.
+   These components only ever map over what they are given, so asking for
+   `readonly` costs nothing and spares every page an `as const` it would
+   otherwise have to drop — dropping it would widen the literal types the
+   language switch relies on. */
+
 /** Icon + title + body, 2/3/4 up. */
-export function CardGrid({ items, cols = 3 }: { items: Item[]; cols?: 2 | 3 | 4 }) {
+export function CardGrid({ items, cols = 3 }: { items: readonly Item[]; cols?: 2 | 3 | 4 }) {
   const cls = cols === 2 ? "grid2" : cols === 4 ? "grid4" : "grid3";
   return (
     <div className={cls}>
@@ -90,7 +99,7 @@ export function CardGrid({ items, cols = 3 }: { items: Item[]; cols?: 2 | 3 | 4 
 export function SplitList({
   tag, title, lede, points, flip, aside,
 }: {
-  tag?: string; title: string; lede?: string; points?: string[]; flip?: boolean; aside?: React.ReactNode;
+  tag?: string; title: string; lede?: string; points?: readonly string[]; flip?: boolean; aside?: React.ReactNode;
 }) {
   return (
     <section className="sec">
@@ -115,7 +124,7 @@ export function SplitList({
 }
 
 /** Numbered steps. */
-export function Steps({ steps }: { steps: { n: string; t: string; d: string }[] }) {
+export function Steps({ steps }: { steps: readonly { n: string; t: string; d: string }[] }) {
   return (
     <div className="flowgrid">
       {steps.map((s, i) => (
@@ -154,7 +163,7 @@ export function CtaBand({ title, lede, btn, btn2 }: { title: string; lede?: stri
 }
 
 /** A row of figures. */
-export function StatRow({ items }: { items: { v: string; l: string }[] }) {
+export function StatRow({ items }: { items: readonly { v: string; l: string }[] }) {
   return (
     <Reveal className="stats">
       {items.map((s) => (

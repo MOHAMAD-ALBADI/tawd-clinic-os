@@ -7,11 +7,16 @@ import "./site.css";
 /* The company site. Separate shell from the product on purpose — the dashboard
    is permanently Arabic and RTL, and this has to switch. */
 
+/* Without metadataBase, the per-page canonical URLs resolve against localhost
+   and Next warns on every build. */
+const BASE = (process.env.NEXT_PUBLIC_APP_URL ?? "https://tawd-clinic-os.vercel.app").replace(/\/$/, "");
+
 export const metadata: Metadata = {
-  title: {
-    default: "طَود — نظام تشغيل العيادات",
-    template: "%s | طَود",
-  },
+  metadataBase: new URL(BASE),
+  /* The homepage title. Absolute, because the root layout's template would
+     otherwise append the brand to a string that already opens with it. Inner
+     pages set their own through lib/site/meta.ts. */
+  title: { absolute: "طَود — نظام تشغيل العيادات والذكاء الذي يردّ على مرضاها" },
   description:
     "سُرى تردّ على مرضى عيادتك في واتساب وتحجز لهم موعداً حقيقياً — ونظام تشغيل عيادة كامل تحتها. من سلطنة عُمان.",
   openGraph: {
