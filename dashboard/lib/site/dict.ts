@@ -99,6 +99,10 @@ export const dict = {
         { t: "الرواتب والمصروفات", d: "حضور، مسيّرات رواتب، مصروفات، وربح شهري محسوب لا مقدَّر." },
         { t: "التأمين", d: "تغطيات المرضى، مطالبات، ومتابعة ما قُبل وما رُفض." },
         { t: "خطط العلاج", d: "خطط متعدّدة الزيارات، قبول المريض، ونسبة الإنجاز." },
+        { t: "الوصفات والصيدلية", d: "وصفة موقّعة من الطبيب، وصرف يخصم من المخزون بنفسه." },
+        { t: "الولاء والحملات", d: "نقاط تُكتسب بالإنفاق وتُستبدل عند الدفع، وحملات واتساب من اللوحة." },
+        { t: "عمولات الأطباء", d: "تُحتسب مع الفوترة، تُعتمد، ثم تُدفع وتُقيَّد مصروفاً." },
+        { t: "الموافقات الرقمية", d: "إقرارات المريض موقّعة رقمياً ومحفوظة في ملفه." },
       ],
 
       ctaTitle: "عيادتك تستحق أن يُردّ على مرضاها",
@@ -336,6 +340,10 @@ export const dict = {
         { t: "Payroll & expenses", d: "Attendance, payroll runs, expenses, and a monthly profit that is computed, not estimated." },
         { t: "Insurance", d: "Patient coverage, claims, and what was approved versus rejected." },
         { t: "Treatment plans", d: "Multi-visit plans, patient acceptance, and progress." },
+        { t: "Prescriptions & pharmacy", d: "A prescription signed by the doctor, and dispensing that deducts stock by itself." },
+        { t: "Loyalty & campaigns", d: "Points earned on spend and redeemed at the till, and WhatsApp campaigns from the console." },
+        { t: "Doctor commissions", d: "Accrued at invoicing, approved, then paid and booked as an expense." },
+        { t: "Digital consents", d: "Patient consents signed digitally and kept on the file." },
       ],
 
       ctaTitle: "Your patients deserve an answer",
