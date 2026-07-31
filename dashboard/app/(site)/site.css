@@ -748,3 +748,79 @@
 
 /* Hide the old split-hero chat wrapper's negative pull inside the deck. */
 .s-deck .s-stage__chat { margin: 0; width: 100%; animation: none; }
+
+/* ═══════════════════════════════════════════════════════════
+   TRUE BLACK
+   ───────────────────────────────────────────────────────────
+   The blue light was washing the entire page, so what should
+   have read as deep black read as muddy indigo. Luxury in this
+   category is restraint: a near-pure black field, and blue
+   appearing only where it means something — the product's own
+   glow, an action, a live state.
+
+   These override the earlier tokens deliberately rather than
+   editing them in place, so the progression stays legible.
+   ═══════════════════════════════════════════════════════════ */
+.site-root {
+  --s-bg: #000000;
+  --s-bg-2: #08080a;
+  --s-bg-3: #101013;
+  --s-line: rgba(255,255,255,0.07);
+  --s-line-strong: rgba(255,255,255,0.13);
+  --glass: rgba(255,255,255,0.030);
+  --glass-hi: rgba(255,255,255,0.055);
+}
+
+/* The ambient light pulls right back: two small, dim sources near
+   the top instead of three large ones covering the whole field. */
+.s-aurora {
+  background:
+    radial-gradient(38% 26% at 24% 2%,  rgba(46,107,240,0.13), transparent 66%),
+    radial-gradient(30% 22% at 80% 10%, rgba(109,91,255,0.07), transparent 70%);
+}
+
+/* Grain barely there — at 0.4 over a blue wash it was reading as haze. */
+.s-grain { opacity: 0.22; }
+
+/* Section washes lose their blue and become pure lift. */
+.s-lit {
+  background: linear-gradient(180deg, rgba(255,255,255,0.022), transparent 70%);
+  border-block: 1px solid var(--s-line);
+}
+
+/* Cards sit on black rather than glowing off it. */
+.s-card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.015));
+  backdrop-filter: blur(18px) saturate(120%);
+}
+
+/* Blue survives exactly where it carries meaning. */
+.s-stat {
+  background: linear-gradient(168deg, rgba(46,107,240,0.13), rgba(255,255,255,0.02) 62%, transparent);
+  border-color: rgba(91,147,255,0.18);
+}
+.s-stat::after { background: radial-gradient(50% 50% at 50% 50%, rgba(91,147,255,0.11), transparent 70%); }
+
+.s-cta {
+  background:
+    radial-gradient(65% 105% at 50% 0%, rgba(46,107,240,0.24), transparent 66%),
+    linear-gradient(175deg, rgba(46,107,240,0.11), transparent 60%);
+  border-color: rgba(91,147,255,0.24);
+  box-shadow: var(--e4), 0 0 110px rgba(46,107,240,0.14);
+}
+
+.s-strip {
+  background: linear-gradient(155deg, rgba(244,63,94,0.075), rgba(255,255,255,0.015) 60%, transparent);
+  border-color: rgba(244,63,94,0.14);
+}
+
+/* The deck keeps its light — it is the one object that should glow, because
+   it is the product. */
+.s-deck__pool {
+  background:
+    radial-gradient(42% 40% at 50% 28%, rgba(91,147,255,0.34), transparent 70%),
+    radial-gradient(66% 52% at 50% 55%, rgba(46,107,240,0.13), transparent 74%);
+}
+
+.s-head { background: rgba(0,0,0,0.80); }
+.s-foot { background: rgba(0,0,0,0.6); }
