@@ -44,11 +44,17 @@ export async function proxy(request: NextRequest) {
      away from the homepage would mean the company's own site is unreachable to
      the people who work here, and to anyone we hand the link to. The header's
      "دخول" button is how they get to their dashboard. */
-  const SITE_PATHS = ["/", "/product", "/pricing", "/faq", "/about", "/contact"];
+  const SITE_PREFIXES = [
+    "/products", "/solutions", "/ai", "/integrations", "/security",
+    "/resources", "/company", "/early-access", "/pricing", "/contact",
+    /* old URLs, kept alive by redirects in next.config */
+    "/product", "/faq", "/about",
+  ];
 
   const isPublic =
     path.startsWith("/api/") ||
-    SITE_PATHS.includes(path) ||
+    path === "/" ||
+    SITE_PREFIXES.some((x) => path === x || path.startsWith(x + "/")) ||
     PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
   if (isPublic) return response;
 

@@ -466,3 +466,223 @@
 .demo__svc { font-size: .92rem; font-weight: 600; }
 .demo__meta { font-size: .78rem; color: var(--tx-2); margin-top: .25rem; }
 .demo__empty { font-size: .82rem; line-height: 1.8; color: var(--tx-3); }
+
+/* ════════════════════════════════════════════════════════════
+   SECTION TWO — the multi-page site
+   Everything above was written for the homepage. The site now
+   has nine sections and thirty routes, and these are the pieces
+   that only exist because of that: the mega panel, the page
+   hero every inner page opens with, and the three list shapes
+   (integrations, changelog, endpoints) that carry real state.
+   ════════════════════════════════════════════════════════════ */
+
+/* ── nav: dropdown triggers ───────────────────────────────── */
+.nav__trig {
+  display: inline-flex; align-items: center; gap: 0.32rem;
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font: inherit; font-size: 0.86rem; color: var(--tx-2);
+  transition: color .18s;
+}
+.nav__trig svg { transition: rotate .22s cubic-bezier(.2,.7,.3,1); opacity: .7; }
+.nav__trig:hover, .nav__trig[data-on="true"] { color: var(--tx); }
+.nav__trig[data-on="true"] svg { rotate: 180deg; color: var(--blue-lit); opacity: 1; }
+
+.nav__signin { display: none; font-size: 0.84rem; color: var(--tx-2); transition: color .18s; }
+.nav__signin:hover { color: var(--tx); }
+@media (min-width: 1120px) { .nav__signin { display: inline; } }
+
+/* ── the mega panel ───────────────────────────────────────── */
+.mega {
+  position: absolute; inset-inline: 0; top: 100%;
+  background: rgba(8,11,20,0.97);
+  backdrop-filter: blur(22px) saturate(150%);
+  border-bottom: 1px solid var(--line-2);
+  box-shadow: 0 40px 90px -40px rgba(0,0,0,.95);
+  animation: megaIn .2s cubic-bezier(.2,.7,.3,1);
+  display: none;
+}
+@media (min-width: 1120px) { .mega { display: block; } }
+@keyframes megaIn { from { opacity: 0; translate: 0 -8px; } to { opacity: 1; translate: 0 0; } }
+
+/* Fixed-width columns rather than fractional ones. Products has a
+   single group and Resources has two; stretched to 1fr each, a
+   one-group panel becomes a 600px-wide column of short links,
+   which reads as a mistake. */
+.mega__in {
+  display: grid; gap: 2.2rem 3rem; padding-block: 2.2rem 2.4rem;
+  grid-template-columns: repeat(auto-fit, minmax(0, 232px));
+  justify-content: start;
+  align-items: start;
+}
+.mega__h {
+  font-family: var(--site-mono), monospace;
+  font-size: 0.63rem; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--tx-3); margin-bottom: 1rem;
+  padding-bottom: 0.7rem; border-bottom: 1px solid var(--line);
+}
+.mega__i {
+  display: block; padding: 0.6rem 0.7rem; margin-inline-start: -0.7rem;
+  border-radius: 9px; transition: background .16s;
+}
+.mega__i b { display: block; font-size: 0.88rem; font-weight: 600; color: var(--tx-1); transition: color .16s; }
+.mega__i em {
+  display: block; font-style: normal; font-size: 0.74rem; line-height: 1.65;
+  color: var(--tx-3); margin-top: 0.22rem; max-width: 30ch;
+}
+.mega__i:hover { background: rgba(37,99,235,.1); }
+.mega__i:hover b { color: var(--blue-lit); }
+
+/* The one promoted item per panel. It is a card rather than a
+   link, so the eye lands on it before it starts reading columns. */
+.mega__feat {
+  grid-column: span 2; align-self: start;
+  border: 1px solid var(--line-blue); border-radius: var(--r);
+  padding: 1.3rem;
+  background: linear-gradient(165deg, rgba(37,99,235,.16), rgba(255,255,255,.012) 70%);
+  transition: border-color .2s, translate .2s cubic-bezier(.2,.7,.3,1);
+}
+.mega__feat:hover { border-color: var(--blue); translate: 0 -3px; }
+.mega__feat b { display: block; font-size: 0.95rem; margin-top: 0.9rem; }
+.mega__feat em {
+  display: block; font-style: normal; font-size: 0.77rem; line-height: 1.75;
+  color: var(--tx-2); margin-top: 0.4rem;
+}
+.mega__featic {
+  display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px;
+  color: var(--blue-lit); border: 1px solid var(--line-blue);
+  background: linear-gradient(150deg, rgba(37,99,235,.28), rgba(37,99,235,.05));
+}
+
+/* ── mobile drawer: sections ──────────────────────────────── */
+.mobnav__h {
+  font-family: var(--site-mono), monospace;
+  font-size: 0.62rem; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--tx-3); padding: 1.1rem var(--pad) 0.45rem;
+}
+.mobnav__sub {
+  padding-inline-start: calc(var(--pad) + 0.9rem) !important;
+  font-size: 0.85rem !important; color: var(--tx-2) !important;
+  border-inline-start: 1px solid var(--line);
+  margin-inline-start: var(--pad);
+}
+.mobnav__sub:hover { color: var(--tx) !important; }
+
+/* ── footer brand column ──────────────────────────────────── */
+/* Six columns now: the brand plus five link groups. Between 760
+   and 1180 six will not fit, so the brand takes its own row and
+   the groups sit three-up under it. */
+.foot__brand { max-width: 34ch; }
+@media (min-width: 760px) {
+  .foot__g { grid-template-columns: repeat(3, 1fr); }
+  .foot__brand { grid-column: 1 / -1; margin-bottom: 0.6rem; }
+}
+@media (min-width: 1180px) {
+  .foot__g { grid-template-columns: 1.4fr repeat(5, 1fr); }
+  .foot__brand { grid-column: auto; margin-bottom: 0; }
+}
+
+/* ── inner-page hero ──────────────────────────────────────── */
+/* Every page below the homepage opens the same way, so a visitor
+   knows immediately they are inside the site rather than on it.
+   The rule underneath is the section edge, not decoration. */
+.phero {
+  padding-block: clamp(3rem, 6vw, 5.2rem) clamp(2.4rem, 4vw, 3.4rem);
+  border-bottom: 1px solid var(--line);
+  background: radial-gradient(58% 130% at 12% 0%, rgba(37,99,235,.16), transparent 62%);
+}
+.phero__h { font-size: clamp(1.95rem, 4.2vw, 3.15rem); max-width: 20ch; line-height: 1.25; }
+
+/* ── four-up grid + card affordance ───────────────────────── */
+.grid4 { display: grid; gap: 1rem; grid-template-columns: 1fr; }
+@media (min-width: 660px)  { .grid4 { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1080px) { .grid4 { grid-template-columns: repeat(4, 1fr); } }
+
+.card__go {
+  display: inline-grid; place-items: center; width: 30px; height: 30px;
+  border-radius: 8px; margin-top: 1.1rem; font-size: 0.9rem;
+  color: var(--tx-3); border: 1px solid var(--line-2);
+  transition: background .22s, border-color .22s, color .22s;
+}
+.site-root:not(.site-en) .card__go { rotate: 180deg; }
+.card--lift:hover .card__go { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+/* ── integrations: a state per row, not a logo wall ───────── */
+.intg { border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
+.intg__row {
+  display: grid; grid-template-columns: auto 1fr; gap: 1rem;
+  align-items: start; padding: 1.25rem clamp(1rem, 2.4vw, 1.6rem);
+  border-top: 1px solid var(--line);
+  transition: background .2s;
+}
+.intg__row:first-child { border-top: 0; }
+.intg__row:hover { background: rgba(255,255,255,.022); }
+.intg__ic {
+  display: grid; place-items: center; width: 42px; height: 42px; border-radius: 11px;
+  color: var(--blue-lit); border: 1px solid var(--line-blue);
+  background: linear-gradient(150deg, rgba(37,99,235,.22), rgba(37,99,235,.04));
+}
+.intg__body b { display: block; font-size: 0.96rem; }
+.intg__body p { font-size: 0.82rem; line-height: 1.8; color: var(--tx-2); margin-top: 0.3rem; max-width: 62ch; }
+.intg__state {
+  grid-column: 2; justify-self: start;
+  font-family: var(--site-mono), monospace; font-size: 0.63rem; letter-spacing: .1em;
+  padding: 0.24rem 0.6rem; border-radius: 999px; margin-top: 0.15rem;
+  color: var(--tx-2); background: rgba(255,255,255,.045); border: 1px solid var(--line-2);
+}
+@media (min-width: 800px) {
+  .intg__row { grid-template-columns: auto 1fr auto; align-items: center; }
+  .intg__state { grid-column: auto; justify-self: end; margin-top: 0; }
+}
+
+/* ── changelog ────────────────────────────────────────────── */
+.clog__month { margin-bottom: 2.8rem; }
+.clog__mh {
+  display: flex; align-items: center; gap: 0.8rem;
+  font-size: 0.72rem; letter-spacing: .18em; text-transform: uppercase; color: var(--tx-3);
+  padding-bottom: 0.9rem; margin-bottom: 1.4rem; border-bottom: 1px solid var(--line);
+}
+.clog__count {
+  font-size: 0.62rem; padding: 0.14rem 0.5rem; border-radius: 999px;
+  color: var(--blue-lit); background: rgba(37,99,235,.14); border: 1px solid var(--line-blue);
+  letter-spacing: 0;
+}
+.clog__row {
+  display: grid; grid-template-columns: auto 1fr; gap: 1rem;
+  align-items: start; padding-block: 0.95rem;
+}
+.clog__row b { font-size: 0.94rem; font-weight: 600; display: block; }
+.clog__row p { font-size: 0.83rem; line-height: 1.85; color: var(--tx-2); margin-top: 0.35rem; max-width: 68ch; }
+.clog__tag {
+  font-family: var(--site-mono), monospace; font-size: 0.6rem; letter-spacing: .08em;
+  padding: 0.24rem 0.55rem; border-radius: 6px; min-width: 58px; text-align: center;
+  margin-top: 0.15rem; white-space: nowrap;
+}
+.clog__tag--new    { color: var(--blue-lit); background: rgba(37,99,235,.15);  border: 1px solid var(--line-blue); }
+.clog__tag--fix    { color: #fca5a5;         background: rgba(239,68,68,.13);  border: 1px solid rgba(239,68,68,.28); }
+.clog__tag--better { color: var(--ok);       background: rgba(34,197,94,.13);  border: 1px solid rgba(34,197,94,.28); }
+.clog__rule { height: 1px; background: var(--line); margin-top: 1.6rem; }
+
+/* ── API endpoints ────────────────────────────────────────── */
+.ep {
+  border: 1px solid var(--line); border-radius: var(--r);
+  padding: 1.3rem clamp(1rem, 2.4vw, 1.5rem); margin-bottom: 0.85rem;
+  background: rgba(255,255,255,.018);
+  transition: border-color .22s;
+}
+.ep:hover { border-color: var(--line-blue); }
+.ep__top { display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; margin-bottom: 0.85rem; }
+.ep__m {
+  font-family: var(--site-mono), monospace; font-size: 0.62rem; font-weight: 700;
+  letter-spacing: .1em; padding: 0.25rem 0.55rem; border-radius: 6px;
+}
+.ep__m--post { color: var(--ok); background: rgba(34,197,94,.13); border: 1px solid rgba(34,197,94,.3); }
+.ep__m--get  { color: var(--blue-lit); background: rgba(37,99,235,.15); border: 1px solid var(--line-blue); }
+/* The path is code. It stays left-to-right even on the Arabic page,
+   where an unforced slash would otherwise jump to the wrong end. */
+.ep__p { font-size: 0.82rem; color: var(--tx-1); direction: ltr; unicode-bidi: embed; }
+.ep__t { display: block; font-size: 0.94rem; }
+.ep__d { font-size: 0.84rem; line-height: 1.85; color: var(--tx-2); margin-top: 0.4rem; max-width: 70ch; }
+.ep__a {
+  font-size: 0.68rem; color: var(--tx-3); margin-top: 0.9rem;
+  padding-top: 0.75rem; border-top: 1px solid var(--line);
+}
