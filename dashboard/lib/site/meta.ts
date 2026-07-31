@@ -13,27 +13,29 @@ import type { Metadata } from "next";
    each other rather than scattered across twenty folders.
 
    Arabic, because the site opens in Arabic and a page has one title regardless
-   of which way the visitor later flips the toggle. Product names stay in Latin
-   script — someone searching "TAWD ClinicOS" should find the page. */
+   of which way the visitor later flips the toggle.
+
+   No sub-brands. Every title names what the page IS — إدارة العيادة, سُرى,
+   التقارير — and the only brand in any of them is the company's own. */
 
 type Entry = { t: string; d: string };
 
 const TABLE: Record<string, Entry> = {
   "products": {
-    t: "المنتجات",
-    d: "ClinicOS لتشغيل العيادة، وTAWD AI للردّ على مرضاها، وAnalytics قيد البناء. ما تبنيه طَود، بحالته الحقيقية.",
+    t: "النظام",
+    d: "نظام واحد يُدير العيادة من أول رسالة إلى إقفال اليوم: المواعيد والملفات والفوترة والمخزون، ومعه سُرى التي تردّ على مرضاك وتحجز لهم.",
   },
   "products/clinic": {
-    t: "ClinicOS — نظام تشغيل العيادة",
-    d: "المواعيد والملفات والفوترة والمخزون والرواتب والتأمين والخطط العلاجية في نظام واحد، بالعربية وضريبة عُمان.",
+    t: "إدارة العيادة",
+    d: "المواعيد والملفات الطبية والفوترة والمخزون والرواتب والتأمين والخطط العلاجية في نظام واحد، بالعربية وضريبة عُمان.",
   },
   "products/ai": {
-    t: "TAWD AI — سُرى",
-    d: "سُرى تردّ على واتساب وإنستغرام بالعربية والإنجليزية، تحجز في تقويمك فعلاً، وتُصعّد الحالة الطارئة لإنسان في ثوانٍ.",
+    t: "سُرى",
+    d: "سُرى تردّ على مرضاك في واتساب وإنستغرام بالعربية والإنجليزية، تحجز في جدول الطبيب فعلاً، وتُصعّد الحالة الطارئة لفريقك في ثوانٍ.",
   },
   "products/analytics": {
-    t: "TAWD Analytics — قيد التطوير",
-    d: "تقارير عيادتك تعمل اليوم داخل ClinicOS. مقارنة الفروع والتنبّؤ بالطلب قيد البناء — ونقول لماذا لم تُشحن بعد.",
+    t: "التقارير والأرقام",
+    d: "نسبة التحصيل، وعدم الحضور بالريال، وإنتاجية كل طبيب، والربح الشهري — محسوبة من عمل عيادتك الفعلي.",
   },
   "solutions": {
     t: "الحلول",
@@ -81,7 +83,7 @@ const TABLE: Record<string, Entry> = {
   },
   "company/about": {
     t: "عن طَود",
-    d: "من نحن، ولماذا بُني هذا النظام في عُمان، ومن يقف خلفه.",
+    d: "فريق عُماني يبني نظام إدارة العيادات والذكاء الذي يردّ على مرضاها — من نحن، ولماذا بنينا طَود.",
   },
   "company/vision": {
     t: "الرؤية",
@@ -94,8 +96,8 @@ const TABLE: Record<string, Entry> = {
    There are two title templates above this: the root layout brands the whole
    app, and an intermediate segment that sets a plain title (like /products)
    consumes the template and leaves its own children unbranded. The result was
-   /pricing reading "الأسعار | طَود" while /products/ai read "TAWD AI — سُرى"
-   with no brand at all, and the homepage reading the brand twice.
+   /pricing reading "الأسعار | طَود" while /products/ai read its own title with
+   no brand at all, and the homepage reading the brand twice.
 
    `absolute` opts out of every template above, so each page states its full
    title and nothing upstream can change it. */

@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useState } from "react";
 import { useSite } from "@/components/site/lang";
 
-/* One founder, stated plainly.
+/* The company, then its leadership.
 
-   The instinct is to write "we" and imply a team. A clinic owner in Oman can
-   tell, and being caught inflating is worse than being small. So the page says
-   who built it and shows him — which is also the stronger position: the person
-   who wrote the software answers the phone. */
+   Order matters. A clinic is choosing a supplier it will depend on every day,
+   so it wants to know there is a team behind the system before it wants to know
+   who runs it. The disciplines are named; the people in them are not — naming
+   individuals invites a search, and the point of the section is the capability
+   rather than a roster. */
 export default function AboutPage() {
   const { t } = useSite();
   const a = t.about;
@@ -44,6 +45,21 @@ export default function AboutPage() {
       </section>
 
       <section className="sec">
+        <div className="wrap">
+          <span className="pill">{a.teamTitle}</span>
+          <h2 className="h2" style={{ marginBlock: "1.2rem 0", maxWidth: "26ch" }}>{a.teamLede}</h2>
+          <div className="grid3" style={{ marginTop: "2.4rem" }}>
+            {a.teamCards.map((c) => (
+              <div key={c.t} className="card card--lift">
+                <h3 className="card__t">{c.t}</h3>
+                <p className="card__d">{c.d}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="sec" style={{ borderTop: "1px solid var(--line)" }}>
         <div className="wrap">
           <span className="pill">{a.founderTitle}</span>
           <div

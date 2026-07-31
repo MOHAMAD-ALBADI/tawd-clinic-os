@@ -12,7 +12,7 @@ import { PageHero, Head, CardGrid, SplitList, CtaBand, Steps } from "@/component
 import { SuraDemo } from "@/components/site/sura-demo";
 import { Reveal } from "@/components/site/reveal";
 
-/* TAWD AI — the product page for the intelligence layer.
+/* Sura — the page for the intelligence inside the system.
 
    Distinct from /ai, which is the platform page: that one explains how the
    agent decides and what it refuses to do. This one is the commercial page —
@@ -24,7 +24,7 @@ export default function ProductAiPage() {
   return (
     <>
       <PageHero
-        tag="TAWD AI"
+        tag={ar ? "سُرى" : "Sura"}
         title={ar ? "موظّفة استقبال لا تنام، ولا تنسى مريضاً" : "A receptionist who never sleeps, and never forgets a patient"}
         lede={ar
           ? "سُرى تردّ على واتساب وإنستغرام بالعربية والإنجليزية، تحجز فعلاً في التقويم، وتحوّل الحالة الطارئة إلى إنسان في ثوانٍ. ليست ردّاً آلياً — تقرأ التقويم وتكتب فيه."

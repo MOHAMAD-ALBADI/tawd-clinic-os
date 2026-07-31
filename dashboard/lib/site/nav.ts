@@ -16,14 +16,14 @@ export const NAV: { key: string; ar: string; en: string; href?: string; groups?:
       {
         ar: "المنتجات", en: "Products",
         items: [
-          { href: "/products", ar: "نظرة عامة", en: "Overview", arD: "كل ما تبنيه طَود", enD: "Everything TAWD builds" },
-          { href: "/products/clinic", ar: "ClinicOS", en: "ClinicOS", arD: "نظام تشغيل العيادة الكامل", enD: "The full clinic operating system" },
-          { href: "/products/ai", ar: "TAWD AI", en: "TAWD AI", arD: "طبقة الذكاء تحت كل منتج", enD: "The intelligence layer beneath everything" },
-          { href: "/products/analytics", ar: "TAWD Analytics", en: "TAWD Analytics", arD: "قريباً", enD: "In development" },
+          { href: "/products", ar: "نظرة عامة", en: "Overview", arD: "النظام كاملاً في صفحة", enD: "The whole system on one page" },
+          { href: "/products/clinic", ar: "إدارة العيادة", en: "Clinic management", arD: "المواعيد والملفات والفوترة والمخزون", enD: "Appointments, records, billing and stock" },
+          { href: "/products/ai", ar: "سُرى", en: "Sura", arD: "الذكاء الذي يردّ على مرضاك ويحجز", enD: "The intelligence that answers your patients and books" },
+          { href: "/products/analytics", ar: "التقارير والتحليلات", en: "Reporting & analytics", arD: "أرقام عيادتك ومقارنة الفروع", enD: "Your clinic's numbers and branch comparison" },
         ],
       },
     ],
-    feature: { href: "/ai", ar: "منصّة الذكاء الاصطناعي", en: "AI Platform", arD: "سُرى، والوكلاء، والصوت", enD: "Sura, agents and voice" },
+    feature: { href: "/ai", ar: "سُرى — كيف تعمل", en: "Sura — how it works", arD: "تردّ، وتفهم، وتحجز في جدول الطبيب", enD: "It answers, understands, and books into the doctor's calendar" },
   },
   {
     key: "solutions",
@@ -48,7 +48,7 @@ export const NAV: { key: string; ar: string; en: string; href?: string; groups?:
       },
     ],
   },
-  { key: "ai", ar: "الذكاء الاصطناعي", en: "AI Platform", href: "/ai" },
+  { key: "sura", ar: "سُرى", en: "Sura", href: "/ai" },
   {
     key: "resources",
     ar: "الموارد", en: "Resources",
@@ -94,11 +94,11 @@ export const NAV: { key: string; ar: string; en: string; href?: string; groups?:
    not in a header someone is trying to buy from. */
 export const FOOTER: NavGroup[] = [
   {
-    ar: "المنتجات", en: "Products",
+    ar: "النظام", en: "The system",
     items: [
-      { href: "/products/clinic", ar: "ClinicOS", en: "ClinicOS" },
-      { href: "/products/ai", ar: "TAWD AI", en: "TAWD AI" },
-      { href: "/ai", ar: "منصّة الذكاء", en: "AI Platform" },
+      { href: "/products", ar: "نظرة عامة", en: "Overview" },
+      { href: "/products/clinic", ar: "إدارة العيادة", en: "Clinic management" },
+      { href: "/ai", ar: "سُرى", en: "Sura" },
       { href: "/integrations", ar: "التكاملات", en: "Integrations" },
       { href: "/pricing", ar: "الأسعار", en: "Pricing" },
     ],

@@ -6,7 +6,7 @@ import { useSite } from "@/components/site/lang";
 import { PageHero, Head, CardGrid, CtaBand } from "@/components/site/kit";
 import { Reveal } from "@/components/site/reveal";
 
-/* TAWD Analytics — in development, and the page says so at the top.
+/* التقارير والأرقام — the reporting side of the system.
 
    The honest version of a "coming soon" page is not a countdown and an email
    box. It is: here is what already exists, here is the specific thing being
@@ -19,11 +19,11 @@ export default function ProductAnalyticsPage() {
   return (
     <>
       <PageHero
-        tag={ar ? "قيد التطوير" : "In development"}
+        tag={ar ? "التقارير والأرقام" : "Reporting"}
         title={ar ? "الأرقام التي لا تظهر إلا حين تجمع العيادات" : "The numbers that only appear when clinics are compared"}
         lede={ar
-          ? "تقارير كل عيادة تعمل اليوم داخل ClinicOS. Analytics هو الطبقة فوقها: مقارنة الفروع، والتنبّؤ بالطلب، والمقارنة بمتوسّط السوق. نُصارحك أنه لم يُشحن بعد."
-          : "Per-clinic reporting already works inside ClinicOS. Analytics is the layer above it: branch comparison, demand forecasting and market benchmarks. It has not shipped yet, and we say so."}
+          ? "تقارير كل عيادة تعمل اليوم داخل نظام طَود. وفوقها طبقة أوسع: مقارنة الفروع، والتنبّؤ بالطلب، والمقارنة بمتوسّط السوق. نُصارحك أنه لم يُشحن بعد."
+          : "Per-clinic reporting already works inside TAWD. A wider layer sits above it: branch comparison, demand forecasting and market benchmarks. It has not shipped yet, and we say so."}
         cta={{ href: "/products/clinic", label: ar ? "التقارير المتاحة اليوم" : "The reports available today" }}
         cta2={{ href: "/contact", label: ar ? "أخبرنا بما تحتاجه" : "Tell us what you need" }}
       />
@@ -34,8 +34,8 @@ export default function ProductAnalyticsPage() {
             tag={ar ? "المتاح الآن" : "Available now"}
             title={ar ? "ما تعطيه لوحتك اليوم" : "What your dashboard already gives you"}
             lede={ar
-              ? "هذه ليست وعوداً — كلّها تعمل في ClinicOS وتُحسب من عملك الفعلي، لا من تقديرات."
-              : "These are not promises — all of them run in ClinicOS today, computed from your actual work rather than estimated."}
+              ? "هذه ليست وعوداً — كلّها تعمل في نظام طَود وتُحسب من عملك الفعلي، لا من تقديرات."
+              : "These are not promises — all of them run in TAWD today, computed from your actual work rather than estimated."}
           />
           <CardGrid cols={3} items={[
             { i: TrendingUp, t: ar ? "نسبة التحصيل" : "Collection rate",
