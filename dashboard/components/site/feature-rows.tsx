@@ -78,7 +78,7 @@ export function FeatureRows() {
       {FEATURES.map((f, i) => {
         const c = f[lang];
         return (
-          <section key={f.shot} className="s-section">
+          <section key={f.shot} className={`s-section ${i % 2 === 1 ? "s-lit" : ""}`}>
             <div className="s-wrap">
               <div className="s-featrow" data-flip={i % 2 === 1}>
                 <Reveal className="s-featrow__copy">
@@ -108,11 +108,62 @@ export function FeatureRows() {
    as unfinished. Each maps to the module it names. */
 const MODULE_ICONS = [CalendarClock, Receipt, Boxes, Wallet, FileHeart, ClipboardList];
 
+/* A fragment of the real interface inside each card.
+
+   Six boxes of prose is a list of claims. A card that shows the actual row,
+   bar or badge the module produces is the claim and its evidence in the same
+   object — which is what the reference sites do and what mine did not. */
+function Fragment({ i, lang }: { i: number; lang: "ar" | "en" }) {
+  const ar = lang === "ar";
+  switch (i) {
+    case 0: return (
+      <div className="s-frag">
+        <div className="s-frag__row">{ar ? "٠٩:٠٠ · تنظيف" : "09:00 · Cleaning"}<span className="s-frag__pill">{ar ? "مؤكّد" : "Confirmed"}</span></div>
+        <div className="s-frag__row">{ar ? "٠٩:٣٥ · حشوة" : "09:35 · Filling"}<b>د. سارة</b></div>
+      </div>
+    );
+    case 1: return (
+      <div className="s-frag">
+        <div className="s-frag__row">{ar ? "المجموع" : "Subtotal"}<b>35.000</b></div>
+        <div className="s-frag__row">{ar ? "ضريبة ٥٪" : "VAT 5%"}<b>1.750</b></div>
+        <div className="s-frag__row" style={{ borderColor: "rgba(91,147,255,0.3)" }}>{ar ? "الإجمالي" : "Total"}<b style={{ color: "var(--s-blue-lit)" }}>36.750</b></div>
+      </div>
+    );
+    case 2: return (
+      <div className="s-frag">
+        <div className="s-frag__row">{ar ? "قفازات" : "Gloves"}<b>14</b></div>
+        <div className="s-frag__bar"><i style={{ width: "22%" }} /></div>
+        <div className="s-frag__row" style={{ borderColor: "rgba(251,191,36,0.28)", color: "#fbbf24" }}>{ar ? "تنتهي خلال ١٨ يوم" : "Expires in 18 days"}</div>
+      </div>
+    );
+    case 3: return (
+      <div className="s-frag">
+        <div className="s-frag__row">{ar ? "إيراد" : "Revenue"}<b>7,582</b></div>
+        <div className="s-frag__bar"><i style={{ width: "100%" }} /></div>
+        <div className="s-frag__row">{ar ? "مصروف" : "Expenses"}<b>4,423</b></div>
+        <div className="s-frag__bar"><i style={{ width: "58%", background: "linear-gradient(90deg,#fbbf24,#f59e0b)" }} /></div>
+      </div>
+    );
+    case 4: return (
+      <div className="s-frag">
+        <div className="s-frag__row">{ar ? "مطالبة #١٠٤" : "Claim #104"}<span className="s-frag__pill">{ar ? "مقبولة" : "Approved"}</span></div>
+        <div className="s-frag__row">{ar ? "تغطية" : "Covered"}<b>80%</b></div>
+      </div>
+    );
+    default: return (
+      <div className="s-frag">
+        <div className="s-frag__row">{ar ? "خطة علاج — ٥ زيارات" : "Plan — 5 visits"}<b>2/5</b></div>
+        <div className="s-frag__bar"><i style={{ width: "40%" }} /></div>
+      </div>
+    );
+  }
+}
+
 export function Modules() {
-  const { t } = useSite();
+  const { t, lang } = useSite();
   const h = t.home;
   return (
-    <section className="s-section">
+    <section className="s-section s-lit">
       <div className="s-wrap">
         <Reveal style={{ marginBottom: "2.4rem" }}>
           <h2 className="s-h2">{h.depthTitle}</h2>
@@ -123,9 +174,10 @@ export function Modules() {
             const I = MODULE_ICONS[i] ?? ClipboardList;
             return (
               <Reveal key={d.t} delay={i * 60} className="s-card s-card--lift">
-                <span className="s-mods__i"><I size={18} /></span>
+                <span className="s-mods__i"><I size={20} /></span>
                 <h3 className="s-card__t">{d.t}</h3>
                 <p className="s-card__d">{d.d}</p>
+                <Fragment i={i} lang={lang} />
               </Reveal>
             );
           })}

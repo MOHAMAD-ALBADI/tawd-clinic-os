@@ -69,8 +69,8 @@ export function ProblemStrip() {
   return (
     <section className="s-section--tight">
       <div className="s-wrap">
-        <Reveal className="s-card" style={{ padding: "clamp(2rem, 5vw, 3.4rem)" }}>
-          <h2 className="s-display" style={{ fontSize: "clamp(1.4rem, 3.2vw, 2.1rem)", maxWidth: "26ch" }}>
+        <Reveal className="s-card s-strip" style={{ padding: "clamp(2rem, 5vw, 3.4rem)" }}>
+          <h2 className="s-display" style={{ fontSize: "clamp(1.5rem, 3.4vw, 2.3rem)", maxWidth: "26ch" }}>
             {t.home.stripTitle}
           </h2>
           <p className="s-lede" style={{ marginTop: "1rem" }}>{t.home.stripBody}</p>
@@ -145,8 +145,8 @@ export function ClosingCta() {
   return (
     <section className="s-section">
       <div className="s-wrap">
-        <Reveal className="s-card" style={{ padding: "clamp(2.5rem, 6vw, 4.5rem)", textAlign: "center" }}>
-          <h2 className="s-h2" style={{ maxWidth: "20ch", marginInline: "auto" }}>{h.ctaTitle}</h2>
+        <Reveal className="s-card s-cta" style={{ padding: "clamp(2.8rem, 7vw, 5rem)", textAlign: "center" }}>
+          <h2 className="s-h2" style={{ maxWidth: "20ch", marginInline: "auto", fontSize: "clamp(1.9rem, 4vw, 3rem)" }}>{h.ctaTitle}</h2>
           <p className="s-lede" style={{ marginInline: "auto" }}>{h.ctaBody}</p>
           <Link href="/contact" className="s-btn s-btn--primary" style={{ marginTop: "2.2rem" }}>
             {h.ctaButton} <Arrow />

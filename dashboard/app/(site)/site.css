@@ -555,3 +555,90 @@
 .s-roi__big em { font-style: normal; font-size: 0.34em; color: var(--s-text-3); -webkit-text-fill-color: var(--s-text-3); }
 .s-roi__sub { font-size: 0.9rem; color: var(--s-text-2); margin-top: 0.5rem; }
 .s-roi__note { font-size: 0.75rem; line-height: 1.75; color: var(--s-text-4); margin-top: 1.3rem; max-width: 42ch; margin-inline: auto; }
+
+/* ═══════════════════════════════════════════════════════════
+   VISUAL ANCHORS
+   The ROI panel was the only thing on the page that worked,
+   and the reason was structural: a lit gradient surface, a
+   figure big enough to read across a room, real contrast.
+   Everything else was dark text on a dark card — twelve
+   sections that all looked like the same section.
+   That treatment is now the page's language, not one panel's.
+   ═══════════════════════════════════════════════════════════ */
+
+/* Sections alternate between plain and a lit wash, so scrolling
+   has a pulse instead of one uninterrupted dark field. */
+.s-lit {
+  background:
+    radial-gradient(80% 130% at 50% -20%, rgba(46,107,240,0.13), transparent 62%),
+    linear-gradient(180deg, rgba(255,255,255,0.028), transparent 60%);
+  border-block: 1px solid var(--s-line);
+}
+
+/* ── stat tiles, built like the ROI panel ─────────────────── */
+.s-stats { gap: 1.1rem; }
+.s-stat {
+  position: relative; overflow: hidden;
+  background: linear-gradient(165deg, rgba(46,107,240,0.15), rgba(109,91,255,0.05) 60%, transparent);
+  border: 1px solid rgba(91,147,255,0.22);
+  box-shadow: var(--e3);
+  padding: 2.1rem 1.2rem 1.7rem;
+}
+.s-stat::after {
+  content: ""; position: absolute; inset-block-start: -55%; inset-inline-start: -20%;
+  width: 140%; aspect-ratio: 1;
+  background: radial-gradient(50% 50% at 50% 50%, rgba(91,147,255,0.16), transparent 68%);
+  pointer-events: none;
+}
+.s-stat__v { font-size: clamp(2.4rem, 5.4vw, 3.5rem); position: relative; }
+.s-stat__l { font-size: 0.82rem; color: var(--s-text-2); position: relative; }
+
+/* ── flow steps: the number becomes the anchor ────────────── */
+.s-flow__n {
+  width: 54px; height: 54px; border-radius: 17px; font-size: 1.25rem; font-weight: 700;
+  color: #fff;
+  background: linear-gradient(160deg, #5b93ff, var(--s-blue-deep));
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: 0 10px 30px rgba(46,107,240,0.42);
+}
+.s-flow .s-card { padding-top: 1.6rem; }
+
+/* ── module icons: lit, not outlined ──────────────────────── */
+.s-mods__i {
+  width: 50px; height: 50px; border-radius: 15px; color: #fff;
+  background: linear-gradient(160deg, #5b93ff, var(--s-blue-deep));
+  border: 1px solid rgba(255,255,255,0.16);
+  box-shadow: 0 8px 24px rgba(46,107,240,0.35);
+}
+
+/* ── the problem strip earns real weight ──────────────────── */
+.s-strip {
+  background: linear-gradient(150deg, rgba(244,63,94,0.10), rgba(46,107,240,0.06) 55%, transparent);
+  border: 1px solid rgba(244,63,94,0.18);
+  box-shadow: var(--e3);
+}
+
+/* ── closing CTA: the brightest object on the page ────────── */
+.s-cta {
+  background:
+    radial-gradient(70% 110% at 50% 0%, rgba(91,147,255,0.30), transparent 62%),
+    linear-gradient(170deg, rgba(46,107,240,0.20), rgba(109,91,255,0.10) 60%, transparent);
+  border: 1px solid rgba(91,147,255,0.32);
+  box-shadow: var(--e4), 0 0 120px rgba(46,107,240,0.22);
+}
+
+/* ── a real UI fragment inside a card ─────────────────────── */
+.s-frag { display: grid; gap: 0.45rem; margin-top: 1.1rem; }
+.s-frag__row {
+  display: flex; align-items: center; gap: 0.55rem;
+  padding: 0.5rem 0.7rem; border-radius: 10px;
+  background: rgba(0,0,0,0.30); border: 1px solid var(--s-line);
+  font-size: 0.74rem; color: var(--s-text-2);
+}
+.s-frag__row b { margin-inline-start: auto; font-family: var(--site-mono), monospace; color: var(--s-text); }
+.s-frag__bar { height: 4px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.s-frag__bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #5b93ff, var(--s-blue)); }
+.s-frag__pill {
+  font-size: 0.66rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 999px;
+  background: rgba(52,211,153,0.14); color: var(--s-confirm); border: 1px solid rgba(52,211,153,0.3);
+}
