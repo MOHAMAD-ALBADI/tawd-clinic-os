@@ -1,4 +1,5 @@
 import { Fragment } from "react";
+import { DocChart, parseChart, type ChartSpec } from "./doc-chart";
 
 /* Markdown, on paper.
  *
@@ -15,6 +16,7 @@ type Block =
   | { k: "ul"; items: string[] }
   | { k: "ol"; items: string[] }
   | { k: "table"; rows: string[][] }
+  | { k: "chart"; spec: ChartSpec }
   | { k: "hr" };
 
 function parse(md: string): Block[] {
@@ -32,6 +34,23 @@ function parse(md: string): Block[] {
     if (!line.trim()) { i++; continue; }
 
     if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { out.push({ k: "hr" }); i++; continue; }
+
+    /* A fenced block. Only charts are rendered; anything else fenced is
+       dropped rather than printed raw — a document should never show its
+       own scaffolding to the clinic that prints it. */
+    const fence = /^\s*```\s*(\S*)/.exec(line);
+    if (fence) {
+      const lang = fence[1].toLowerCase();
+      const body: string[] = [];
+      i++;
+      while (i < lines.length && !/^\s*```/.test(lines[i])) { body.push(lines[i]); i++; }
+      i++;
+      if (lang === "chart" || lang === "رسم") {
+        const spec = parseChart(body.join("\n"));
+        if (spec) out.push({ k: "chart", spec });
+      }
+      continue;
+    }
 
     const h = /^(#{1,3})\s+(.*)$/.exec(line);
     if (h) {
@@ -115,6 +134,8 @@ export function DocBody({ md }: { md: string }) {
                 {b.items.map((it, j) => <li key={j}>{inline(it, `${i}-${j}`)}</li>)}
               </ol>
             );
+          case "chart":
+            return <DocChart key={i} spec={b.spec} />;
           case "hr":
             return <hr key={i} className="db-hr" />;
           case "table":
