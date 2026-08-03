@@ -4,6 +4,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { platformSecrets } from "@/lib/platform-secrets";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { runAction, type Action } from "@/lib/sura/actions";
+import type { Attachment } from "@/lib/sura/types";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -195,6 +196,16 @@ const tablesFor = (role: Role) => (role === "platform_admin" ? PLATFORM_TABLES :
 const OPS = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "ilike", "in", "is"]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/* What may be attached. An allowlist rather than a blocklist: the model
+   will attempt whatever it is handed, and a clinic uploading a
+   spreadsheet of patients to "have a look at" is a data path nobody
+   designed. Images and PDFs cover the real cases — a card, a scan, a
+   report, a quotation. */
+const ALLOWED_MIME = new Set([
+  "image/png", "image/jpeg", "image/webp", "image/heic", "image/heif",
+  "application/pdf",
+]);
+
 /* The action set lives in lib/sura/actions.ts.
 
    It was two appointment mutations inlined here, which meant the only
@@ -325,17 +336,37 @@ async function runPlan(sb: Awaited<ReturnType<typeof createServiceRoleClient>>, 
 /* running token counters for platform usage monitoring */
 type Usage = { input: number; output: number };
 
-async function gemini(key: string, prompt: string, json: boolean, usage?: Usage) {
+/* An attachment the user dropped into the conversation.
+
+   Gemini reads images and PDFs natively, so a scan of an insurance card,
+   a lab report or a competitor's price list can be handed straight to the
+   model rather than described. The file never lands in our storage: it
+   goes up with the question and is gone when the request ends, which is
+   the right default for a photograph of somebody's medical document. */
+
+
+async function gemini(
+  key: string,
+  prompt: string,
+  json: boolean,
+  usage?: Usage,
+  files: Attachment[] = [],
+) {
+  const parts: Record<string, unknown>[] = [
+    ...files.map((f) => ({ inlineData: { mimeType: f.mime, data: f.data } })),
+    { text: prompt },
+  ];
+
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: [{ parts }],
         generationConfig: {
           temperature: 0.25,
-          maxOutputTokens: 1200,
+          maxOutputTokens: files.length ? 2400 : 1200,
           thinkingConfig: { thinkingBudget: 0 },
           ...(json ? { responseMimeType: "application/json" } : {}),
         },
@@ -385,9 +416,26 @@ export async function POST(req: Request) {
 
   let question = "";
   let history: { role: string; text: string }[] = [];
+  let files: Attachment[] = [];
   try {
     const body = await req.json();
     question = String(body?.question ?? "").slice(0, 500).trim();
+    /* Two files, four megabytes each. Beyond that the base64 payload
+       costs more to move than the answer is worth, and Gemini's inline
+       limit is around twenty megabytes for the whole request. */
+    if (Array.isArray(body?.files)) {
+      files = body.files
+        .slice(0, 2)
+        .filter((f: { mime?: string; data?: string }) =>
+          typeof f?.data === "string" &&
+          f.data.length < 5_600_000 &&
+          ALLOWED_MIME.has(String(f?.mime)))
+        .map((f: { mime: string; data: string; name?: string }) => ({
+          mime: f.mime,
+          data: f.data,
+          name: typeof f.name === "string" ? f.name.slice(0, 120) : undefined,
+        }));
+    }
     if (Array.isArray(body?.history)) {
       history = body.history.slice(-6).map((m: { role?: string; text?: string; content?: string }) => ({
         role: m.role === "user" ? "المدير" : "سُرى",
@@ -482,8 +530,13 @@ export async function POST(req: Request) {
     let actionsDone = 0;
     const usage: Usage = { input: 0, output: 0 };
 
+    const fileNote = files.length
+      ? `\n[مرفقات]\nأرفق المستخدم ${files.length} ملفاً (${files.map((f) => f.name ?? f.mime).join("، ")}). ` +
+        `اقرأيها واستخرجي منها ما يخدم السؤال. إن كانت وثيقة مريض فلخّصي المهمّ منها ولا تنسخيها كاملة.\n`
+      : "";
+
     const ask = (final: boolean) =>
-      header + historyBlock +
+      header + historyBlock + fileNote +
       `\n[سؤال المستخدم]\n${question}\n` +
       (context.length ? `\n[نتائج الاستعلامات والإجراءات حتى الآن]\n${JSON.stringify(context).slice(0, 14000)}\n` : "") +
       `\nأعيدي JSON فقط بأحد الأشكال:\n` +
@@ -514,7 +567,7 @@ export async function POST(req: Request) {
             ? ``
             : `3) {"action":{...}} — لتنفيذ إجراء طلبه المستخدم صراحة (بعد حصولك على id من استعلام).`));
 
-    let resp = JSON.parse(await gemini(geminiKey, ask(false), true, usage));
+    let resp = JSON.parse(await gemini(geminiKey, ask(false), true, usage, files));
 
     for (let step = 0; step < 4; step++) {
       if (resp.answer && !resp.queries && !resp.action) {

@@ -6,6 +6,7 @@ import { rolesOf } from "@/lib/auth/role-redirect";
 import { KpiGrid } from "@/components/dashboard/kpi-grid";
 import { WhyCard } from "@/components/sura/why-card";
 import { RunTick } from "@/components/sura/run-tick";
+import { SuraConsole, ReportLink } from "@/components/sura/console";
 
 export const metadata = { title: "سُرى الوكيل — طود" };
 export const dynamic = "force-dynamic";
@@ -116,8 +117,19 @@ export default async function SuraAgentPage() {
             كل قرار هنا قابل للفتح لتقرأ سببه.
           </p>
         </div>
-        {isOwner && <RunTick />}
+        <div className="flex flex-wrap items-center gap-2">
+          <ReportLink />
+          {isOwner && <RunTick />}
+        </div>
       </header>
+
+      {/* The conversation first.
+
+          This page opened with four KPI tiles, which made it a report
+          about Sura rather than a place to work with her. The tiles still
+          matter — they are the answer to "is this earning its keep" — but
+          they belong under the thing you came here to use. */}
+      <SuraConsole />
 
       <KpiGrid
         items={[

@@ -77,3 +77,12 @@ export type ActionLog = {
   result: Record<string, unknown>;
   ok: boolean;
 };
+
+/* A file the user dropped into the conversation.
+
+   Gemini reads images and PDFs natively, so a scan of an insurance card,
+   a lab report or a supplier's quotation can be handed straight to the
+   model rather than described to it. The bytes never land in our storage:
+   they travel with the question and are gone when the request ends, which
+   is the right default for a photograph of somebody's medical document. */
+export type Attachment = { mime: string; data: string; name?: string };
