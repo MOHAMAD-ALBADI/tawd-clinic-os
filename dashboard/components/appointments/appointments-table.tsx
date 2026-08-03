@@ -28,7 +28,7 @@ export function AppointmentsTable({ appts }: { appts: ApptRow[] }) {
         <div className="text-center">
           <p className="font-semibold text-white">لا توجد مواعيد</p>
           <p className="text-sm mt-1" style={{ color: "var(--text-3)" }}>
-            اضغط "موعد جديد" لإضافة أول موعد
+            اضغط «موعد جديد» لإضافة أول موعد
           </p>
         </div>
       </div>
@@ -36,7 +36,50 @@ export function AppointmentsTable({ appts }: { appts: ApptRow[] }) {
   }
 
   return (
-    <div className="overflow-x-auto">
+    <>
+      {/* ── phone: one card per appointment ──────────────────────────
+       *
+       * The table is 580px wide. On a 390px screen it scrolled sideways,
+       * which meant the doctor's name lived off the edge and the date
+       * column was clipped to a single letter. A receptionist checking
+       * the day from her phone should not have to drag a table around to
+       * read it.
+       *
+       * Same data, stacked: who and when first, because that is what the
+       * question always is. */}
+      <div className="sm:hidden divide-y" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+        {appts.map((row) => (
+          <div key={row.id} className="px-4 py-3.5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-semibold text-white truncate">{row.patient_name}</p>
+                <p className="text-[12px] mt-0.5 truncate" style={{ color: "var(--text-2)" }}>
+                  {row.service_name}
+                </p>
+              </div>
+              <div className="shrink-0 text-end">
+                <div className="text-[13px] font-medium ltr-nums text-white">{formatTime(row.slot_time)}</div>
+                <div className="text-[11px] ltr-nums mt-0.5" style={{ color: "var(--text-3)" }}>
+                  {formatDate(row.slot_time)}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 mt-2.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <AppointmentStatusBadge status={row.status as AppointmentStatus} />
+                <span className="text-[12px] truncate" style={{ color: "var(--text-3)" }}>
+                  {row.doctor_name !== "—" ? `د. ${row.doctor_name}` : "—"}
+                </span>
+              </div>
+              <AppointmentRowActions id={row.id} status={row.status} slotTime={row.slot_time} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── tablet and up: the table, unchanged ── */}
+      <div className="hidden sm:block overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)" }}>
@@ -81,6 +124,7 @@ export function AppointmentsTable({ appts }: { appts: ApptRow[] }) {
           ))}
         </tbody>
       </table>
-    </div>
+      </div>
+    </>
   );
 }

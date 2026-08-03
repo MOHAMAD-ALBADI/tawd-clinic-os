@@ -82,7 +82,46 @@ export default async function PatientsPage() {
             <p className="text-sm" style={{ color: "var(--text-3)" }}>لا يوجد مرضى مسجّلون</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* ── phone: one card per patient ──────────────────────────
+           *
+           * Four columns and a hover-only action group do not survive a
+           * 390px screen. Stacked here, with the actions always visible
+           * because a finger cannot hover. */}
+          <div className="sm:hidden divide-y" style={{ borderColor: "var(--hairline-2)" }}>
+            {patients.map((p) => (
+              <div key={p.id} className="px-4 py-3.5">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-[13px] font-black shrink-0"
+                    style={{ background: "rgb(var(--accent-1-rgb) / 0.1)", color: "var(--color-brand-300)", border: "1px solid rgb(var(--accent-1-rgb) / 0.18)" }}>
+                    {p.name.charAt(0)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-[13.5px] text-white truncate">{p.name}</p>
+                    <span className="flex items-center gap-1.5 ltr-nums text-[12px] mt-0.5" style={{ color: "var(--text-2)" }}>
+                      <Phone className="w-3 h-3 shrink-0" style={{ color: "var(--color-brand-400)" }} />{p.phone}
+                    </span>
+                  </div>
+                  {(p.loyalty_points ?? 0) > 0 && (
+                    <span className="badge badge-warn ltr-nums shrink-0"><Star className="w-3 h-3" />{p.loyalty_points}</span>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-2 mt-3">
+                  <span className="ltr-nums text-[11.5px]" style={{ color: "var(--text-4)" }}>{formatDate(p.created_at)}</span>
+                  <div className="flex items-center gap-2">
+                    <EditPatientTrigger patient={p} />
+                    <Link href={`/clinic-admin/patients/${p.id}`} className="btn-ghost">
+                      الملف <ChevronLeft className="w-3 h-3" />
+                    </Link>
+                    <ArchivePatientTrigger id={p.id} name={p.name} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr style={{ background: "rgba(255,255,255,0.012)" }}>
@@ -128,6 +167,7 @@ export default async function PatientsPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>

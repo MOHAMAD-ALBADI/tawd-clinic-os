@@ -328,3 +328,17 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
+
+/* A finger cannot hover.
+ *
+ * Row actions were `opacity-0 group-hover:opacity-100` — the edit,
+ * open-file and archive buttons on the patients list appeared when a
+ * mouse passed over the row. On a phone that event never fires, so the
+ * buttons were present, focusable, and permanently invisible: there was
+ * no way to open a patient's file from a phone at all.
+ *
+ * Keyed on the pointer rather than on width, because the question is
+ * "can this device hover", not "is this screen small". */
+@media (hover: none) {
+  .group-hover\:opacity-100 { opacity: 1 !important; }
+}
