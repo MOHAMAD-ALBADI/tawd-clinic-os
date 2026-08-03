@@ -543,7 +543,9 @@
 }
 
 /* ── Sura live demo ───────────────────────────────────────── */
-.demo { display: grid; gap: 1.1rem; grid-template-columns: 1fr; align-items: start; }
+/* stretch, not start: the two panels are one instrument and should share a
+   baseline rather than ending at different heights. */
+.demo { display: grid; gap: 1.1rem; grid-template-columns: 1fr; align-items: stretch; }
 @media (min-width: 940px) { .demo { grid-template-columns: 1.15fr .85fr; } }
 
 .demo__chat {
@@ -584,8 +586,11 @@
 
 /* A faint tile behind the thread, the way a messaging app has one. Two
    hairline gradients, no image. */
+/* Messages sit at the bottom, the way every messaging app works. With
+   `align-content: start` the opening greeting stuck to the top and left a
+   200px hole above the input — the panel read as broken rather than empty. */
 .demo__body {
-  padding: 1.1rem; display: grid; gap: .55rem; align-content: start;
+  padding: 1.1rem; display: grid; gap: .55rem; align-content: end;
   min-height: 300px; max-height: 360px; overflow-y: auto;
   background:
     radial-gradient(80% 60% at 100% 0%, rgba(37,99,235,.07), transparent 60%),
