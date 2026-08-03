@@ -211,6 +211,18 @@ const tablesFor = (role: Role) => (role === "platform_admin" ? PLATFORM_TABLES :
  * makes one narrow choice, which is not what Pro money is for. */
 const MODEL = "gemini-3.1-pro-preview";
 
+/* Because the strong one is a preview.
+ *
+ * It answered a heavy request with a 500 and the clinic was shown
+ * "خدمة الذكاء الاصطناعي متوقّفة مؤقتاً" — acceptable on a Tuesday,
+ * unacceptable with someone watching. gemini-2.5-pro is not the escape
+ * hatch it looked like either: it is listed on this key and returns 404
+ * when called, which is why this is measured rather than assumed.
+ *
+ * So a provider fault falls through to the stable flash instead of
+ * reaching the user. A slightly weaker answer beats no answer. */
+const FALLBACK = "gemini-3.6-flash";
+
 const OPS = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "ilike", "in", "is"]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -526,18 +538,16 @@ async function gemini(
   ];
 
   /* A deadline, because a stalled provider is the most likely failure
-     and the least visible. Twenty-eight seconds leaves room for a
-     second round inside the platform's limit. */
+     and the least visible. */
   const ac = new AbortController();
   /* Pro thinks before it answers and that time is real. Measured at
      forty to sixty seconds a round on a wide request, so the deadline
      sits at forty and the caller keeps its own watch on the total. */
   const timer = setTimeout(() => ac.abort(), 40_000);
 
-  let res: Response;
-  try {
-    res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${key}`,
+  const call = (model: string) =>
+    fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
       {
         signal: ac.signal,
         method: "POST",
@@ -572,6 +582,17 @@ async function gemini(
         }),
       },
     );
+
+  let res: Response;
+  try {
+    res = await call(MODEL);
+    /* A provider fault on the preview model is not the clinic's problem
+       to see. Retried once on the stable one, with the same body — the
+       only thing that changes is which brain answers. */
+    if (res.status === 429 || res.status >= 500) {
+      console.warn(`[sura/ask] ${MODEL} returned ${res.status} — falling back to ${FALLBACK}`);
+      res = await call(FALLBACK);
+    }
   } catch (e) {
     throw new SuraError(
       (e as Error)?.name === "AbortError" ? "timeout" : "network",
