@@ -8,7 +8,10 @@ import type { Attachment } from "@/lib/sura/types";
 import { ensureConversation, saveTurn, type StoredFile } from "@/lib/sura/conversations";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+/* Five model turns at up to twenty-eight seconds each cannot fit in
+   sixty. Fluid Compute allows three hundred, and a request that ends
+   because the platform killed it is indistinguishable from a bug. */
+export const maxDuration = 300;
 
 /* ═══════════════════════════════════════════════════════════════
    Ask-Sura v2 — an agent over the clinic's LIVE database.
@@ -210,7 +213,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * demo fail. */
 type SuraFailure =
   | "timeout" | "network" | "rate_limited" | "bad_key"
-  | "provider_down" | "refused" | "too_long" | "empty" | "unknown";
+  | "provider_down" | "refused" | "too_long" | "empty" | "bad_json" | "unknown";
 
 class SuraError extends Error {
   constructor(public kind: SuraFailure) { super(kind); }
@@ -225,6 +228,7 @@ const FAILURE_AR: Record<SuraFailure, string> = {
   refused:       "لم أستطع الإجابة على هذه الصيغة. جرّب صياغة أخرى.",
   too_long:      "الجواب أطول من المساحة المتاحة. قسّم السؤال إلى جزأين.",
   empty:         "لم يصل ردّ من النموذج. أعد المحاولة.",
+  bad_json:      "وصل ردّ غير مكتمل من النموذج. أعد المحاولة.",
   unknown:       "تعذّر التحليل الآن — أعد المحاولة بعد لحظات.",
 };
 
@@ -405,7 +409,12 @@ async function gemini(
             /* Arabic costs far more tokens than the same text in English,
                and a structured answer costs more again. 1200 truncated
                mid-sentence on anything with sections in it. */
-            maxOutputTokens: files.length ? 3000 : 2200,
+            /* Gemini 2.5 Flash allows far more than this, and the cost
+               is per token produced rather than per token allowed — so a
+               ceiling this high costs nothing on a short answer and is
+               the difference between a document arriving and arriving
+               truncated. */
+            maxOutputTokens: 8192,
             thinkingConfig: { thinkingBudget: 0 },
             ...(json ? { responseMimeType: "application/json" } : {}),
           },
@@ -429,17 +438,30 @@ async function gemini(
     usage.input += Number(j.usageMetadata.promptTokenCount ?? 0);
     usage.output += Number(j.usageMetadata.candidatesTokenCount ?? 0);
   }
+  const why = j?.candidates?.[0]?.finishReason;
   const text = j?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-  if (!text) {
-    /* An empty candidate almost always means the safety filter fired or
-       the output budget was spent before a token was produced. They need
-       different answers, and "empty model response" gave neither. */
-    const why = j?.candidates?.[0]?.finishReason;
-    throw new SuraError(
-      why === "SAFETY" ? "refused" : why === "MAX_TOKENS" ? "too_long" : "empty",
-    );
-  }
+
+  /* MAX_TOKENS is fatal even when text came back, and that was the bug
+     behind "تعذّر التحليل الآن".
+
+     A truncated response is still a response: the old check only fired
+     on an EMPTY candidate, so a half-written JSON object was returned,
+     JSON.parse threw a SyntaxError, and the catch at the bottom reported
+     it as "unknown" — the one failure kind that tells nobody anything.
+     Writing a document made it certain, because a document body inside a
+     JSON string is thousands of tokens on its own. */
+  if (why === "MAX_TOKENS") throw new SuraError("too_long");
+  if (!text) throw new SuraError(why === "SAFETY" ? "refused" : "empty");
   return text;
+}
+
+/** Parses a model turn, so a malformed one is named rather than "unknown". */
+function parseTurn(raw: string): Record<string, unknown> {
+  try {
+    const v = JSON.parse(raw);
+    if (v && typeof v === "object") return v as Record<string, unknown>;
+  } catch { /* named below */ }
+  throw new SuraError("bad_json");
 }
 
 /** Best-effort token accounting into ai_usage_metrics (never blocks the reply). */
@@ -707,7 +729,7 @@ export async function POST(req: Request) {
             ? ``
             : `3) {"action":{...}} — لتنفيذ إجراء طلبه المستخدم صراحة (بعد حصولك على id من استعلام).`));
 
-    let resp = JSON.parse(await gemini(geminiKey, ask(false), true, usage, files));
+    let resp = parseTurn(await gemini(geminiKey, ask(false), true, usage, files));
 
     for (let step = 0; step < 5; step++) {
       if (resp.answer && !resp.queries && !resp.action) {
@@ -741,7 +763,7 @@ export async function POST(req: Request) {
         break;
       }
 
-      resp = JSON.parse(await gemini(geminiKey, ask(step >= 3), true, usage));
+      resp = parseTurn(await gemini(geminiKey, ask(step >= 3), true, usage));
     }
 
     if (resp?.answer) {
@@ -756,7 +778,7 @@ export async function POST(req: Request) {
        the case worth answering. */
     if (context.length > 0) {
       try {
-        const forced = JSON.parse(
+        const forced = parseTurn(
           await gemini(
             geminiKey,
             header + historyBlock + fileNote +

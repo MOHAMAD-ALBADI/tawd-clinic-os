@@ -95,4 +95,4 @@ export type Attachment = { mime: string; data: string; name?: string };
    demo fail. */
 export type SuraFailure =
   | "timeout" | "network" | "rate_limited" | "bad_key"
-  | "provider_down" | "refused" | "too_long" | "empty" | "unknown";
+  | "provider_down" | "refused" | "too_long" | "empty" | "bad_json" | "unknown";
