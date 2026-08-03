@@ -41,6 +41,49 @@ function classify(raw: string): Line {
 }
 
 /** `**bold**` and `*bold*` → <b>. Everything else stays literal. */
+function Table({ rows }: { rows: string[][] }) {
+  const [head, ...body] = rows;
+  return (
+    <div className="-mx-1 overflow-x-auto">
+      <table className="w-full border-collapse text-[12.5px]">
+        <thead>
+          <tr>
+            {head.map((h, i) => (
+              <th
+                key={i}
+                className="border-b px-2.5 py-1.5 text-start font-bold"
+                style={{ borderColor: "var(--hairline)", color: "var(--accent-1)" }}
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {body.map((r, ri) => (
+            <tr key={ri}>
+              {r.map((c, ci) => (
+                <td
+                  key={ci}
+                  className="border-b px-2.5 py-1.5"
+                  style={{
+                    borderColor: "rgba(255,255,255,0.05)",
+                    /* Numbers line up on tabular figures; names do not
+                       want them. */
+                    fontVariantNumeric: /^[\d٠-٩.,٫\s%٪ر.ع-]+$/.test(c) ? "tabular-nums" : undefined,
+                  }}
+                >
+                  {inline(c, `t${ri}-${ci}`)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function inline(text: string, keyBase: string) {
   const parts = text.split(/(\*\*[^*]+\*\*|\*[^*\n]+\*)/g);
   return parts.map((p, i) => {
@@ -62,8 +105,59 @@ function inline(text: string, keyBase: string) {
   });
 }
 
+/* A pipe table, the one structure worth parsing beyond lines.
+ *
+ * Asked to compare two months or list patients with three attributes,
+ * the model reaches for a Markdown table. Rendered as raw text it is the
+ * ugliest thing on the page; rendered properly it is the clearest. */
+function tableAt(lines: string[], i: number): { rows: string[][]; next: number } | null {
+  const isRow = (l: string) => /^\s*\|.*\|\s*$/.test(l);
+  const isRule = (l: string) => /^\s*\|[\s:|-]+\|\s*$/.test(l);
+  if (!isRow(lines[i]) || !isRow(lines[i + 1] ?? "") || !isRule(lines[i + 1] ?? "")) return null;
+
+  const cells = (l: string) =>
+    l.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+
+  const rows: string[][] = [cells(lines[i])];
+  let j = i + 2;
+  while (j < lines.length && isRow(lines[j])) {
+    rows.push(cells(lines[j]));
+    j++;
+  }
+  return { rows, next: j };
+}
+
 export function RichText({ text }: { text: string }) {
-  const lines = text.split(/\r?\n/).map(classify);
+  const raw = text.split(/\r?\n/);
+
+  /* Tables are pulled out first — they span lines and the line
+     classifier below would shred them into bullets. */
+  const chunks: ({ table: string[][] } | { lines: string[] })[] = [];
+  let buf: string[] = [];
+  for (let i = 0; i < raw.length; ) {
+    const t = tableAt(raw, i);
+    if (t) {
+      if (buf.length) { chunks.push({ lines: buf }); buf = []; }
+      chunks.push({ table: t.rows });
+      i = t.next;
+    } else {
+      buf.push(raw[i]);
+      i++;
+    }
+  }
+  if (buf.length) chunks.push({ lines: buf });
+
+  if (chunks.some((c) => "table" in c)) {
+    return (
+      <div className="space-y-3">
+        {chunks.map((c, i) =>
+          "table" in c ? <Table key={i} rows={c.table} /> : <RichText key={i} text={c.lines.join("\n")} />,
+        )}
+      </div>
+    );
+  }
+
+  const lines = raw.map(classify);
 
   /* Consecutive list lines become one list, so the spacing between items
      is list spacing rather than paragraph spacing. */

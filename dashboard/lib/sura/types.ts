@@ -86,3 +86,13 @@ export type ActionLog = {
    they travel with the question and are gone when the request ends, which
    is the right default for a photograph of somebody's medical document. */
 export type Attachment = { mime: string; data: string; name?: string };
+
+/* Failure kinds the interface can act on.
+
+   Every one of these used to collapse into "تعذّر التحليل الآن" with no
+   way to tell a rate limit from a dead key from a stalled provider — so
+   nobody could act on any of them, least of all the person watching a
+   demo fail. */
+export type SuraFailure =
+  | "timeout" | "network" | "rate_limited" | "bad_key"
+  | "provider_down" | "refused" | "too_long" | "empty" | "unknown";

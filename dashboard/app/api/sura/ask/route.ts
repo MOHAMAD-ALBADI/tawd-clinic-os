@@ -5,6 +5,7 @@ import { platformSecrets } from "@/lib/platform-secrets";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { runAction, type Action } from "@/lib/sura/actions";
 import type { Attachment } from "@/lib/sura/types";
+import { ensureConversation, saveTurn, type StoredFile } from "@/lib/sura/conversations";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -201,6 +202,32 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
    spreadsheet of patients to "have a look at" is a data path nobody
    designed. Images and PDFs cover the real cases — a card, a scan, a
    report, a quotation. */
+/* Failure kinds the interface can act on.
+ *
+ * Every one of these used to collapse into "تعذّر التحليل الآن" with no
+ * way to tell a rate limit from a bad key from a stalled provider — so
+ * nobody could act on any of them, least of all the person watching a
+ * demo fail. */
+type SuraFailure =
+  | "timeout" | "network" | "rate_limited" | "bad_key"
+  | "provider_down" | "refused" | "too_long" | "empty" | "unknown";
+
+class SuraError extends Error {
+  constructor(public kind: SuraFailure) { super(kind); }
+}
+
+const FAILURE_AR: Record<SuraFailure, string> = {
+  timeout:       "استغرق الردّ وقتاً أطول من المسموح. جرّب سؤالاً أضيق أو أعد المحاولة.",
+  network:       "تعذّر الوصول لخدمة الذكاء الاصطناعي. تحقّق من الاتصال وأعد المحاولة.",
+  rate_limited:  "الطلبات كثيرة على الخدمة الآن. انتظر دقيقة وأعد المحاولة.",
+  bad_key:       "مفتاح الذكاء الاصطناعي غير صالح أو منتهٍ — يحتاج تحديثاً من إعدادات المنصّة.",
+  provider_down: "خدمة الذكاء الاصطناعي متوقّفة مؤقتاً. أعد المحاولة بعد قليل.",
+  refused:       "لم أستطع الإجابة على هذه الصيغة. جرّب صياغة أخرى.",
+  too_long:      "الجواب أطول من المساحة المتاحة. قسّم السؤال إلى جزأين.",
+  empty:         "لم يصل ردّ من النموذج. أعد المحاولة.",
+  unknown:       "تعذّر التحليل الآن — أعد المحاولة بعد لحظات.",
+};
+
 const ALLOWED_MIME = new Set([
   "image/png", "image/jpeg", "image/webp", "image/heic", "image/heif",
   "application/pdf",
@@ -357,32 +384,61 @@ async function gemini(
     { text: prompt },
   ];
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts }],
-        generationConfig: {
-          temperature: json ? 0.25 : 0.45,
-          /* Arabic costs far more tokens than the same text in English,
-             and a structured answer costs more again. 1200 truncated
-             mid-sentence on anything with sections in it. */
-          maxOutputTokens: files.length ? 3000 : 2200,
-          thinkingConfig: { thinkingBudget: 0 },
-          ...(json ? { responseMimeType: "application/json" } : {}),
-        },
-      }),
-    }
-  );
+  /* A deadline, because a stalled provider is the most likely failure
+     and the least visible. Twenty-eight seconds leaves room for a
+     second round inside the platform's limit. */
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 28_000);
+
+  let res: Response;
+  try {
+    res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+      {
+        signal: ac.signal,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: {
+            temperature: json ? 0.25 : 0.45,
+            /* Arabic costs far more tokens than the same text in English,
+               and a structured answer costs more again. 1200 truncated
+               mid-sentence on anything with sections in it. */
+            maxOutputTokens: files.length ? 3000 : 2200,
+            thinkingConfig: { thinkingBudget: 0 },
+            ...(json ? { responseMimeType: "application/json" } : {}),
+          },
+        }),
+      },
+    );
+  } catch (e) {
+    throw new SuraError(
+      (e as Error)?.name === "AbortError" ? "timeout" : "network",
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (res.status === 429) throw new SuraError("rate_limited");
+  if (res.status === 401 || res.status === 403) throw new SuraError("bad_key");
+  if (res.status >= 500) throw new SuraError("provider_down");
+
   const j = await res.json();
   if (usage && j?.usageMetadata) {
     usage.input += Number(j.usageMetadata.promptTokenCount ?? 0);
     usage.output += Number(j.usageMetadata.candidatesTokenCount ?? 0);
   }
   const text = j?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-  if (!text) throw new Error(j?.error?.message ?? "empty model response");
+  if (!text) {
+    /* An empty candidate almost always means the safety filter fired or
+       the output budget was spent before a token was produced. They need
+       different answers, and "empty model response" gave neither. */
+    const why = j?.candidates?.[0]?.finishReason;
+    throw new SuraError(
+      why === "SAFETY" ? "refused" : why === "MAX_TOKENS" ? "too_long" : "empty",
+    );
+  }
   return text;
 }
 
@@ -420,9 +476,11 @@ export async function POST(req: Request) {
   let question = "";
   let history: { role: string; text: string }[] = [];
   let files: Attachment[] = [];
+  let convId: string | null = null;
   try {
     const body = await req.json();
     question = String(body?.question ?? "").slice(0, 500).trim();
+    convId = typeof body?.conv_id === "string" ? body.conv_id : null;
     /* Two files, four megabytes each. Beyond that the base64 payload
        costs more to move than the answer is worth, and Gemini's inline
        limit is around twenty megabytes for the whole request. */
@@ -450,6 +508,24 @@ export async function POST(req: Request) {
 
   const sb = await createServiceRoleClient();
   const cid = isPlatform ? "" : claims.clinic_id; // '' = unscoped platform mode
+
+  /* The platform owner's questions are about the platform and are not
+     kept as a clinic's conversation. */
+  const conv = isPlatform ? null : await ensureConversation(sb, convId, claims.sub, cid, question);
+  const fileMeta: StoredFile[] = files.map((f) => ({ name: f.name ?? "ملف", mime: f.mime }));
+  if (conv) await saveTurn(sb, conv, cid, { role: "user", content: question, files: fileMeta });
+
+  const reply = async (answer: string, extra: Record<string, unknown> = {}, error?: string) => {
+    if (conv) {
+      await saveTurn(sb, conv, cid, {
+        role: "assistant",
+        content: answer,
+        doc: (extra.doc as { url: string; label: string } | undefined) ?? null,
+        error: error ?? null,
+      });
+    }
+    return NextResponse.json({ answer, ...(conv ? { conv_id: conv } : {}), ...extra });
+  };
 
   const [cfgRes, clinicRes, meRes] = await Promise.all([
     /* The platform key, from the platform table — this used to read whichever
@@ -581,7 +657,7 @@ export async function POST(req: Request) {
     for (let step = 0; step < 4; step++) {
       if (resp.answer && !resp.queries && !resp.action) {
         await logUsage(sb, cid, usage);
-        return NextResponse.json({ answer: String(resp.answer), ...(doc ? { doc } : {}) });
+        return reply(String(resp.answer), doc ? { doc } : {});
       }
 
       if (resp.action && typeof resp.action === "object" && role !== "accountant" && !isPlatform && actionsDone < 2) {
@@ -614,11 +690,17 @@ export async function POST(req: Request) {
     }
 
     await logUsage(sb, cid, usage);
-    if (resp?.answer) return NextResponse.json({ answer: String(resp.answer), ...(doc ? { doc } : {}) });
-    return NextResponse.json({
-      answer: "ما قدرت أكمل هذا الطلب — جرّب صياغته بشكل أوضح أو قسّمه لخطوتين.",
-    });
-  } catch {
-    return NextResponse.json({ answer: "تعذّر التحليل الآن — حاول مرة أخرى بعد لحظات." });
+    if (resp?.answer) return reply(String(resp.answer), doc ? { doc } : {});
+    return reply(
+      "ما قدرت أكمل هذا الطلب — جرّب صياغته بشكل أوضح أو قسّمه لخطوتين.",
+      { failure: "unknown" },
+      "incomplete",
+    );
+  } catch (e) {
+    const kind: SuraFailure = e instanceof SuraError ? e.kind : "unknown";
+    console.error("[sura/ask]", kind, e instanceof Error ? e.message : e);
+    /* A named failure, so the interface can offer the right thing —
+       retry now, wait a minute, or tell the owner the key is dead. */
+    return reply(FAILURE_AR[kind], { failure: kind, retryable: kind !== "bad_key" }, kind);
   }
 }
