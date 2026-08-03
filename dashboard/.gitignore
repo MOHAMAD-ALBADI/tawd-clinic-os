@@ -41,3 +41,7 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# The agent tick secret. Shared with the n8n schedule workflow and with
+# Vercel; never committed.
+.cron-secret.local
