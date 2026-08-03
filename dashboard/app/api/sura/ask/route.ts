@@ -209,7 +209,24 @@ const tablesFor = (role: Role) => (role === "platform_admin" ? PLATFORM_TABLES :
  *
  * The autonomous loop stays on flash: it wakes every ten minutes and
  * makes one narrow choice, which is not what Pro money is for. */
-const MODEL = "gemini-3.1-pro-preview";
+/* Two brains, because one of them does not fit in the clock.
+ *
+ * Pro on every turn was measured and it does not work: a request that
+ * gathers, generates a cover and writes a body ran past the platform's
+ * 300-second ceiling and the whole thing was lost — worse than a weaker
+ * answer, because nothing came back at all.
+ *
+ * The turns are not equal. Planning is mechanical: pick a table, pick a
+ * filter, decide whether to act. Flash does it in about three seconds
+ * where Pro takes forty. Writing the document is the one turn where the
+ * quality of the mind is visible on the page, and it happens once.
+ *
+ * So the planner is flash and the writer is Pro. And the refusals that
+ * started this were never about which model: probed against this key,
+ * flash and Pro both refused a bare persona and both agreed once told
+ * what they had. */
+const MODEL = "gemini-3.6-flash";
+const WRITER = "gemini-3.1-pro-preview";
 
 /* Because the strong one is a preview.
  *
@@ -222,6 +239,9 @@ const MODEL = "gemini-3.1-pro-preview";
  * So a provider fault falls through to the stable flash instead of
  * reaching the user. A slightly weaker answer beats no answer. */
 const FALLBACK = "gemini-3.6-flash";
+
+/** Pro is patient enough to be worth waiting for, once. */
+const DEADLINE_MS = (model: string) => (model === WRITER ? 90_000 : 30_000);
 
 const OPS = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "ilike", "in", "is"]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -531,6 +551,7 @@ async function gemini(
   json: boolean,
   usage?: Usage,
   files: Attachment[] = [],
+  model: string = MODEL,
 ) {
   const parts: Record<string, unknown>[] = [
     ...files.map((f) => ({ inlineData: { mimeType: f.mime, data: f.data } })),
@@ -540,10 +561,7 @@ async function gemini(
   /* A deadline, because a stalled provider is the most likely failure
      and the least visible. */
   const ac = new AbortController();
-  /* Pro thinks before it answers and that time is real. Measured at
-     forty to sixty seconds a round on a wide request, so the deadline
-     sits at forty and the caller keeps its own watch on the total. */
-  const timer = setTimeout(() => ac.abort(), 40_000);
+  const timer = setTimeout(() => ac.abort(), DEADLINE_MS(model));
 
   const call = (model: string) =>
     fetch(
@@ -585,12 +603,12 @@ async function gemini(
 
   let res: Response;
   try {
-    res = await call(MODEL);
+    res = await call(model);
     /* A provider fault on the preview model is not the clinic's problem
        to see. Retried once on the stable one, with the same body — the
        only thing that changes is which brain answers. */
-    if (res.status === 429 || res.status >= 500) {
-      console.warn(`[sura/ask] ${MODEL} returned ${res.status} — falling back to ${FALLBACK}`);
+    if (model !== FALLBACK && (res.status === 429 || res.status >= 500)) {
+      console.warn(`[sura/ask] ${model} returned ${res.status} — falling back to ${FALLBACK}`);
       res = await call(FALLBACK);
     }
   } catch (e) {
@@ -720,7 +738,7 @@ async function logUsage(
       /* Was hardcoded, and stayed hardcoded through a model change —
          so the spend report would have attributed Pro tokens to flash
          and quietly understated the bill. */
-      model: MODEL,
+      model: `${MODEL}+${WRITER}`,
       channel: "web_chat",
       tokens_input: usage.input,
       tokens_output: usage.output,
@@ -1145,6 +1163,8 @@ export async function POST(req: Request) {
               false,
               usage,
               files,
+              /* The one turn Pro is paid for. */
+              WRITER,
             );
           }
 
