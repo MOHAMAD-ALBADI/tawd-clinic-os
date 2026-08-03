@@ -887,7 +887,13 @@ export async function POST(req: Request) {
        problem: if the request names a document, an answer without one
        is not an acceptable end to the turn. */
     const wantsDoc = /مستند|تقرير|وثيقة|دراسة|ملف\s|PDF|pdf/.test(question);
+    const wantsPicture = /صورة|صور\b|غلاف|شعار|ملصق|تصميم/.test(question);
     let docPushed = false;
+    const madePicture = () =>
+      context.some((c) => {
+        const r = (c as { action_result?: { action?: string; done?: boolean } })?.action_result;
+        return r?.action === "generate_image" && r?.done === true;
+      });
 
     /* Pro thinks, and thinking is wall-clock. A request that gathers,
        writes a body and renders can approach the platform's ceiling, and
@@ -985,6 +991,13 @@ export async function POST(req: Request) {
             why:
               "المستخدم طلب مستنداً، ولم يُنشَأ بعد. لا تستأذني ولا تسألي «هل ترغب» — الطلب هو الإذن. " +
               "ولا تكتبي التحليل في الرسالة: مكانه المستند. " +
+              (wantsPicture && !madePicture()
+                /* The body is written in a call that cannot run actions,
+                   so a picture has to exist before the document does —
+                   otherwise she reaches for one and invents its address. */
+                ? 'وطلب صورة، فأعيدي أولاً {"action":{"type":"generate_image","prompt":"…بالإنجليزية…","purpose":"غلاف التقرير"}} ' +
+                  "ثم create_document في الجولة التالية مستخدمةً الرابط الناتج.\n"
+                : "") +
               'أعيدي الآن {"action":{"type":"create_document","title":"...","brief":"وصف الأقسام المطلوبة كلها"}} — ' +
               "وبعد أن يجهز، رسالتك سطران يقولان ما فيه من أرقام.",
           });
@@ -1063,6 +1076,12 @@ export async function POST(req: Request) {
                 "  سطر ```chart ثم type: bar، وعنوان، وسطر لكل بند «الاسم | الرقم»، ثم سطر ```\n" +
                 `  مرشّحات جاهزة: الإيراد لكل خدمة، عدم الحضور بأيام الأسبوع، عدم الحضور بالساعة، عدم الحضور بالطبيب، المفوتَر مقابل المحصّل.\n` +
                 `  وأرقام المخطّط من البيانات أعلاه فقط.\n` +
+                /* She wrote ![غلاف المستند](https://images.unsplash.com/…)
+                   — an address she made up, in a document a clinic
+                   prints. The renderer drops anything outside our own
+                   bucket, but the honest place to stop it is here. */
+                `- الصور: لا تكتبي سطر ![...](...) إلا برابط موجود حرفياً في البيانات أعلاه ناتجاً عن generate_image. ` +
+                `إن لم يوجد رابط كهذا فلا تضعي صورة إطلاقاً — ولا تخترعي رابطاً من الإنترنت.\n` +
                 `- اختمي بقسم «الخطوات التالية» يفصل ما نُفّذ عمّا ينتظر الموافقة.\n` +
                 `- ألف إلى ألفي كلمة. لا تكرّري.`,
               false,
