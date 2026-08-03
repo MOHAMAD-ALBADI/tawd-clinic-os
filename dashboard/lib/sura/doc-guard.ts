@@ -38,6 +38,29 @@ const EXCUSES = [
   "بيانات إضافية", "لتحديد الأسباب الجذرية", "قد تحتوي",
 ];
 
+/* An answer that offers to do the work instead of doing it.
+ *
+ * Observed live: asked why revenue fell, she found the drop — 2,272
+ * against 8,991 last month — and then wrote "لتحليل السبب أحتاج إلى
+ * معرفة المزيد. هل تودّ أن أبحث في: عدد المواعيد؟ متوسط الفاتورة؟"
+ * with four unused query rounds still available to her.
+ *
+ * Every one of those questions is a query she can run. Offering a menu
+ * of investigations to someone who asked for the investigation is the
+ * precise shape of the complaint, and no amount of instruction stopped
+ * it — so the loop refuses the turn and sends her back with the round
+ * she did not spend. */
+const DEFERRALS = [
+  "هل تودّ أن أبحث", "هل تود أن أبحث", "هل ترغب أن أبحث", "هل تريد أن أبحث",
+  "هل أبحث", "هل تودّ أن أحلل", "هل تريد أن أحلل", "هل ترغب في أن أحلل",
+  "أحتاج إلى معرفة المزيد", "أحتاج معرفة المزيد", "أحتاج إلى مزيد من",
+  "هل تودّ الاطلاع", "أخبرني إذا كنت تريد أن أ", "أخبرني إن كنت تريد أن أ",
+];
+
+export function deferring(answer: string): boolean {
+  return DEFERRALS.some((d) => answer.includes(d));
+}
+
 export function guardDocument(
   body: string,
   gathered: unknown[],

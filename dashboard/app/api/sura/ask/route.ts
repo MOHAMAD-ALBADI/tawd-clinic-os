@@ -4,6 +4,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { platformSecrets } from "@/lib/platform-secrets";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { runAction, type Action } from "@/lib/sura/actions";
+import { deferring } from "@/lib/sura/doc-guard";
 import type { Attachment } from "@/lib/sura/types";
 import { ensureConversation, saveTurn, type StoredFile } from "@/lib/sura/conversations";
 
@@ -805,11 +806,31 @@ export async function POST(req: Request) {
             : `3) {"action":{...}} — لتنفيذ إجراء طلبه المستخدم صراحة (بعد حصولك على id من استعلام).`));
 
     let resp = parseTurn(await gemini(geminiKey, ask(false), true, usage, files));
+    let pushedBack = false;
 
     for (let step = 0; step < 5; step++) {
       if (resp.answer && !resp.queries && !resp.action) {
+        const answer = String(resp.answer);
+
+        /* She answered with an offer to investigate rather than the
+           investigation. Send her back with the rounds she did not
+           spend — once, so a genuine "I need a decision from you"
+           still gets through on the second pass. */
+        if (!pushedBack && step < 3 && deferring(answer)) {
+          pushedBack = true;
+          context.push({
+            rejected_answer: answer,
+            why:
+              "هذا عرض للبحث لا بحث. كل سؤال طرحتِه على المستخدم هو استعلام تستطيعين تشغيله بنفسك: " +
+              "عدد المواعيد المكتملة، متوسّط قيمة الفاتورة، عدد حالات عدم الحضور، مواعيد كل طبيب — " +
+              "لكل فترة على حدة ثم قارني. شغّلي الاستعلامات الآن وأجيبي بالسبب، ولا تسألي إلا عن قرار أو تفضيل.",
+          });
+          resp = parseTurn(await gemini(geminiKey, ask(false), true, usage));
+          continue;
+        }
+
         await logUsage(sb, cid, usage);
-        return reply(String(resp.answer), doc ? { doc } : {});
+        return reply(answer, doc ? { doc } : {});
       }
 
       if (resp.action && typeof resp.action === "object" && role !== "accountant" && !isPlatform && actionsDone < 2) {
