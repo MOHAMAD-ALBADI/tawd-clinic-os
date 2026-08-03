@@ -28,6 +28,22 @@ type Block =
  * document that leaks who is reading it to whoever it names. */
 const OURS = /^https:\/\/[a-z0-9-]+\.supabase\.co\/storage\/v1\/object\/public\/sura-media\//i;
 
+/* A line that merely begins with bold is not a bullet.
+ *
+ * The paragraph collector stopped on any leading "*", so
+ * "**الرقم المرصود:** 55 حالة عدم حضور" started no paragraph — and it
+ * matched no list either, because a list needs whitespace after its
+ * marker. It fell through to `else i++` and vanished.
+ *
+ * Whole sections of every document were invisible this way: the heading
+ * rendered, the three lines beneath it did not, and the page read as
+ * though the model had written an empty section. It had written the
+ * number, the meaning and the recommendation.
+ *
+ * So a marker counts only when it is followed by a space. */
+const startsBlock = (l: string) =>
+  /^\s*(#{1,3}\s|[-•]\s|\*\s|[\d٠-٩]+[.)]\s|\||```|!\[)/.test(l);
+
 function parse(md: string): Block[] {
   const lines = md.replace(/\r/g, "").split("\n");
   const out: Block[] = [];
@@ -107,11 +123,14 @@ function parse(md: string): Block[] {
     }
 
     const para: string[] = [];
-    while (i < lines.length && lines[i].trim() && !/^\s*([-*•#|]|\d+[.)])/.test(lines[i])) {
+    while (i < lines.length && lines[i].trim() && !startsBlock(lines[i])) {
       para.push(lines[i].trim());
       i++;
     }
     if (para.length) out.push({ k: "p", lines: para });
+    /* Nothing matched and nothing was collected — advance rather than
+       spin. Every line that reaches here is lost, which is why the test
+       above has to be exact. */
     else i++;
   }
 
