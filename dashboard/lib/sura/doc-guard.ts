@@ -146,6 +146,21 @@ export function guardDocument(
   const chart = fabricatedChart(body, gathered);
   if (chart) return { ok: false, reason: chart };
 
+  /* An analytical document with no chart in it.
+   *
+   * Only enforced once the sweep has run, because that is when there is
+   * certainly something to plot — every axis it returns is a comparison
+   * of three or more things. Refusing at zero rather than at fewer than
+   * three keeps this from becoming a loop over a matter of taste. */
+  if (swept && !/```\s*(?:chart|رسم)/.test(body)) {
+    return {
+      ok: false,
+      reason:
+        "المستند بلا مخطّط واحد، وأمامك مقارنات جاهزة للرسم: الإيراد لكل خدمة، عدم الحضور بأيام الأسبوع وبالساعة وبالطبيب، " +
+        "والمفوتَر مقابل المحصّل. ارسمي مخطّطاً لكل قسم فيه ثلاثة أرقام أو أكثر.",
+    };
+  }
+
   return { ok: true };
 }
 

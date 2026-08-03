@@ -983,7 +983,13 @@ export async function POST(req: Request) {
                 `- ما لا يحتفظ به النظام (مثل سبب عدم الحضور) قوليه صراحةً ولا تخمّني نسبة.\n` +
                 /* The fence is spelled out rather than written, because
                    three backticks inside a template literal end it. */
-                "- للمقارنة ارسمي مخطّطاً: سطر ```chart ثم type: bar، وعنوان، وسطر لكل بند «الاسم | الرقم»، ثم سطر ```\n" +
+                /* One chart was drawn where the owner asked for رسوم.
+                   Every axis in the brief is a comparison of three or
+                   more things, and a comparison read as a table is a
+                   comparison nobody reads. */
+                "- ارسمي مخطّطاً لكل قسم فيه ثلاثة أرقام قابلة للمقارنة أو أكثر — ثلاثة مخطّطات على الأقل في المستند:\n" +
+                "  سطر ```chart ثم type: bar، وعنوان، وسطر لكل بند «الاسم | الرقم»، ثم سطر ```\n" +
+                `  مرشّحات جاهزة: الإيراد لكل خدمة، عدم الحضور بأيام الأسبوع، عدم الحضور بالساعة، عدم الحضور بالطبيب، المفوتَر مقابل المحصّل.\n` +
                 `  وأرقام المخطّط من البيانات أعلاه فقط.\n` +
                 `- اختمي بقسم «الخطوات التالية» يفصل ما نُفّذ عمّا ينتظر الموافقة.\n` +
                 `- ألف إلى ألفي كلمة. لا تكرّري.`,
