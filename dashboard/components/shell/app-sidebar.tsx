@@ -78,10 +78,12 @@ export function AppSidebar({ role, allRoles, userName, clinicName, avatarUrl, mo
         className={cn(
           "fixed inset-y-0 end-0 w-64 flex flex-col z-50",
           "transition-transform duration-250 ease-out lg:transition-none",
-          /* Parked off the end of the screen until asked for. A CSS
-             transform is not direction-aware, and the drawer sits on the
-             right in Arabic, so positive X is the way out. */
-          open ? "translate-x-0" : "translate-x-full lg:translate-x-0",
+          /* Parked off-screen until asked for.
+             `end-0` under dir=rtl resolves to the LEFT edge — measured,
+             not assumed — and a CSS translate is not direction-aware.
+             So the way out is negative X. Positive pushed the drawer
+             into the middle of the page instead of off it. */
+          open ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         )}
         style={{
           background: "#0c0c0d",
