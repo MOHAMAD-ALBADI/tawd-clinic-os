@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Role } from "@/types/tawd";
 import { loadAvailability, freeAt, pickDoctor } from "@/lib/availability";
 import { runOps, opsHandles, type OpsAction } from "./actions-ops";
+import { guardDocument } from "./doc-guard";
 
 /* What Sura can actually DO when asked.
  *
@@ -62,6 +63,10 @@ export async function runAction(
   clinicId: string,
   role: Role,
   actorId: string,
+  /* What the model actually read this turn. A document is judged
+     against it — the claim that the numbers come from the clinic is
+     only true if the clinic was read. */
+  gathered: unknown[] = [],
 ): Promise<ActionResult> {
   if (role === "platform_admin") {
     throw new Error("تعديل بيانات عيادة لا يتم من لوحة المنصة — استخدم إذن الدخول من ملف العيادة");
@@ -87,7 +92,7 @@ export async function runAction(
     case "draft_treatment_plan": return draftPlan(sb, action, clinicId, actorId);
     case "message_patient":      return message(sb, action, clinicId);
     case "open_document":        return openDocument(action);
-    case "create_document":      return writeDocument(sb, action, clinicId, actorId);
+    case "create_document":      return writeDocument(sb, action, clinicId, actorId, gathered);
     default:
       throw new Error(`إجراء غير مدعوم: ${(action as { type: string }).type}`);
   }
@@ -346,6 +351,7 @@ async function writeDocument(
   a: Extract<Action, { type: "create_document" }>,
   cid: string,
   actor: string,
+  gathered: unknown[],
 ): Promise<ActionResult> {
   const title = a.title?.trim();
   const body = a.body_md?.trim();
@@ -353,6 +359,11 @@ async function writeDocument(
   if (!body || body.length < 40) {
     return { action: a.type, done: false, reason: "محتوى المستند قصير جداً — اكتبي التحليل كاملاً" };
   }
+
+  /* The rules that kept being ignored as prose. Refused here instead,
+     with the reason handed back so she rewrites rather than retries. */
+  const verdict = guardDocument(body, gathered);
+  if (!verdict.ok) return { action: a.type, done: false, reason: verdict.reason };
 
   const { data, error } = await sb.from("sura_documents").insert({
     clinic_id: cid,
