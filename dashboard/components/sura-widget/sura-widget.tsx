@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Sparkles, X, Send, Bot, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { RichText } from "./rich-text";
 import type { Role } from "@/types/tawd";
 
 interface Message {
@@ -163,9 +164,13 @@ export function SuraWidget({ userRole }: { userRole: Role }) {
                       : { background: "rgba(255,255,255,0.06)", color: "rgba(226,232,240,0.9)" }
                   }
                 >
-                  {m.content || (streaming && i === messages.length - 1
-                    ? <span style={{ color: "var(--text-4)", animation: "pulse 1.2s infinite" }}>...</span>
-                    : null)}
+                  {m.content
+                    ? m.role === "assistant"
+                      ? <RichText text={m.content} />
+                      : m.content
+                    : streaming && i === messages.length - 1
+                      ? <span style={{ color: "var(--text-4)", animation: "pulse 1.2s infinite" }}>...</span>
+                      : null}
                 </div>
               </div>
             ))}
