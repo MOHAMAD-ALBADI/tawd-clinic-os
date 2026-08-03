@@ -11,10 +11,10 @@ export type NavGroup = { ar: string; en: string; items: NavLeaf[] };
 export const NAV: { key: string; ar: string; en: string; href?: string; groups?: NavGroup[]; feature?: NavLeaf }[] = [
   {
     key: "products",
-    ar: "المنتجات", en: "Products",
+    ar: "النظام", en: "The system",
     groups: [
       {
-        ar: "المنتجات", en: "Products",
+        ar: "نظام طَود", en: "The TAWD system",
         items: [
           { href: "/products", ar: "نظرة عامة", en: "Overview", arD: "النظام كاملاً في صفحة", enD: "The whole system on one page" },
           { href: "/products/clinic", ar: "إدارة العيادة", en: "Clinic management", arD: "المواعيد والملفات والفوترة والمخزون", enD: "Appointments, records, billing and stock" },
@@ -47,6 +47,12 @@ export const NAV: { key: string; ar: string; en: string; href?: string; groups?:
         ],
       },
     ],
+    /* Every panel carries one. Without it a two-column menu leaves most of a
+       full-width panel empty, which reads as a page that failed to load. */
+    feature: {
+      href: "/solutions", ar: "كل الحلول", en: "All solutions",
+      arD: "ما الذي يتغيّر في النظام حسب تخصّصك", enD: "What changes in the system for your speciality",
+    },
   },
   { key: "sura", ar: "سُرى", en: "Sura", href: "/ai" },
   {
@@ -71,6 +77,10 @@ export const NAV: { key: string; ar: string; en: string; href?: string; groups?:
         ],
       },
     ],
+    feature: {
+      href: "/resources/changelog", ar: "سجلّ التحديثات", en: "Changelog",
+      arD: "كل ما أضفناه للنظام، بتاريخه", enD: "Everything we have added, dated",
+    },
   },
   {
     key: "company",
@@ -86,6 +96,10 @@ export const NAV: { key: string; ar: string; en: string; href?: string; groups?:
         ],
       },
     ],
+    feature: {
+      href: "/early-access", ar: "الوصول المبكّر", en: "Early access",
+      arD: "طَود يفتح لعدد محدود من العيادات في عُمان", enD: "TAWD is opening to a limited number of clinics in Oman",
+    },
   },
   { key: "pricing", ar: "الأسعار", en: "Pricing", href: "/pricing" },
 ];

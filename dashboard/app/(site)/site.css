@@ -742,16 +742,18 @@
 @media (min-width: 1120px) { .mega { display: block; } }
 @keyframes megaIn { from { opacity: 0; translate: 0 -8px; } to { opacity: 1; translate: 0 0; } }
 
-/* Fixed-width columns rather than fractional ones. Products has a
-   single group and Resources has two; stretched to 1fr each, a
-   one-group panel becomes a 600px-wide column of short links,
-   which reads as a mistake. */
+/* Flex, not grid, and the highlight is pushed to the far edge.
+
+   Each panel has only one to three groups. Stretched across a full-width
+   bar they became absurdly wide columns of short links; left at a fixed
+   width they left two thirds of the panel empty, which reads as a page that
+   failed to load. Columns hold their width on the near side, the featured
+   card anchors the far side, and the space between them is deliberate. */
 .mega__in {
-  display: grid; gap: 2.2rem 3rem; padding-block: 2.2rem 2.4rem;
-  grid-template-columns: repeat(auto-fit, minmax(0, 232px));
-  justify-content: start;
-  align-items: start;
+  display: flex; gap: 3rem; padding-block: 2.2rem 2.4rem;
+  align-items: stretch;
 }
+.mega__col { flex: 0 0 232px; }
 .mega__h {
   font-family: var(--site-mono), monospace;
   font-size: 0.63rem; letter-spacing: .18em; text-transform: uppercase;
@@ -773,9 +775,9 @@
 /* The one promoted item per panel. It is a card rather than a
    link, so the eye lands on it before it starts reading columns. */
 .mega__feat {
-  grid-column: span 2; align-self: start;
+  flex: 0 1 380px; margin-inline-start: auto; align-self: start;
   border: 1px solid var(--line-blue); border-radius: var(--r);
-  padding: 1.3rem;
+  padding: 1.5rem;
   background: linear-gradient(165deg, rgba(37,99,235,.16), rgba(255,255,255,.012) 70%);
   transition: border-color .2s, translate .2s cubic-bezier(.2,.7,.3,1);
 }
@@ -1004,17 +1006,30 @@
 /* ── the comparison table ─────────────────────────────────── */
 /* Built from divs rather than <table>, because at 380px the three plan
    columns have to collapse under each label, and a real table cannot. */
+/* `overflow: clip` rather than `hidden`.
+
+   `hidden` makes the container a scroll container, which scopes the sticky
+   header to the box instead of the viewport. `clip` rounds the corners the
+   same way without breaking sticky. */
 .ftable {
   border: 1px solid var(--line); border-radius: var(--r-lg);
-  overflow: hidden; background: rgba(255,255,255,.012);
+  overflow: clip; background: rgba(255,255,255,.012);
 }
+
+/* Solid, not translucent.
+
+   It was rgba(…,.97) over a blur, and rows scrolling underneath showed
+   straight through it — the header and the first row of the table read as
+   one smeared line. A sticky header has to be opaque; there is nothing
+   behind it worth seeing. */
 .ftable__head {
   display: none;
   position: sticky; top: 74px; z-index: 5;
   grid-template-columns: 1fr repeat(3, 116px);
   gap: .6rem; align-items: center;
-  padding: .9rem clamp(1rem, 2.4vw, 1.5rem);
-  background: rgba(8,11,20,.97); backdrop-filter: blur(14px);
+  padding: .95rem clamp(1rem, 2.4vw, 1.5rem);
+  background: #0a0e1a;
+  box-shadow: 0 12px 24px -18px rgba(0,0,0,.95);
   border-bottom: 1px solid var(--line-2);
   font-size: .78rem; font-weight: 700;
 }
