@@ -52,19 +52,32 @@ export async function runTick(): Promise<TickReport> {
   report.scanned.plans = (plans.data as number) ?? 0;
 
   /* ── prioritise ────────────────────────────────────────────────── */
-  const { data: due, error: dueErr } = await svc
+  /* The value floor is applied here rather than in the query, because it
+     must not apply to work a person explicitly handed over.
+
+     A lapsed patient with no open treatment plan is worth zero on paper,
+     so the floor silently dropped every one of fifteen the owner had
+     just asked Sura to chase — the tick reported "considered: 0" and
+     looked like it was working. An instruction outranks a heuristic. */
+  const { data: pool, error: dueErr } = await svc
     .from("sura_goals")
     .select("id, clinic_id, kind, state, subject_id, patient_id, value_omr, context, attempts, next_action_at")
     .in("state", ["open", "waiting"])
     .lte("next_action_at", new Date().toISOString())
-    .gte("value_omr", LIMITS.MIN_VALUE_OMR)
     .order("value_omr", { ascending: false })
-    .limit(LIMITS.MAX_DECISIONS_PER_TICK);
+    .limit(LIMITS.MAX_DECISIONS_PER_TICK * 6);
 
   if (dueErr) {
     report.errors.push(`due: ${dueErr.message}`);
     return report;
   }
+
+  const due = ((pool ?? []) as Goal[])
+    .filter((g) => {
+      const asked = (g.context as Record<string, unknown>)?.queued_by === "sura_conversation";
+      return asked || Number(g.value_omr) >= LIMITS.MIN_VALUE_OMR;
+    })
+    .slice(0, LIMITS.MAX_DECISIONS_PER_TICK);
 
   const secrets = await platformSecrets();
   if (!secrets.geminiKey) {
@@ -72,7 +85,7 @@ export async function runTick(): Promise<TickReport> {
     return report;
   }
 
-  for (const row of (due ?? []) as Goal[]) {
+  for (const row of due) {
     try {
       await handle(svc, row, secrets.geminiKey, report);
     } catch (e) {
