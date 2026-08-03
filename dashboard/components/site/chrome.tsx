@@ -82,6 +82,10 @@ export function SiteHeader() {
         </div>
       </div>
 
+      {/* Dims the page behind an open panel. z-index -1 keeps it under the
+          panel but over everything else, and clicking it closes the menu. */}
+      {openKey && <div className="scrim" aria-hidden onClick={() => setOpenKey(null)} />}
+
       {/* mega panel */}
       {NAV.filter((n) => n.groups).map((n) =>
         openKey === n.key ? (
