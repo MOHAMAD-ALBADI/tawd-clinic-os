@@ -75,6 +75,22 @@ export function guardDocument(
     };
   }
 
+  /* Every section has to carry a figure.
+
+     One run produced a no-show section that was four recommendations
+     and not a single number, next to a services section built entirely
+     from real revenue. Same document, same data available — the
+     difference was that nothing required the first one to look. */
+  const bare = barrenSection(body);
+  if (bare) {
+    return {
+      ok: false,
+      reason:
+        `القسم «${bare}» بلا رقم واحد. كل قسم يبدأ برقم استخرجتِه من البيانات، ثم معناه، ثم التوصية — ` +
+        "استعلمي ما ينقص هذا القسم وأعيدي كتابته.",
+    };
+  }
+
   const chart = fabricatedChart(body, gathered);
   if (chart) return { ok: false, reason: chart };
 
@@ -137,4 +153,30 @@ function near(v: number, known: Set<number>): boolean {
     if (Math.abs(k - v) <= Math.max(0.51, Math.abs(k) * 0.02)) return true;
   }
   return false;
+}
+
+/* The first heading whose body carries no digit at all.
+ *
+ * Deliberately crude: any numeral counts. A section that says "٢٥ حالة"
+ * has looked at something; one with no digit anywhere is recommendations
+ * wearing a heading, which is the failure this catches. */
+function barrenSection(body: string): string | null {
+  const lines = body.split(/\r?\n/);
+  let title: string | null = null;
+  let hasFigure = false;
+
+  const barren = () => (title && !hasFigure ? title : null);
+
+  for (const line of lines) {
+    const h = /^\s*#{1,3}\s+(.*)$/.exec(line);
+    if (h) {
+      const found = barren();
+      if (found) return found;
+      title = h[1].trim();
+      hasFigure = false;
+      continue;
+    }
+    if (title && /[\d\u0660-\u0669]/.test(line)) hasFigure = true;
+  }
+  return barren();
 }

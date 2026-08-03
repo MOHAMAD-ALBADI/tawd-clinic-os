@@ -341,7 +341,13 @@ async function runPlan(sb: Awaited<ReturnType<typeof createServiceRoleClient>>, 
     if (agg.group_by) {
       const groups: Record<string, { count: number; sum: number }> = {};
       for (const r of rows) {
-        const k = String(r[agg.group_by] ?? "غير محدد");
+        /* A null foreign key is not a category. Labelling it «غير محدد»
+           put a phantom service in the revenue table at 976 ر.ع, ranked
+           above four real ones. It is named for what it is. */
+        const cell: unknown = r[agg.group_by];
+        const k = cell === null || cell === undefined || cell === ""
+          ? (agg.group_by.endsWith("_id") ? "__unlinked__" : "غير محدد")
+          : String(cell);
         groups[k] = groups[k] ?? { count: 0, sum: 0 };
         groups[k].count++;
         groups[k].sum += agg.col ? num(r) : 0;
@@ -358,7 +364,8 @@ async function runPlan(sb: Awaited<ReturnType<typeof createServiceRoleClient>>, 
 
       const list = Object.entries(groups)
         .map(([key, g]) => ({
-          [agg.group_by as string]: labels.get(key) ?? key,
+          [agg.group_by as string]:
+            key === "__unlinked__" ? "(سجلات غير مرتبطة بهذا الحقل)" : labels.get(key) ?? key,
           count: g.count,
           ...(agg.col ? { sum: +g.sum.toFixed(3), avg: +(g.sum / g.count).toFixed(3) } : {}),
         }))
@@ -726,6 +733,25 @@ export async function POST(req: Request) {
         `{"action":{"type":"message_patient","patient_id":"<uuid>","text":"نص الرسالة"}} — إرسال رسالة واتساب\n`) +
         `{"action":{"type":"open_document","kind":"monthly_report","month":"YYYY-MM-01 اختياري"}} — إصدار تقرير الشهر جاهزاً للطباعة أو الحفظ PDF\n` +
         `{"action":{"type":"create_document","title":"عنوان المستند","brief":"وصف دقيق لما يُكتب فيه، بالأقسام المطلوبة"}} — مستند تكتبينه أنتِ: تحليل، خطة، دراسة. لا تكتبي محتواه هنا — اكتبي العنوان والوصف فقط، والمحتوى يُكتب في خطوة تالية\n` +
+
+        /* The clinic's day. These were advertised, then silently lost
+           when a later edit spliced a neighbouring section out — nine
+           actions that existed in the executor and were unreachable
+           because nothing told her they were there. */
+        `{"action":{"type":"create_patient","name":"الاسم","phone":"+968…","gender":"male|female"}} — تسجيل مريض جديد\n` +
+        `{"action":{"type":"invoice_appointment","appointment_id":"<uuid>","discount":0}} — إصدار فاتورة لموعد بضريبة ٥٪\n` +
+        `{"action":{"type":"record_payment","invoice_id":"<uuid>","amount":0,"method":"cash|card|bank_transfer|thawani|insurance"}} — تسجيل دفعة\n` +
+        `{"action":{"type":"submit_insurance_claim","invoice_id":"<uuid>","provider_id":"<uuid>"}} — رفع مطالبة تأمين\n` +
+        `{"action":{"type":"write_prescription","patient_id":"<uuid>","diagnosis":"اختياري","items":[{"drug":"اسم الدواء","dosage":"","frequency":"","duration":""}]}} — مسوّدة وصفة طبية\n` +
+        `{"action":{"type":"add_clinical_note","patient_id":"<uuid>","note":"النص"}} — ملاحظة في ملف المريض\n` +
+        `{"action":{"type":"complete_plan_item","item_id":"<uuid>"}} — إنجاز بند من خطة علاجية\n` +
+        `{"action":{"type":"block_doctor_day","doctor_id":"<uuid>","date":"YYYY-MM-DD","reason":"إجازة"}} — إغلاق يوم طبيب\n` +
+        `{"action":{"type":"add_service","name":"الاسم","price":0,"duration_minutes":30}} — إضافة خدمة للقائمة\n` +
+
+        /* The bridge to the autonomous half. */
+        `{"action":{"type":"queue_recovery","patient_ids":["<uuid>"],"note":"سبب المتابعة"}} — تسليم مرضى منقطعين لسُرى الذاتية فتتواصل معهم بنفسها خلال عشر دقائق\n` +
+        `  استخدميه بدل أن توصي بالتواصل. «أوصي بالتواصل مع ٢٠ منقطعاً» توصية؛ queue_recovery تنفيذ.\n` +
+
         `\n[المستند]\n` +
         `الردّ سطران يقولان ما فيه؛ المستند هو العمل. استعلمي البيانات أولاً، ثم نفّذي create_document بعنوان ووصف الأقسام.\n` +
         `\nقواعد التنفيذ:\n` +

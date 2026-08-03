@@ -27,7 +27,8 @@ export type OpsAction =
   | { type: "complete_plan_item"; item_id: string }
   | { type: "block_doctor_day"; doctor_id: string; date: string; reason?: string }
   | { type: "add_service"; name: string; price: number; duration_minutes?: number; category?: string }
-  | { type: "submit_insurance_claim"; invoice_id: string; provider_id: string; amount?: number };
+  | { type: "submit_insurance_claim"; invoice_id: string; provider_id: string; amount?: number }
+  | { type: "queue_recovery"; patient_ids: string[]; note?: string };
 
 export type OpsResult = { action: string; done: boolean; reason?: string; [k: string]: unknown };
 
@@ -44,7 +45,7 @@ export function opsHandles(t: string): boolean {
   return [
     "create_patient", "invoice_appointment", "record_payment", "write_prescription",
     "add_clinical_note", "complete_plan_item", "block_doctor_day", "add_service",
-    "submit_insurance_claim",
+    "submit_insurance_claim", "queue_recovery",
   ].includes(t);
 }
 
@@ -65,7 +66,83 @@ export async function runOps(
     case "block_doctor_day":       need([...ADMIN, "doctor"]); return blockDay(sb, a, cid, role, actor);
     case "add_service":            need(ADMIN);                return addService(sb, a, cid);
     case "submit_insurance_claim": need(MONEY);                return claim(sb, a, cid);
+    case "queue_recovery":         need([...MONEY, "doctor"]); return queueRecovery(sb, a, cid);
   }
+}
+
+/* The link between the two halves of the agent.
+ *
+ * Sura analyses in conversation and the loop acts on its own, and until
+ * now nothing joined them: she would find twenty lapsed patients, write
+ * a recommendation about them, and that was the end of it. The finding
+ * evaporated the moment the answer was read.
+ *
+ * She can hand them over now. Each patient becomes a goal the tick loop
+ * picks up within ten minutes, ranks against everything else open, and
+ * works under the same guardrails as any other — quiet hours, one
+ * message a day, two attempts, a logged reason. She is not sending
+ * anything here; she is putting it in the queue that does.
+ */
+async function queueRecovery(
+  sb: SB, a: Extract<OpsAction, { type: "queue_recovery" }>, cid: string,
+): Promise<OpsResult> {
+  const ids = [...new Set((a.patient_ids ?? []).filter((x) => UUID.test(x)))].slice(0, 40);
+  if (ids.length === 0) return fail(a, "لا يوجد مريض صالح — مرّري معرّفات من نتيجة استعلام");
+
+  const { data: people } = await sb.from("patients")
+    .select("id, name, name_ar, phone").eq("clinic_id", cid).in("id", ids)
+    .is("deleted_at", null).eq("is_archived", false);
+
+  const reachable = (people ?? []).filter((p) => p.phone);
+  if (reachable.length === 0) return fail(a, "لا يوجد لدى أيٍّ منهم رقم تواصل");
+
+  /* Worth what the clinic would earn if they came back. Their unfinished
+     treatment when there is one, and otherwise nothing claimed — a goal
+     that overstates its value distorts the queue it competes in. */
+  const { data: plans } = await sb.from("treatment_plan_items")
+    .select("line_total, status, treatment_plans!plan_id(patient_id, status)")
+    .eq("clinic_id", cid).eq("status", "pending");
+
+  const owed = new Map<string, number>();
+  for (const row of (plans ?? []) as unknown as { line_total: number; treatment_plans: { patient_id: string; status: string } | null }[]) {
+    const p = row.treatment_plans;
+    if (!p || !["accepted", "in_progress"].includes(p.status)) continue;
+    owed.set(p.patient_id, (owed.get(p.patient_id) ?? 0) + Number(row.line_total || 0));
+  }
+
+  const rows = reachable.map((p) => ({
+    clinic_id: cid,
+    kind: "plan_recovery" as const,
+    subject_id: p.id,          // the patient is the subject for a hand-queued goal
+    patient_id: p.id,
+    value_omr: owed.get(p.id) ?? 0,
+    context: {
+      plan_title: a.note?.slice(0, 160) ?? "استدعاء مريض منقطع",
+      queued_by: "sura_conversation",
+      items_left: 0, items_done: 0,
+      next_item: a.note?.slice(0, 160) ?? "متابعة",
+      next_price: owed.get(p.id) ?? 0,
+      days_stalled: 0,
+    },
+  }));
+
+  /* The partial unique index makes this idempotent: a patient already in
+     the queue is skipped rather than duplicated, which is what keeps a
+     re-run of the same analysis from messaging anyone twice. */
+  const { data: made, error } = await sb.from("sura_goals")
+    .insert(rows).select("id");
+
+  if (error && !/duplicate|unique/i.test(error.message)) throw new Error(error.message);
+
+  const queued = made?.length ?? 0;
+  return {
+    action: a.type, done: queued > 0,
+    queued,
+    skipped: reachable.length - queued,
+    value_omr: rows.reduce((s, r) => s + r.value_omr, 0),
+    reason: queued === 0 ? "جميعهم مُدرجون في قائمة المتابعة بالفعل" : undefined,
+    note: "سُرى ستتواصل معهم تلقائياً خلال عشر دقائق، بحدّ رسالة واحدة لكل مريض يومياً وخارج ساعات الهدوء.",
+  };
 }
 
 /* ── patients ─────────────────────────────────────────────────────── */
