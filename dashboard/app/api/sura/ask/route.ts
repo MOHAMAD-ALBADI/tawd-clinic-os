@@ -201,6 +201,64 @@ const tablesFor = (role: Role) => (role === "platform_admin" ? PLATFORM_TABLES :
 const OPS = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "ilike", "in", "is"]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/* ── Arabic names do not match as substrings ──────────────────────────
+ *
+ * Observed: asked to book «أحمد الريامي», Sura answered that no such
+ * patient exists and offered to register one. He was already there, as
+ * «أحمد بن سيف الريامي». A single ilike is a contiguous match, and the
+ * patronymic is precisely the part nobody says aloud — so the lookup
+ * failed and the offered remedy was a duplicate record for a patient the
+ * clinic already had.
+ *
+ * Two more faults sit on the same lookup. Ten of this clinic's patients
+ * carry their Arabic in `name` and twenty-two in `name_ar`, so searching
+ * one column is a coin flip. And the hamza is optional in ordinary
+ * typing: أحمد and احمد are one name to every human being and two
+ * strings to LIKE.
+ *
+ * So a name search means: every token present, in either column, in any
+ * order, under any spelling of the letters that carry ambiguity. */
+const NAME_COLS = ["name", "name_ar"] as const;
+
+/** The connectives in an Omani name. Present in the record, absent from
+    what anyone types, and never the distinguishing part either way. */
+const NAME_NOISE = new Set(["بن", "بنت", "ابن", "ابنة", "ال", "bin", "bint", "al"]);
+
+/** Spellings of one token that a reader would consider the same word.
+ *  Bounded at eight: hamza carriers on the first letter, where the
+ *  ambiguity actually lives, and the ة/ه and ى/ي endings. Expanding
+ *  every letter would multiply into hundreds of patterns for no gain. */
+function spellings(token: string): string[] {
+  let out = [token];
+  if ("اأإآ".includes(token[0])) out = [..."اأإآ"].map((a) => a + token.slice(1));
+  const last = token[token.length - 1];
+  if ("ةه".includes(last)) out = out.flatMap((t) => [..."ةه"].map((h) => t.slice(0, -1) + h));
+  else if ("ىي".includes(last)) out = out.flatMap((t) => [..."ىي"].map((y) => t.slice(0, -1) + y));
+  return out;
+}
+
+/** Chained .or() calls are ANDed by PostgREST, which is exactly the
+ *  shape wanted: one or-group per token, each satisfied by any spelling
+ *  in any name column. */
+function byName<Q extends { or(f: string): Q; ilike(c: string, v: string): Q }>(
+  q: Q, value: string, cols: readonly string[],
+): Q {
+  const search = NAME_COLS.filter((c) => cols.includes(c));
+  const tokens = value
+    .replace(/[%_,.()]/g, " ")
+    .split(/\s+/)
+    .filter((t) => t.length > 1 && !NAME_NOISE.has(t.toLowerCase()))
+    .slice(0, 4);
+
+  if (search.length === 0 || tokens.length === 0) {
+    return q.ilike(search[0] ?? "name", `%${value}%`);
+  }
+  for (const tok of tokens) {
+    q = q.or(spellings(tok).flatMap((s) => search.map((c) => `${c}.ilike.%${s}%`)).join(","));
+  }
+  return q;
+}
+
 /* What may be attached. An allowlist rather than a blocklist: the model
    will attempt whatever it is handed, and a clinic uploading a
    spreadsheet of patients to "have a look at" is a data path nobody
@@ -308,7 +366,7 @@ async function runPlan(sb: Awaited<ReturnType<typeof createServiceRoleClient>>, 
     }
     /* *_id columns must carry real UUIDs — otherwise teach the model to search by name */
     if (f.col.endsWith("_id") && ["eq", "neq"].includes(f.op) && !UUID_RE.test(String(f.value ?? ""))) {
-      throw new Error(`قيمة ${f.col} ليست UUID صالحاً — للبحث بالاسم استعلمي أولاً عن patients بـ ilike على name ثم استخدمي الـ id الناتج، أو استخدمي embed=true`);
+      throw new Error(`قيمة ${f.col} ليست UUID صالحاً — للبحث بالاسم استعلمي أولاً عن patients بـ ilike على name (النظام يبحث في name وname_ar بكل كلمة على حدة) ثم استخدمي الـ id الناتج، أو استخدمي embed=true`);
     }
     if (f.col.endsWith("_id") && f.op === "in" && Array.isArray(f.value) && !f.value.every((x) => UUID_RE.test(String(x)))) {
       throw new Error(`قيم ${f.col} يجب أن تكون UUIDs صالحة`);
@@ -324,7 +382,14 @@ async function runPlan(sb: Awaited<ReturnType<typeof createServiceRoleClient>>, 
     else if (f.op === "is") q = q.is(f.col, v as never);
     else if (f.op === "ilike") {
       const s = String(v ?? "");
-      q = q.ilike(f.col, s.includes("%") ? s : `%${s}%`);
+      /* A search on a name column is a name search, whichever of the two
+         the model happened to pick — it cannot know which one holds this
+         patient's Arabic, and it should not have to. */
+      if (NAME_COLS.includes(f.col as (typeof NAME_COLS)[number]) && !s.includes("%")) {
+        q = byName(q, s, t.cols);
+      } else {
+        q = q.ilike(f.col, s.includes("%") ? s : `%${s}%`);
+      }
     }
   }
 
@@ -714,7 +779,7 @@ export async function POST(req: Request) {
     `{"queries":[{"table":"...","select":["col",...],"embed":true|false,"filters":[{"col":"...","op":"eq|neq|gt|gte|lt|lte|ilike|in|is","value":...}],"order":{"col":"...","desc":true},"limit":25,"aggregate":{"op":"sum|count|avg","col":"...","group_by":"..."}}]}\n` +
     `- استخدمي aggregate للمجاميع/العدّ/المتوسط (group_by للتجميع مثل أكثر خدمة/طبيب).\n` +
     `- embed=true يجلب اسم المريض/الخدمة/الطبيب مع الصف.\n` +
-    `- ilike للبحث بالأسماء العربية (بدون %).\n` +
+    `- للبحث باسم شخص: ilike على name (بدون %). النظام يطابق كل كلمة على حدة في name وname_ar معاً ويتجاوز «بن/بنت» واختلاف الهمزة — فاكتبي الاسم كما نطقه المستخدم ولا تجرّبي الأعمدة واحداً واحداً.\n` +
     `- لا تضيفي أبداً فلاتر clinic_id أو doctor_id أو deleted_at — تُضاف تلقائياً من النظام.\n` +
     `- أعمدة *_id تقبل UUID حقيقياً فقط (من نتيجة استعلام سابق) — للبحث بالاسم استخدمي ilike على name.\n` +
     `- فلاتر التاريخ/الوقت على slot_time أو created_at بصيغة ISO مثل "2026-07-04T00:00:00+04:00" أو "2026-07-04".\n` +
