@@ -84,7 +84,16 @@ function Bars({ spec }: { spec: ChartSpec }) {
   return (
     <figure className="chart">
       {spec.title && <figcaption className="chart__t">{spec.title}</figcaption>}
+      {/* direction: ltr on the canvas, deliberately.
+       *
+       * text-anchor is resolved against the inline base direction, so
+       * inside an Arabic page "end" means the LEFT edge — every label was
+       * anchored at x=700 and drawn rightward, off the viewBox, leaving
+       * exactly one visible letter. Forcing ltr makes the anchor
+       * geometric; the Arabic inside each label still shapes and orders
+       * itself correctly, because that is bidi and not anchoring. */}
       <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} role="img"
+        style={{ direction: "ltr" }}
         aria-label={spec.title ?? "رسم بياني"}>
         {rows.map((r, i) => {
           const y = i * (rowH + gap);

@@ -433,7 +433,7 @@ function IconBtn({ label, onClick, children }: { label: string; onClick: () => v
 export function ReportLink() {
   return (
     <a
-      href="/clinic-admin/sura-agent/report"
+      href="/print/report"
       className="inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-[13px] text-[var(--text-2)] transition-colors hover:text-white"
       style={{ borderColor: "var(--hairline)" }}
     >

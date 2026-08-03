@@ -377,7 +377,7 @@ async function writeDocument(
   return {
     action: a.type,
     done: true,
-    document: { url: `/clinic-admin/sura-agent/doc/${data.id}`, label: data.title },
+    document: { url: `/print/doc/${data.id}`, label: data.title },
     note: "المستند معروض للمستخدم كزرّ جاهز. قولي في سطرين ما فيه من أرقام. ممنوع كتابة الرابط أو المسار أو «اضغط هنا» — الزرّ موجود.",
   };
 }
@@ -396,7 +396,7 @@ function openDocument(a: Extract<Action, { type: "open_document" }>): ActionResu
     action: a.type,
     done: true,
     document: {
-      url: `/clinic-admin/sura-agent/report${month ? `?month=${month}` : ""}`,
+      url: `/print/report${month ? `?month=${month}` : ""}`,
       label,
     },
     /* Said plainly so she confirms it exists rather than describing how
