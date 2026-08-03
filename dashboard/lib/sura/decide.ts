@@ -15,8 +15,12 @@ import type { Decision, GapCandidate, Goal } from "./types";
  * handled.
  */
 
+/* Flash, deliberately. This runs every ten minutes over every open goal
+   and makes one narrow choice from a list the scanner already built —
+   the reasoning is cheap and the volume is not. 3.6 is a large step up
+   from 2.5 at the same tier of cost. */
 const ENDPOINT =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent";
 
 const SCHEMA = {
   type: "object",
@@ -143,21 +147,30 @@ export async function decide(
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.4,
-        maxOutputTokens: 1200,
+        /* Thinking is charged against this ceiling, so it rose with the
+           model. An exhausted budget returns nothing at all, and a goal
+           that silently never advances is the worst failure here. */
+        maxOutputTokens: 4096,
         responseMimeType: "application/json",
         responseSchema: SCHEMA,
-        /* Thinking off. It costs the whole output budget on a decision
-           this constrained, and an empty response is worse than a plain
-           one — the goal silently never advances. */
-        thinkingConfig: { thinkingBudget: 0 },
+        /* Gemini 3 rejects thinkingBudget: 0 — "This model only works in
+           thinking mode". Low is the floor, and a decision this narrow
+           does not want more than the floor. */
+        thinkingConfig: { thinkingLevel: "low" },
       },
     }),
   });
 
   if (!res.ok) return null;
 
+  /* Every part joined, not the first. A thinking model splits its reply,
+     and parts[0] can be an opening fragment — valid text, invalid JSON,
+     and a goal that never advances for a reason nothing logs. */
   const body = (await res.json()) as GeminiResponse;
-  const text = body.candidates?.[0]?.content?.parts?.[0]?.text;
+  const text = (body.candidates?.[0]?.content?.parts ?? [])
+    .map((p) => p.text ?? "")
+    .join("")
+    .trim();
   if (!text) return null;
 
   let raw: unknown;

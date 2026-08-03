@@ -17,7 +17,16 @@ type Block =
   | { k: "ol"; items: string[] }
   | { k: "table"; rows: string[][] }
   | { k: "chart"; spec: ChartSpec }
+  | { k: "img"; src: string; alt: string }
   | { k: "hr" };
+
+/* Only what this system produced.
+ *
+ * A generated illustration is stored in our own bucket, so its address
+ * is known ahead of time. Anything else in an image line is a URL a
+ * language model wrote, and a document that fetches those on open is a
+ * document that leaks who is reading it to whoever it names. */
+const OURS = /^https:\/\/[a-z0-9-]+\.supabase\.co\/storage\/v1\/object\/public\/sura-media\//i;
 
 function parse(md: string): Block[] {
   const lines = md.replace(/\r/g, "").split("\n");
@@ -34,6 +43,16 @@ function parse(md: string): Block[] {
     if (!line.trim()) { i++; continue; }
 
     if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { out.push({ k: "hr" }); i++; continue; }
+
+    /* An image on its own line. Dropped silently when it points
+       anywhere but our bucket — better a missing picture than a
+       document that calls out to a stranger when the clinic opens it. */
+    const pic = /^\s*!\[([^\]]*)\]\(([^)\s]+)\)\s*$/.exec(line);
+    if (pic) {
+      if (OURS.test(pic[2])) out.push({ k: "img", src: pic[2], alt: pic[1] || "صورة" });
+      i++;
+      continue;
+    }
 
     /* A fenced block. Only charts are rendered; anything else fenced is
        dropped rather than printed raw — a document should never show its
@@ -136,6 +155,17 @@ export function DocBody({ md }: { md: string }) {
             );
           case "chart":
             return <DocChart key={i} spec={b.spec} />;
+          case "img":
+            return (
+              <figure key={i} className="db-fig">
+                {/* Plain img: the source is a Supabase public URL of
+                    unknown dimensions, and this page is printed as often
+                    as it is read. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={b.src} alt={b.alt} className="db-img" />
+                {b.alt && b.alt !== "صورة" ? <figcaption className="db-cap">{b.alt}</figcaption> : null}
+              </figure>
+            );
           case "hr":
             return <hr key={i} className="db-hr" />;
           case "table":
@@ -184,6 +214,9 @@ export function DocBody({ md }: { md: string }) {
         .db-table { width: 100%; border-collapse: collapse; font-size: .86rem; }
         .db-table th { text-align: start; font-weight: 800; padding: .5rem .4rem; border-bottom: 2px solid #14161a; }
         .db-table td { padding: .45rem .4rem; border-bottom: 1px solid #eceef1; }
+        .db-fig { margin: 0 0 1.2rem; break-inside: avoid; }
+        .db-img { display: block; width: 100%; height: auto; border-radius: 3px; }
+        .db-cap { margin-top: .45rem; font-size: .8rem; color: #5b6472; text-align: center; }
       `}</style>
     </div>
   );

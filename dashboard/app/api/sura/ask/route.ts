@@ -198,6 +198,19 @@ const ROLE_TABLES: Record<Role, string[]> = {
     of tables entirely, not a wider slice of the same one. */
 const tablesFor = (role: Role) => (role === "platform_admin" ? PLATFORM_TABLES : TABLES);
 
+/* The conversation runs on the strongest model the account opens.
+ *
+ * Probed against the live key before switching: given a bare persona,
+ * 2.5-flash, 3.6-flash and 3.1-pro all answered "لا أستطيع إنشاء
+ * مستندات PDF". Given one line naming her tools, all three answered
+ * yes. The refusals were never a shortage of intelligence — but the
+ * stronger model holds a long Arabic instruction far better, and this
+ * one is asked to hold about a hundred lines of them.
+ *
+ * The autonomous loop stays on flash: it wakes every ten minutes and
+ * makes one narrow choice, which is not what Pro money is for. */
+const MODEL = "gemini-3.1-pro-preview";
+
 const OPS = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "ilike", "in", "is"]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -516,12 +529,14 @@ async function gemini(
      and the least visible. Twenty-eight seconds leaves room for a
      second round inside the platform's limit. */
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), 28_000);
+  /* Pro thinks before it answers and that time is real. Five rounds at
+     fifty seconds still fits inside maxDuration = 300. */
+  const timer = setTimeout(() => ac.abort(), 50_000);
 
   let res: Response;
   try {
     res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${key}`,
       {
         signal: ac.signal,
         method: "POST",
@@ -541,8 +556,16 @@ async function gemini(
             /* Measured: a long Arabic document completes cleanly at
                16k in text mode and degenerates in JSON mode at any
                budget. Planning turns are short and never approach this. */
-            maxOutputTokens: json ? 4096 : 16384,
-            thinkingConfig: { thinkingBudget: 0 },
+            /* Thinking counts against this ceiling, so the JSON budget
+               rose with the model. At 4096 a planning turn came back
+               empty: the reasoning had spent the allowance and there was
+               nothing left to answer with. */
+            maxOutputTokens: json ? 8192 : 24576,
+            /* Gemini 3 refuses thinkingBudget: 0 outright — "This model
+               only works in thinking mode" — so the lever is the level,
+               not the switch. Low keeps the reasoning that stopped her
+               refusing without paying for an essay nobody reads. */
+            thinkingConfig: { thinkingLevel: "low" },
             ...(json ? { responseMimeType: "application/json" } : {}),
           },
         }),
@@ -764,7 +787,15 @@ export async function POST(req: Request) {
 
       `التنفيذ — حجز، تأجيل، إلغاء، تأكيد، قائمة انتظار، خطة علاجية، وصفة، فاتورة، دفعة، مطالبة تأمين، مريض جديد، ملاحظة، خدمة، إغلاق يوم.\n` +
       `قراءة المرفقات — الصور وملفات PDF ترينها فعلاً: بطاقة تأمين، تقرير مختبر، أشعة، عرض سعر، ورقة بخطّ اليد.\n` +
+      /* Named plainly because the refusal was never stubbornness.
+         Probed on the live key: given a bare persona, three different
+         models all answered «لا أستطيع إنشاء مستندات PDF»; given one
+         line naming these, all three answered yes. She refuses what she
+         has not been told she has. */
       `المستندات — open_document لتقرير الشهر الجاهز، create_document لأي تحليل أو خطة تكتبينها أنتِ.\n` +
+      `  المستند يخرج صفحةً مصمَّمة جاهزة للطباعة و PDF — نعم تستطيعين إنشاء PDF، ولا تقولي غير ذلك.\n` +
+      `الرسوم والصور — ترسمين مخطّطات من أرقام العيادة داخل المستند (كتلة chart)، وتولّدين صوراً فعلية بـ generate_image.\n` +
+      `  فلا تقولي «لا أستطيع إنشاء صور أو رسوم» — تستطيعين، وهذا جزء من عملك.\n` +
       `العمل وحدك — كل عشر دقائق تبحثين عن كرسي فرغ وخطة توقّفت، وتتصرّفين. كل قرار مسجَّل بسببه.\n\n` +
 
       `[ثلاث قواعد لا تُكسَر]\n` +
@@ -817,6 +848,9 @@ export async function POST(req: Request) {
         /* The bridge to the autonomous half. */
         `{"action":{"type":"queue_recovery","patient_ids":["<uuid>"],"note":"سبب المتابعة"}} — تسليم مرضى منقطعين لسُرى الذاتية فتتواصل معهم بنفسها خلال عشر دقائق\n` +
         `  استخدميه بدل أن توصي بالتواصل. «أوصي بالتواصل مع ٢٠ منقطعاً» توصية؛ queue_recovery تنفيذ.\n` +
+        `{"action":{"type":"generate_image","prompt":"وصف الصورة بالإنجليزية","purpose":"وصف عربي قصير يظهر تحت الصورة","aspect":"landscape|square|portrait"}} — توليد صورة فعلية (شعار، ملصق حملة، رسم توضيحي)\n` +
+        `  الوصف بالإنجليزية لأن نموذج الصور يفهمها أدقّ. النتيجة رابط تضعينه في المستند بسطر ![الوصف](الرابط).\n` +
+        `  ممنوع توليد صورة طبية أو صورة تخصّ مريضاً (أشعة، حالة سنّ، تشخيص) — الصورة المولَّدة ليست سجلاً طبياً.\n` +
 
         `\n[المستند]\n` +
         `الردّ سطران يقولان ما فيه؛ المستند هو العمل. استعلمي البيانات أولاً، ثم نفّذي create_document بعنوان ووصف الأقسام.\n` +

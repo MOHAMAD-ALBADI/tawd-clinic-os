@@ -28,7 +28,8 @@ export type OpsAction =
   | { type: "block_doctor_day"; doctor_id: string; date: string; reason?: string }
   | { type: "add_service"; name: string; price: number; duration_minutes?: number; category?: string }
   | { type: "submit_insurance_claim"; invoice_id: string; provider_id: string; amount?: number }
-  | { type: "queue_recovery"; patient_ids: string[]; note?: string };
+  | { type: "queue_recovery"; patient_ids: string[]; note?: string }
+  | { type: "generate_image"; prompt: string; purpose?: string; aspect?: "square" | "landscape" | "portrait" };
 
 export type OpsResult = { action: string; done: boolean; reason?: string; [k: string]: unknown };
 
@@ -45,7 +46,7 @@ export function opsHandles(t: string): boolean {
   return [
     "create_patient", "invoice_appointment", "record_payment", "write_prescription",
     "add_clinical_note", "complete_plan_item", "block_doctor_day", "add_service",
-    "submit_insurance_claim", "queue_recovery",
+    "submit_insurance_claim", "queue_recovery", "generate_image",
   ].includes(t);
 }
 
@@ -67,7 +68,102 @@ export async function runOps(
     case "add_service":            need(ADMIN);                return addService(sb, a, cid);
     case "submit_insurance_claim": need(MONEY);                return claim(sb, a, cid);
     case "queue_recovery":         need([...MONEY, "doctor"]); return queueRecovery(sb, a, cid);
+    case "generate_image":         need([...ADMIN, "receptionist"]); return generateImage(sb, a, cid);
   }
+}
+
+/* Drawing, for real.
+ *
+ * "لا أستطيع إنشاء صور أو ملفات رسومية" was true of the model she was
+ * given — gemini-2.5-flash reads pictures and does not make them — and
+ * false of what the clinic needed. Charts answer most of it: a bar of
+ * revenue per service is a truer illustration than anything generated.
+ * But a recall campaign wants artwork, and refusing outright was a
+ * capability gap wearing the costume of a limitation.
+ *
+ * A separate model, called only when someone asks for a picture, and
+ * never for anything derived from a patient record — the prompt is
+ * checked for that here rather than trusted to stay clean.
+ */
+const IMAGE_MODEL = "gemini-3-pro-image";
+
+/** Refused outright. A generated likeness of a real person's mouth is
+ *  not an illustration, it is a fabricated medical image. */
+const NOT_ILLUSTRATION = [
+  "أشعة", "اشعة", "x-ray", "xray", "بانورام", "صورة المريض", "صورة المريضة",
+  "سنّ المريض", "سن المريض", "حالة المريض", "تشخيص",
+];
+
+async function generateImage(
+  sb: SB, a: Extract<OpsAction, { type: "generate_image" }>, cid: string,
+): Promise<OpsResult> {
+  const prompt = a.prompt?.trim();
+  if (!prompt || prompt.length < 8) return fail(a, "وصف الصورة قصير أو ناقص");
+
+  const banned = NOT_ILLUSTRATION.find((w) => prompt.toLowerCase().includes(w));
+  if (banned) {
+    return fail(a, `لا تُولَّد صور طبية أو صور تخصّ مريضاً («${banned}») — الصورة المولَّدة ليست تشخيصاً ولا سجلاً.`);
+  }
+
+  const { data: sec } = await sb.from("platform_secrets").select("gemini_key").limit(1).maybeSingle();
+  const key = (sec as { gemini_key?: string } | null)?.gemini_key;
+  if (!key) return fail(a, "لا يوجد مفتاح للنموذج");
+
+  const ratio = a.aspect === "portrait" ? "3:4" : a.aspect === "square" ? "1:1" : "16:9";
+
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 55_000);
+  let res: Response;
+  try {
+    res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateContent?key=${key}`,
+      {
+        signal: ac.signal,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseModalities: ["IMAGE"],
+            imageConfig: { aspectRatio: ratio },
+          },
+        }),
+      },
+    );
+  } catch {
+    clearTimeout(timer);
+    return fail(a, "تعذّر الوصول إلى نموذج الصور");
+  }
+  clearTimeout(timer);
+
+  if (!res.ok) return fail(a, `نموذج الصور ردّ بالحالة ${res.status}`);
+
+  const j = (await res.json()) as {
+    candidates?: { content?: { parts?: { inlineData?: { mimeType: string; data: string } }[] } }[];
+  };
+  const img = j.candidates?.[0]?.content?.parts?.find((p) => p.inlineData)?.inlineData;
+  if (!img?.data) return fail(a, "لم يُرجع النموذج صورة");
+
+  const ext = img.mimeType.includes("png") ? "png" : img.mimeType.includes("webp") ? "webp" : "jpg";
+  const path = `${cid}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+  const { error } = await sb.storage
+    .from("sura-media")
+    .upload(path, Buffer.from(img.data, "base64"), { contentType: img.mimeType, upsert: false });
+  if (error) return fail(a, `تعذّر حفظ الصورة: ${error.message}`);
+
+  const { data: pub } = sb.storage.from("sura-media").getPublicUrl(path);
+
+  return {
+    action: a.type,
+    done: true,
+    image_url: pub.publicUrl,
+    /* Said explicitly because the markdown is the only way the picture
+       reaches the page — describing it instead leaves a blank. */
+    note:
+      `الصورة جاهزة على هذا الرابط. لعرضها للمستخدم أو داخل مستند اكتبي سطر ماركداون: ![${a.purpose ?? "صورة"}](${pub.publicUrl}) — ` +
+      `ولا تصفي الصورة بدل عرضها.`,
+  };
 }
 
 /* The link between the two halves of the agent.
