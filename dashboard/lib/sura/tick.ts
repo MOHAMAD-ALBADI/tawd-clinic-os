@@ -41,6 +41,15 @@ export async function runTick(): Promise<TickReport> {
     errors: [],
   };
 
+  /* A showcase clinic has nobody to mark arrivals, so its days would
+     otherwise close at 100% no-show — the automated marker is correct
+     and there is simply no human on the other side of it. Resolving the
+     day here keeps the dataset honest without a cron of its own, and it
+     is idempotent: outcomes come from a hash of the appointment id, so
+     running it every ten minutes changes nothing after the first. */
+  const closed = await svc.rpc("tawd_close_demo_day");
+  if (closed.error) report.errors.push(`close_day: ${closed.error.message}`);
+
   /* ── sense ─────────────────────────────────────────────────────── */
   const [gaps, plans] = await Promise.all([
     svc.rpc("sura_scan_gap_fill"),
