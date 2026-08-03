@@ -965,6 +965,7 @@ export async function POST(req: Request) {
     const wantsDoc = /مستند|تقرير|وثيقة|دراسة|ملف\s|PDF|pdf/.test(question);
     const wantsPicture = /صورة|صور\b|غلاف|شعار|ملصق|تصميم/.test(question);
     let docPushed = false;
+    let docForced = false;
     const madePicture = () =>
       context.some((c) => {
         const r = (c as { action_result?: { action?: string; done?: boolean } })?.action_result;
@@ -1060,6 +1061,25 @@ export async function POST(req: Request) {
            answer says — a summary, an offer, a promise — it is not the
            deliverable, and the analysis behind it is already in context
            so the retry costs a turn rather than the work. */
+        /* Told once, she said "وجاهزة لإصدار المستند النهائي لك" and
+           stopped again. A push-back is advice, and advice is the thing
+           that has failed at every step of this. The second time, the
+           server writes the action itself: the deliverable stops being
+           something she decides to produce. */
+        if (wantsDoc && !doc && docPushed && !docForced && !nearLimit()) {
+          docForced = true;
+          const heading = /^\s*#{1,4}\s*(.+)$/m.exec(answer)?.[1]?.trim();
+          resp = {
+            action: {
+              type: "create_document",
+              title: (heading || `تقرير: ${question.slice(0, 60)}`).slice(0, 200),
+              brief: question,
+              prompt: question,
+            },
+          };
+          continue;
+        }
+
         if (wantsDoc && !doc && !docPushed && !nearLimit()) {
           docPushed = true;
           context.push({
@@ -1129,6 +1149,34 @@ export async function POST(req: Request) {
             const { data: brief, error: briefErr } = await sb.rpc("sura_clinic_brief", { p_clinic: cid });
             if (briefErr) console.error("[sura/ask] brief failed:", briefErr.message);
             else if (brief) context.push({ clinic_brief: brief });
+
+            /* A cover, when one was asked for and none exists.
+               The body is written by a call that cannot run actions, so
+               the picture has to exist before the writing starts — and
+               left to her, she reached for one and invented its address
+               at unsplash.com. */
+            if (wantsPicture && !madePicture() && !nearLimit()) {
+              try {
+                const cover = await runAction(
+                  sb,
+                  {
+                    type: "generate_image",
+                    prompt:
+                      "A calm, professional cover illustration for a dental clinic performance report. " +
+                      "Minimal flat vector style, soft blue and white, abstract geometric shapes suggesting " +
+                      "growth and care. No text, no words, no letters, no numbers anywhere in the image.",
+                    purpose: "غلاف التقرير",
+                    aspect: "landscape",
+                  } as unknown as Action,
+                  cid, role, claims.sub, context,
+                );
+                context.push({ action_result: cover });
+              } catch (e) {
+                /* A missing cover is a smaller loss than a missing
+                   report, so this never stops the document. */
+                console.error("[sura/ask] cover failed:", e instanceof Error ? e.message : e);
+              }
+            }
 
             act.body_md = await gemini(
               geminiKey,
