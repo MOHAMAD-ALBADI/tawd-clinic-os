@@ -121,3 +121,21 @@ export async function agentEnabled(
   }
   return OK;
 }
+
+/* A number Meta will accept.
+ *
+ * The sender stripped everything but digits, which is right for
+ * "+968 7663 0020" and wrong for "76630020" — an Omani local number
+ * reached the API without its country code and was rejected every time,
+ * for a patient who looked perfectly reachable in the clinic's records.
+ *
+ * New patients are normalised on the way in, so only one row carries
+ * the old shape today. A CSV import brings hundreds, and the fix
+ * belongs at the point of sending rather than at every point of entry.
+ */
+export function e164(phone: string): string {
+  const digits = (phone ?? "").replace(/\D/g, "");
+  if (digits.length === 8) return `968${digits}`;          // local Omani
+  if (digits.startsWith("00")) return digits.slice(2);      // 00968…
+  return digits;
+}

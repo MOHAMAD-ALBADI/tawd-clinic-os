@@ -1,7 +1,7 @@
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { platformSecrets } from "@/lib/platform-secrets";
 import { decide } from "./decide";
-import { LIMITS, agentEnabled, gateOutbound, minutesUntilOpen } from "./policy";
+import { LIMITS, agentEnabled, gateOutbound, minutesUntilOpen, e164 } from "./policy";
 import type { ActionLog, Decision, GapCandidate, Goal } from "./types";
 
 /* One beat of the agent.
@@ -360,7 +360,7 @@ async function sendWhatsApp(
     .maybeSingle();
 
   const conf = cfg?.config as Record<string, string> | null;
-  const to = phone.replace(/\D/g, "");
+  const to = e164(phone);
   if (!conf?.access_token || !conf?.phone_number_id || !to) {
     return { ok: false, error: "واتساب غير مربوط لهذه العيادة" };
   }

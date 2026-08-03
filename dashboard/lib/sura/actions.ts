@@ -3,6 +3,7 @@ import type { Role } from "@/types/tawd";
 import { loadAvailability, freeAt, pickDoctor } from "@/lib/availability";
 import { runOps, opsHandles, type OpsAction } from "./actions-ops";
 import { guardDocument } from "./doc-guard";
+import { e164 } from "./policy";
 
 /* What Sura can actually DO when asked.
  *
@@ -314,7 +315,7 @@ async function message(sb: SB, a: Extract<Action, { type: "message_patient" }>, 
     cache: "no-store",
     body: JSON.stringify({
       messaging_product: "whatsapp",
-      to: patient.phone.replace(/\D/g, ""),
+      to: e164(patient.phone),
       type: "text",
       text: { body: text },
     }),
