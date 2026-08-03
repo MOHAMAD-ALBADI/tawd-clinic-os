@@ -598,9 +598,18 @@ async function gemini(
    * text, invalid JSON, and a "وصل ردّ غير مكتمل" that had nothing to do
    * with the model. Short answers have one part, which is why this
    * survived until she started writing documents. */
+  /* Thought parts are not the answer.
+     A thinking model can return its reasoning as a part of its own, and
+     concatenating that with the reply produces prose wrapped around a
+     JSON object — which is precisely the "وصل ردّ غير مكتمل" a clinic
+     sees when nothing was actually wrong with the model. */
   const back = j?.candidates?.[0]?.content?.parts;
   const text = Array.isArray(back)
-    ? back.map((p: { text?: string }) => p?.text ?? "").join("").trim()
+    ? back
+        .filter((p: { thought?: boolean }) => p?.thought !== true)
+        .map((p: { text?: string }) => p?.text ?? "")
+        .join("")
+        .trim()
     : undefined;
 
   /* MAX_TOKENS is fatal even when text came back, and that was the bug
@@ -645,7 +654,32 @@ function parseTurn(raw: string): Record<string, unknown> {
   const first = raw.indexOf("{");
   const last = raw.lastIndexOf("}");
   if (first >= 0 && last > first) {
-    try { return attempt(raw.slice(first, last + 1)); } catch { /* out of ideas */ }
+    try { return attempt(raw.slice(first, last + 1)); } catch { /* keep going */ }
+  }
+
+  /* Every balanced object in the string, longest first.
+   *
+   * The slice above assumes exactly one object with prose around it. It
+   * fails on two — reasoning that itself contains braces, or a thought
+   * object followed by the real turn — and produces "{…}{…}", which
+   * parses as nothing. Scanning for balanced spans handles both, and
+   * taking the longest picks the turn over any fragment inside it. */
+  const spans: string[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    if (raw[i] !== "{") continue;
+    let depth = 0, inStr = false, esc = false;
+    for (let k = i; k < raw.length; k++) {
+      const ch = raw[k];
+      if (esc) { esc = false; continue; }
+      if (ch === "\\") { esc = true; continue; }
+      if (ch === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (ch === "{") depth++;
+      else if (ch === "}" && --depth === 0) { spans.push(raw.slice(i, k + 1)); break; }
+    }
+  }
+  for (const s of spans.sort((a, b) => b.length - a.length)) {
+    try { return attempt(s); } catch { /* next span */ }
   }
 
   throw new SuraError("bad_json");
@@ -662,7 +696,10 @@ async function logUsage(
     await sb.from("ai_usage_metrics").insert({
       clinic_id: clinicId,
       workflow_id: "dashboard-ask",
-      model: "gemini-2.5-flash",
+      /* Was hardcoded, and stayed hardcoded through a model change —
+         so the spend report would have attributed Pro tokens to flash
+         and quietly understated the bill. */
+      model: MODEL,
       channel: "web_chat",
       tokens_input: usage.input,
       tokens_output: usage.output,
