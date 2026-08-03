@@ -835,15 +835,33 @@ export async function POST(req: Request) {
     /* agent loop: each model turn returns answer | queries | action (max 4 turns) */
     const context: unknown[] = [];
     let actionsDone = 0;
+
+    /* One request, one write of any given thing.
+     *
+     * Asked once to file an insurance card, she wrote two clinical notes
+     * two seconds apart — the loop ran a second round and she repeated
+     * herself, so the patient's file carried the same event twice. The
+     * round budget is there to let her gather more, not to let her act
+     * again, and no clinic wants a duplicate on a medical record. */
+    const written = new Set<string>();
     /* Anything the answer should render as more than text. Kept as a
        field rather than a URL inside the prose, so the interface can
        show a button and she never has to describe one. */
     let doc: { url: string; label: string } | null = null;
     const usage: Usage = { input: 0, output: 0 };
 
+    /* The attachment is in this message, not described by it.
+     *
+     * The earlier wording named the file and told her to read it, which
+     * is exactly what a model does when the bytes are missing: it reads
+     * the name. Handed «بطاقة-تأمين.png» and nothing else, she reported
+     * an insurer, a policy number, a tier and a ceiling — all invented,
+     * and a different set on each round. */
     const fileNote = files.length
-      ? `\n[مرفقات]\nأرفق المستخدم ${files.length} ملفاً (${files.map((f) => f.name ?? f.mime).join("، ")}). ` +
-        `اقرأيها واستخرجي منها ما يخدم السؤال. إن كانت وثيقة مريض فلخّصي المهمّ منها ولا تنسخيها كاملة.\n`
+      ? `\n[مرفقات]\nمرفق مع هذه الرسالة ${files.length} ملفاً (${files.map((f) => f.name ?? f.mime).join("، ")}) — الملف نفسه أمامك في هذه الرسالة.\n` +
+        `اقرئي منه ما تبصرينه فعلاً. لا تذكري اسم شركة ولا رقماً ولا تاريخاً إلا إن قرأتِه في الصورة حرفاً حرفاً؛ ` +
+        `وما لم يتّضح قولي إنه غير مقروء واطلبي صورة أوضح. اسم الملف ليس مصدراً.\n` +
+        `إن كانت وثيقة مريض فلخّصي المهمّ منها ولا تنسخيها كاملة.\n`
       : "";
 
     const ask = (final: boolean) =>
@@ -890,7 +908,7 @@ export async function POST(req: Request) {
               "عدد المواعيد المكتملة، متوسّط قيمة الفاتورة، عدد حالات عدم الحضور، مواعيد كل طبيب — " +
               "لكل فترة على حدة ثم قارني. شغّلي الاستعلامات الآن وأجيبي بالسبب، ولا تسألي إلا عن قرار أو تفضيل.",
           });
-          resp = parseTurn(await gemini(geminiKey, ask(false), true, usage));
+          resp = parseTurn(await gemini(geminiKey, ask(false), true, usage, files));
           continue;
         }
 
@@ -902,6 +920,24 @@ export async function POST(req: Request) {
         actionsDone++;
         try {
           const act = resp.action as Record<string, unknown>;
+
+          /* Keyed on the type and whom it touches rather than on the
+             whole payload — the second note was worded differently and
+             would have slipped past an exact-text comparison. Documents
+             are exempt: asking for two is a legitimate request. */
+          const target = String(act.patient_id ?? act.appointment_id ?? act.invoice_id ?? "");
+          const key = `${String(act.type)}:${target}`;
+          if (act.type !== "create_document" && target && written.has(key)) {
+            context.push({
+              action_result: {
+                action: act.type, done: false,
+                error: "نُفِّذ هذا الإجراء لهذا الشخص في هذا الطلب — لا تكرّريه. أجيبي بالنتيجة.",
+              },
+            });
+            resp = parseTurn(await gemini(geminiKey, ask(true), true, usage, files));
+            continue;
+          }
+          written.add(key);
 
           /* Stage two of a document. The planning turn supplies the
              title and the brief; the body is written here, in plain
@@ -925,6 +961,7 @@ export async function POST(req: Request) {
                 `- ألف إلى ألفي كلمة. لا تكرّري.`,
               false,
               usage,
+              files,
             );
           }
 
@@ -951,7 +988,10 @@ export async function POST(req: Request) {
         break;
       }
 
-      resp = parseTurn(await gemini(geminiKey, ask(step >= 3), true, usage));
+      /* Files travel on every round, not just the first.
+         The bytes cost tokens each time; a fabricated policy number
+         written into a patient's file costs more. */
+      resp = parseTurn(await gemini(geminiKey, ask(step >= 3), true, usage, files));
     }
 
     if (resp?.answer) {
