@@ -61,6 +61,30 @@ export function deferring(answer: string): boolean {
   return DEFERRALS.some((d) => answer.includes(d));
 }
 
+/* Refusing what she can do, and quoting her own referee.
+ *
+ * Asked for a document with visuals she answered «لا أستطيع إنشاء صور أو
+ * ملفات رسومية». She draws charts from real figures and renders them on
+ * a printable page.
+ *
+ * Worse, in the same breath: «أحتاج إلى استعراض بيانات أكثر تفصيلاً حول
+ * الإيرادات لكل خدمة، وأنماط عدم الحضور، ومقارنة الأداء بين فترات
+ * مختلفة» — which is, almost word for word, the rejection guardDocument
+ * hands her when she writes before querying. The reason exists to send
+ * her back to the data. Passing it to the owner as a finding turns a
+ * quality check into an excuse. */
+const REFUSALS = [
+  "لا أستطيع إنشاء صور", "لا يمكنني إنشاء صور", "لا أستطيع إنشاء رسوم",
+  "لا يمكنني إنشاء رسوم", "لا أستطيع إنشاء ملفات", "لا يمكنني إنشاء ملفات",
+  "لا أستطيع تصميم", "لا يمكنني تصميم", "لا أستطيع إنشاء مستند",
+  "البيانات المتاحة لا تكفي", "البيانات المتوفرة لا تكفي",
+  "أحتاج إلى استعراض بيانات", "لا تكفي لتغطية", "لا تكفي لإنشاء",
+];
+
+export function refusing(answer: string): boolean {
+  return REFUSALS.some((r) => answer.includes(r));
+}
+
 export function guardDocument(
   body: string,
   gathered: unknown[],
@@ -69,9 +93,14 @@ export function guardDocument(
      this product is that the numbers come from the clinic's own data,
      and that claim is only true if data was actually read. */
   const results = gathered.filter(
-    (g) => g && typeof g === "object" && ("rows" in g || "count" in g || "aggregate" in g || "table" in g),
+    (g) =>
+      g && typeof g === "object" &&
+      ("rows" in g || "count" in g || "aggregate" in g || "table" in g || "clinic_brief" in g),
   );
-  if (results.length < 2) {
+  /* The deterministic sweep counts as the whole gathering — it answers
+     every axis this guard used to demand one query at a time. */
+  const swept = gathered.some((g) => g && typeof g === "object" && "clinic_brief" in g);
+  if (!swept && results.length < 2) {
     return {
       ok: false,
       reason:

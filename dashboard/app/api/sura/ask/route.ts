@@ -4,7 +4,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { platformSecrets } from "@/lib/platform-secrets";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { runAction, type Action } from "@/lib/sura/actions";
-import { deferring } from "@/lib/sura/doc-guard";
+import { deferring, refusing } from "@/lib/sura/doc-guard";
 import type { Attachment } from "@/lib/sura/types";
 import { ensureConversation, saveTurn, type StoredFile } from "@/lib/sura/conversations";
 
@@ -899,14 +899,22 @@ export async function POST(req: Request) {
            investigation. Send her back with the rounds she did not
            spend — once, so a genuine "I need a decision from you"
            still gets through on the second pass. */
-        if (!pushedBack && step < 3 && deferring(answer)) {
+        if (!pushedBack && step < 4 && (deferring(answer) || refusing(answer))) {
           pushedBack = true;
+          /* Hand her the whole sweep rather than the instruction to go
+             and find it. She refused for lack of data; the answer to
+             that is data, not another sentence telling her to look. */
+          const { data: brief } = await sb.rpc("sura_clinic_brief", { p_clinic: cid });
+          if (brief) context.push({ clinic_brief: brief });
           context.push({
             rejected_answer: answer,
             why:
-              "هذا عرض للبحث لا بحث. كل سؤال طرحتِه على المستخدم هو استعلام تستطيعين تشغيله بنفسك: " +
-              "عدد المواعيد المكتملة، متوسّط قيمة الفاتورة، عدد حالات عدم الحضور، مواعيد كل طبيب — " +
-              "لكل فترة على حدة ثم قارني. شغّلي الاستعلامات الآن وأجيبي بالسبب، ولا تسألي إلا عن قرار أو تفضيل.",
+              "هذا ليس جواباً. المسح الكامل لبيانات العيادة مرفق أعلاه في clinic_brief: الإيراد لكل خدمة، " +
+              "وعدم الحضور بالطبيب والساعة واليوم والخدمة ومدّة الحجز المسبق والمرضى المتكرّرين، والفترة مقابل الفترة، " +
+              "والمنقطعون، وقبول الخطط، والتحصيل. اكتبي من هذه الأرقام الآن. " +
+              "وأنتِ ترسمين مخطّطات من بيانات حقيقية داخل المستند وتُخرجينه صفحةً جاهزة للطباعة و PDF — " +
+              "فلا تقولي إنك لا تستطيعين إنشاء رسوم أو ملفات. " +
+              "ولا تنقلي للمستخدم سبب رفضٍ داخلي: ذاك تعليمة لكِ لتصحيح عملك، وليس جواباً له.",
           });
           resp = parseTurn(await gemini(geminiKey, ask(false), true, usage, files));
           continue;
@@ -943,11 +951,31 @@ export async function POST(req: Request) {
              title and the brief; the body is written here, in plain
              text, because JSON mode cannot carry it intact. */
           if (act.type === "create_document" && !String(act.body_md ?? "").trim()) {
+            /* Gather before writing, in code.
+             *
+             * A six-part request needs a dozen queries and she has three
+             * a round. She ran out, the guard refused the thin document,
+             * and she handed the guard's own words to the owner as an
+             * excuse — "أحتاج إلى استعراض بيانات أكثر تفصيلاً حول
+             * الإيرادات لكل خدمة، وأنماط عدم الحضور، ومقارنة الأداء" is
+             * verbatim the rejection text in doc-guard.
+             *
+             * So the sweep runs here, unconditionally, before the body is
+             * written. Revenue by service, no-shows on six axes, period
+             * over period, the lapsed list, plan acceptance, collection.
+             * She can no longer lack the data, which means she can no
+             * longer say she lacks it. */
+            const { data: brief, error: briefErr } = await sb.rpc("sura_clinic_brief", { p_clinic: cid });
+            if (briefErr) console.error("[sura/ask] brief failed:", briefErr.message);
+            else if (brief) context.push({ clinic_brief: brief });
+
             act.body_md = await gemini(
               geminiKey,
               `أنتِ سُرى، تكتبين مستنداً لعيادة ${clinicName}.\n\n` +
                 `[المطلوب]\n${String(act.brief ?? question)}\n\n` +
                 `[البيانات التي قرأتِها — لا تستخدمي رقماً خارجها]\n${JSON.stringify(context).slice(0, 18000)}\n\n` +
+                `البيانات أعلاه كاملة وكافية. لا تقولي إنها لا تكفي ولا تطلبي غيرها — اكتبي من الموجود، ` +
+                `وإن غاب محور بعينه اذكري غيابه في سطر واحد وواصلي.\n` +
                 `اكتبي المستند الآن بصيغة Markdown مباشرة، بلا JSON وبلا أي غلاف وبلا مقدّمة عن نفسك.\n` +
                 `- عناوين بـ ## ، والأرقام في جداول Markdown.\n` +
                 `- كل قسم: الرقم الذي وُجد، ثم معناه، ثم التوصية.\n` +
