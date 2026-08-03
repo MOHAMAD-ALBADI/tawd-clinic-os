@@ -3,6 +3,7 @@ import { Bot, CalendarX2, ClipboardList, AlertTriangle } from "lucide-react";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { rolesOf } from "@/lib/auth/role-redirect";
+import { clinicDatePlus, clinicDayRange } from "@/lib/clinic-time";
 import { KpiGrid } from "@/components/dashboard/kpi-grid";
 import { WhyCard } from "@/components/sura/why-card";
 import { RunTick } from "@/components/sura/run-tick";
@@ -71,7 +72,11 @@ export default async function SuraAgentPage() {
   const isOwner = roles.includes("platform_admin");
 
   const sb = await createServerSupabaseClient();
-  const monthAgo = new Date(Date.now() - 30 * 86_400_000).toISOString();
+  /* Thirty clinic days back, from the start of that day. Cleaner than
+     720 hours ago, and it keeps a clock read out of the render — the
+     window a manager means by "last month" starts at midnight in
+     Muscat, not at whatever time they happened to open the page. */
+  const monthAgo = clinicDayRange(clinicDatePlus(-30)).startUtc;
 
   const [{ data: goalsRaw }, { data: actionsRaw }] = await Promise.all([
     sb

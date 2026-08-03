@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Role } from "@/types/tawd";
 import { loadAvailability, freeAt, pickDoctor } from "@/lib/availability";
+import { runOps, opsHandles, type OpsAction } from "./actions-ops";
 
 /* What Sura can actually DO when asked.
  *
@@ -32,7 +33,11 @@ export type Action =
   | { type: "add_to_waitlist"; patient_id: string; service_id: string; from_date: string; to_date: string }
   | { type: "draft_treatment_plan"; patient_id: string; title: string; items: { service_id: string; description?: string; tooth?: string; qty?: number }[] }
   | { type: "message_patient"; patient_id: string; text: string }
-  | { type: "open_document"; kind: "monthly_report"; month?: string };
+  | { type: "open_document"; kind: "monthly_report"; month?: string }
+  | { type: "create_document"; title: string; body_md: string; prompt?: string }
+  /* The rest of the clinic's day, in actions-ops.ts — kept in its own
+     file because appointments and money have different reviewers. */
+  | OpsAction;
 
 export type ActionResult = {
   action: string;
@@ -69,6 +74,10 @@ export async function runAction(
   }
   if (!clinicId) throw new Error("لا توجد عيادة محدّدة");
 
+  if (opsHandles(action.type)) {
+    return runOps(sb, action as OpsAction, clinicId, role, actorId);
+  }
+
   switch (action.type) {
     case "cancel_appointment":   return cancelAppt(sb, action, clinicId, role, actorId);
     case "confirm_appointment":  return confirmAppt(sb, action, clinicId, role);
@@ -78,6 +87,7 @@ export async function runAction(
     case "draft_treatment_plan": return draftPlan(sb, action, clinicId, actorId);
     case "message_patient":      return message(sb, action, clinicId);
     case "open_document":        return openDocument(action);
+    case "create_document":      return writeDocument(sb, action, clinicId, actorId);
     default:
       throw new Error(`إجراء غير مدعوم: ${(action as { type: string }).type}`);
   }
@@ -321,6 +331,46 @@ async function message(sb: SB, a: Extract<Action, { type: "message_patient" }>, 
  * common PDF libraries do no Arabic shaping and produce disconnected
  * letters in reverse. The browser already renders it correctly, and its
  * print dialog writes the PDF. */
+/* A document she writes herself.
+ *
+ * open_document serves a fixed template. Asked for "an analysis of
+ * no-shows, a recall plan and the most profitable services, all in one
+ * tidy document", there was nothing to hand back — so she refused work
+ * that is squarely hers. She now writes the body and it is stored and
+ * rendered on a page styled for paper.
+ *
+ * Markdown, not HTML: it is what the model writes natively, and it
+ * cannot carry a script into a page a clinic will print and email. */
+async function writeDocument(
+  sb: SB,
+  a: Extract<Action, { type: "create_document" }>,
+  cid: string,
+  actor: string,
+): Promise<ActionResult> {
+  const title = a.title?.trim();
+  const body = a.body_md?.trim();
+  if (!title) return { action: a.type, done: false, reason: "المستند بلا عنوان" };
+  if (!body || body.length < 40) {
+    return { action: a.type, done: false, reason: "محتوى المستند قصير جداً — اكتبي التحليل كاملاً" };
+  }
+
+  const { data, error } = await sb.from("sura_documents").insert({
+    clinic_id: cid,
+    user_id: actor,
+    title: title.slice(0, 200),
+    body_md: body.slice(0, 60_000),
+    prompt: a.prompt?.slice(0, 1000) ?? null,
+  }).select("id, title").single();
+  if (error) throw new Error(error.message);
+
+  return {
+    action: a.type,
+    done: true,
+    document: { url: `/clinic-admin/sura-agent/doc/${data.id}`, label: data.title },
+    note: "المستند جاهز ومعروض للمستخدم كزرّ. لخّصي محتواه في سطرين ولا تكرّريه ولا تشرحي كيف يُفتح.",
+  };
+}
+
 function openDocument(a: Extract<Action, { type: "open_document" }>): ActionResult {
   if (a.kind !== "monthly_report") {
     return { action: a.type, done: false, reason: `مستند غير معروف: ${a.kind}` };

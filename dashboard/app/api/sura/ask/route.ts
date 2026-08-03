@@ -589,6 +589,8 @@ export async function POST(req: Request) {
       `الصور وملفات PDF ترينها فعلاً: بطاقة تأمين، تقرير مختبر، أشعة، عرض سعر، فاتورة مورّد، ورقة مكتوبة بخطّ اليد. اقرأيها واستخرجي ما يخدم السؤال، وأدخلي ما يلزم في النظام إن طُلب.\n\n` +
 
       `— إصدار المستندات\n` +
+      `طلب واسع أو متعدّد الأجزاء («حلّلي كذا وكذا واعملي خطة وحطّيها في مستند») هو عمل واحد لكِ: استعلمي ما تحتاجينه،\n` +
+      `ثم نفّذي create_document بمستند مرتّب فيه قسم لكل جزء بعناوين وجداول وتوصيات. لا تعتذري عن الاتّساع ولا تطلبي تقسيمه.\n` +
       `نفّذي open_document فيظهر للمستخدم زرّ يفتح المستند جاهزاً للطباعة أو الحفظ PDF. لا تشرحي خطوات؛ نفّذي.\n\n` +
 
       `— العمل وحدك\n` +
@@ -623,6 +625,20 @@ export async function POST(req: Request) {
         `{"action":{"type":"add_to_waitlist","patient_id":"<uuid>","service_id":"<uuid>","from_date":"YYYY-MM-DD","to_date":"YYYY-MM-DD"}} — إضافة لقائمة الانتظار (يُعرض عليه أي إلغاء تلقائياً)\n` +
         `{"action":{"type":"message_patient","patient_id":"<uuid>","text":"نص الرسالة"}} — إرسال رسالة واتساب\n`) +
         `{"action":{"type":"open_document","kind":"monthly_report","month":"YYYY-MM-01 اختياري"}} — إصدار تقرير الشهر جاهزاً للطباعة أو الحفظ PDF\n` +
+        `{"action":{"type":"create_document","title":"عنوان المستند","body_md":"# عنوان\\n\\nالمحتوى بصيغة Markdown — عناوين وجداول وقوائم","prompt":"ما طُلب منكِ"}} — مستند تكتبينه أنتِ: تحليل، خطة، دراسة، ملخّص. استخدميه كلما طُلب «مستند» أو «تقرير» غير تقرير الشهر الجاهز\n` +
+        /* The rest of the clinic's day. Each line is an action that
+           really executes; the server re-checks the caller's role, so
+           listing one they may not run is safe — it is refused there,
+           not here. */
+        `{"action":{"type":"create_patient","name":"الاسم","phone":"+968…","gender":"male|female"}} — تسجيل مريض جديد\n` +
+        `{"action":{"type":"invoice_appointment","appointment_id":"<uuid>","discount":0}} — إصدار فاتورة لموعد بضريبة ٥٪\n` +
+        `{"action":{"type":"record_payment","invoice_id":"<uuid>","amount":0,"method":"cash|card|bank_transfer|thawani|insurance","reference":"اختياري"}} — تسجيل دفعة\n` +
+        `{"action":{"type":"submit_insurance_claim","invoice_id":"<uuid>","provider_id":"<uuid>"}} — رفع مطالبة تأمين\n` +
+        `{"action":{"type":"write_prescription","patient_id":"<uuid>","diagnosis":"اختياري","items":[{"drug":"اسم الدواء","dosage":"","frequency":"","duration":""}]}} — مسوّدة وصفة طبية\n` +
+        `{"action":{"type":"add_clinical_note","patient_id":"<uuid>","note":"النص","private":false}} — ملاحظة في ملف المريض\n` +
+        `{"action":{"type":"complete_plan_item","item_id":"<uuid>"}} — إنجاز بند من خطة علاجية\n` +
+        `{"action":{"type":"block_doctor_day","doctor_id":"<uuid>","date":"YYYY-MM-DD","reason":"إجازة"}} — إغلاق يوم طبيب\n` +
+        `{"action":{"type":"add_service","name":"الاسم","price":0,"duration_minutes":30}} — إضافة خدمة للقائمة\n` +
         `{"action":{"type":"draft_treatment_plan","patient_id":"<uuid>","title":"عنوان","items":[{"service_id":"<uuid>","description":"اختياري","tooth":"اختياري","qty":1}]}} — مسوّدة خطة علاجية (الأسعار تُؤخذ من جدول خدماتك)\n` +
         `\nقواعد التنفيذ:\n` +
         `- كل uuid يجب أن يأتي من نتيجة استعلام في هذه المحادثة. استعلمي أولاً ثم نفّذي في الردّ التالي.\n` +
@@ -711,10 +727,43 @@ export async function POST(req: Request) {
       resp = JSON.parse(await gemini(geminiKey, ask(step >= 3), true, usage));
     }
 
+    if (resp?.answer) {
+      await logUsage(sb, cid, usage);
+      return reply(String(resp.answer), doc ? { doc } : {});
+    }
+
+    /* Out of rounds with data in hand. Force the conclusion rather than
+       discarding the work — a wide request ("analyse no-shows, plan the
+       recalls, find the profitable services, put it all in a document")
+       is exactly the case that exhausts the loop, and it is also exactly
+       the case worth answering. */
+    if (context.length > 0) {
+      try {
+        const forced = JSON.parse(
+          await gemini(
+            geminiKey,
+            header + historyBlock + fileNote +
+              `\n[سؤال المستخدم]\n${question}\n` +
+              `\n[كل ما جمعتِه]\n${JSON.stringify(context).slice(0, 16000)}\n` +
+              `\nانتهت جولات الاستعلام. أجيبي الآن من المعطيات أعلاه فقط.\n` +
+              `إن كان الطلب متعدّد الأجزاء فغطّي كل جزء بعنوان، وقولي صراحةً عن أي جزء لم تكفِ بياناته.\n` +
+              `أعيدي {"answer":"..."} فقط — لا استعلامات ولا إجراءات.`,
+            true,
+            usage,
+          ),
+        );
+        if (forced?.answer) {
+          await logUsage(sb, cid, usage);
+          return reply(String(forced.answer), doc ? { doc } : {});
+        }
+      } catch {
+        /* fall through to the honest message below */
+      }
+    }
+
     await logUsage(sb, cid, usage);
-    if (resp?.answer) return reply(String(resp.answer), doc ? { doc } : {});
     return reply(
-      "ما قدرت أكمل هذا الطلب — جرّب صياغته بشكل أوضح أو قسّمه لخطوتين.",
+      "الطلب واسع وما قدرت أغطّيه كاملاً في مرّة واحدة. قسّمه لجزأين وأنا أنفّذ كل واحد.",
       { failure: "unknown" },
       "incomplete",
     );

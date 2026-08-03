@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { rolesOf } from "@/lib/auth/role-redirect";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { clinicMonthStart, clinicMonthRange, clinicToday } from "@/lib/clinic-time";
+import { clinicMonthStart, clinicMonthRange } from "@/lib/clinic-time";
 import { PrintButton } from "@/components/sura/print-button";
 
 export const metadata = { title: "تقرير الشهر — طود" };
