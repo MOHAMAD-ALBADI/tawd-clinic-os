@@ -529,9 +529,10 @@ async function gemini(
      and the least visible. Twenty-eight seconds leaves room for a
      second round inside the platform's limit. */
   const ac = new AbortController();
-  /* Pro thinks before it answers and that time is real. Five rounds at
-     fifty seconds still fits inside maxDuration = 300. */
-  const timer = setTimeout(() => ac.abort(), 50_000);
+  /* Pro thinks before it answers and that time is real. Measured at
+     forty to sixty seconds a round on a wide request, so the deadline
+     sits at forty and the caller keeps its own watch on the total. */
+  const timer = setTimeout(() => ac.abort(), 40_000);
 
   let res: Response;
   try {
@@ -878,6 +879,21 @@ export async function POST(req: Request) {
      * round budget is there to let her gather more, not to let her act
      * again, and no clinic wants a duplicate on a medical record. */
     const written = new Set<string>();
+
+    /* Asked for a document, she wrote the analysis into the chat and
+       closed with «المستند جاهز للإصدار، هل ترغب في أن أقوم بإنشائه
+       الآن؟» — permission to do the thing she had just been told to do,
+       in a phrasing no blacklist held. So it stops being a phrasing
+       problem: if the request names a document, an answer without one
+       is not an acceptable end to the turn. */
+    const wantsDoc = /مستند|تقرير|وثيقة|دراسة|ملف\s|PDF|pdf/.test(question);
+    let docPushed = false;
+
+    /* Pro thinks, and thinking is wall-clock. A request that gathers,
+       writes a body and renders can approach the platform's ceiling, and
+       hitting it loses everything already paid for. */
+    const started = Date.now();
+    const nearLimit = () => Date.now() - started > 210_000;
     /* Anything the answer should render as more than text. Kept as a
        field rather than a URL inside the prose, so the interface can
        show a button and she never has to describe one. */
@@ -918,7 +934,11 @@ export async function POST(req: Request) {
       (final
         ? ``
         : `\n2) {"queries":[...]} — إذا كنت تحتاجين بيانات (أو تصحيح استعلام خاطئ).\n` +
-          (role === "accountant" || isPlatform || actionsDone >= 2
+          /* The action budget never closes the door on a document that
+             was asked for and not yet made — otherwise the loop can
+             spend its two actions elsewhere and then be unable to
+             deliver the one thing the request was about. */
+          (role === "accountant" || isPlatform || (actionsDone >= 2 && !(wantsDoc && !doc))
             ? ``
             : `3) {"action":{...}} — لتنفيذ إجراء طلبه المستخدم صراحة (بعد حصولك على id من استعلام).`));
 
@@ -949,6 +969,24 @@ export async function POST(req: Request) {
               "وأنتِ ترسمين مخطّطات من بيانات حقيقية داخل المستند وتُخرجينه صفحةً جاهزة للطباعة و PDF — " +
               "فلا تقولي إنك لا تستطيعين إنشاء رسوم أو ملفات. " +
               "ولا تنقلي للمستخدم سبب رفضٍ داخلي: ذاك تعليمة لكِ لتصحيح عملك، وليس جواباً له.",
+          });
+          resp = parseTurn(await gemini(geminiKey, ask(false), true, usage, files));
+          continue;
+        }
+
+        /* The request named a document and none exists. Whatever this
+           answer says — a summary, an offer, a promise — it is not the
+           deliverable, and the analysis behind it is already in context
+           so the retry costs a turn rather than the work. */
+        if (wantsDoc && !doc && !docPushed && !nearLimit()) {
+          docPushed = true;
+          context.push({
+            rejected_answer: answer,
+            why:
+              "المستخدم طلب مستنداً، ولم يُنشَأ بعد. لا تستأذني ولا تسألي «هل ترغب» — الطلب هو الإذن. " +
+              "ولا تكتبي التحليل في الرسالة: مكانه المستند. " +
+              'أعيدي الآن {"action":{"type":"create_document","title":"...","brief":"وصف الأقسام المطلوبة كلها"}} — ' +
+              "وبعد أن يجهز، رسالتك سطران يقولان ما فيه من أرقام.",
           });
           resp = parseTurn(await gemini(geminiKey, ask(false), true, usage, files));
           continue;
@@ -1059,7 +1097,7 @@ export async function POST(req: Request) {
       /* Files travel on every round, not just the first.
          The bytes cost tokens each time; a fabricated policy number
          written into a patient's file costs more. */
-      resp = parseTurn(await gemini(geminiKey, ask(step >= 3), true, usage, files));
+      resp = parseTurn(await gemini(geminiKey, ask(step >= 3 || nearLimit()), true, usage, files));
     }
 
     if (resp?.answer) {
