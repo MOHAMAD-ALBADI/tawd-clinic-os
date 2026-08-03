@@ -346,9 +346,23 @@ async function runPlan(sb: Awaited<ReturnType<typeof createServiceRoleClient>>, 
         groups[k].count++;
         groups[k].sum += agg.col ? num(r) : 0;
       }
+      /* Group keys become names.
+       *
+       * Grouping by service_id returned the uuid as the label, so the
+       * answer read "a1000000-0000-0000-0000-000000000005: 803.250 ر.ع"
+       * — arithmetic that is correct and useless. The model cannot fix
+       * it either, because it never sees the services table in the same
+       * turn. One lookup here turns every group into something a person
+       * can read. */
+      const labels = await resolveIds(sb, agg.group_by, Object.keys(groups), cid);
+
       const list = Object.entries(groups)
-        .map(([key, g]) => ({ [agg.group_by as string]: key, count: g.count, ...(agg.col ? { sum: +g.sum.toFixed(3), avg: +(g.sum / g.count).toFixed(3) } : {}) }))
-        .sort((a, b) => Number(b.count) - Number(a.count))
+        .map(([key, g]) => ({
+          [agg.group_by as string]: labels.get(key) ?? key,
+          count: g.count,
+          ...(agg.col ? { sum: +g.sum.toFixed(3), avg: +(g.sum / g.count).toFixed(3) } : {}),
+        }))
+        .sort((a, b) => (agg.col ? Number(b.sum) - Number(a.sum) : Number(b.count) - Number(a.count)))
         .slice(0, 20);
       return { table: plan.table, aggregate: agg.op, groups: list, scanned_rows: rows.length };
     }
@@ -362,6 +376,43 @@ async function runPlan(sb: Awaited<ReturnType<typeof createServiceRoleClient>>, 
   }
 
   return { table: plan.table, rows: rows.slice(0, 30), row_count: rows.length };
+}
+
+/* uuid → the name a person would use for it.
+ *
+ * Only the four foreign keys anyone groups by. Anything else is returned
+ * unchanged, so an unknown column costs nothing rather than erroring. */
+const ID_SOURCES: Record<string, { table: string; cols: string }> = {
+  service_id: { table: "services", cols: "id, name, name_ar" },
+  doctor_id: { table: "tawd_staff_users", cols: "id, name, name_ar" },
+  patient_id: { table: "patients", cols: "id, name, name_ar" },
+  provider_id: { table: "insurance_providers", cols: "id, name, name_ar" },
+};
+
+async function resolveIds(
+  sb: Awaited<ReturnType<typeof createServiceRoleClient>>,
+  column: string,
+  keys: string[],
+  cid: string,
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const src = ID_SOURCES[column];
+  if (!src) return out;
+
+  const ids = keys.filter((k) => UUID_RE.test(k));
+  if (ids.length === 0) return out;
+
+  try {
+    let q = sb.from(src.table).select(src.cols).in("id", ids);
+    if (cid) q = q.eq("clinic_id", cid);
+    const { data } = await q;
+    for (const r of (data ?? []) as unknown as { id: string; name?: string; name_ar?: string }[]) {
+      out.set(r.id, r.name_ar || r.name || r.id);
+    }
+  } catch {
+    /* A label is a nicety; failing to find one must not fail the answer. */
+  }
+  return out;
 }
 
 /* running token counters for platform usage monitoring */

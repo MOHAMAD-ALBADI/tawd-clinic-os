@@ -378,7 +378,7 @@ async function writeDocument(
     action: a.type,
     done: true,
     document: { url: `/clinic-admin/sura-agent/doc/${data.id}`, label: data.title },
-    note: "المستند جاهز ومعروض للمستخدم كزرّ. لخّصي محتواه في سطرين ولا تكرّريه ولا تشرحي كيف يُفتح.",
+    note: "المستند معروض للمستخدم كزرّ جاهز. قولي في سطرين ما فيه من أرقام. ممنوع كتابة الرابط أو المسار أو «اضغط هنا» — الزرّ موجود.",
   };
 }
 
