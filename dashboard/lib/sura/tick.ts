@@ -250,9 +250,29 @@ async function execute(
       })
       .eq("id", goal.id);
     report.messaged++;
-  } else {
-    await sleep(svc, goal, 90);
+    return;
   }
+
+  /* A failed send counts as an attempt.
+   *
+   * It did not before, and that was an infinite loop waiting to happen: a
+   * permanently failing send — a number Meta will not deliver to, a
+   * revoked token, a patient who blocked the clinic — would be retried
+   * every ninety minutes for the life of the goal, burning a model call
+   * each time and never reaching the attempt ceiling that exists
+   * precisely to stop this.
+   *
+   * The attempt ceiling now covers "we could not reach them" as well as
+   * "they did not reply", which is the honest reading of both. */
+  await svc
+    .from("sura_goals")
+    .update({
+      patient_id: target.patient_id,
+      state: "waiting",
+      attempts: goal.attempts + 1,
+      next_action_at: new Date(Date.now() + 90 * 60_000).toISOString(),
+    })
+    .eq("id", goal.id);
 }
 
 /* ── the small pieces ─────────────────────────────────────────────── */
