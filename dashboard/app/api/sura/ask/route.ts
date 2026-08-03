@@ -964,7 +964,6 @@ export async function POST(req: Request) {
        is not an acceptable end to the turn. */
     const wantsDoc = /مستند|تقرير|وثيقة|دراسة|ملف\s|PDF|pdf/.test(question);
     const wantsPicture = /صورة|صور\b|غلاف|شعار|ملصق|تصميم/.test(question);
-    let docPushed = false;
     let docForced = false;
     const madePicture = () =>
       context.some((c) => {
@@ -976,7 +975,10 @@ export async function POST(req: Request) {
        writes a body and renders can approach the platform's ceiling, and
        hitting it loses everything already paid for. */
     const started = Date.now();
-    const nearLimit = () => Date.now() - started > 210_000;
+    /* Starting a document costs a cover and a Pro write — measured near
+       two minutes together — so the point of no return is earlier than
+       the point at which an answer must be forced. */
+    const nearLimit = () => Date.now() - started > 150_000;
     /* Anything the answer should render as more than text. Kept as a
        field rather than a URL inside the prose, so the interface can
        show a button and she never has to describe one. */
@@ -1061,12 +1063,16 @@ export async function POST(req: Request) {
            answer says — a summary, an offer, a promise — it is not the
            deliverable, and the analysis behind it is already in context
            so the retry costs a turn rather than the work. */
-        /* Told once, she said "وجاهزة لإصدار المستند النهائي لك" and
-           stopped again. A push-back is advice, and advice is the thing
-           that has failed at every step of this. The second time, the
-           server writes the action itself: the deliverable stops being
-           something she decides to produce. */
-        if (wantsDoc && !doc && docPushed && !docForced && !nearLimit()) {
+        /* Straight to it, with no round spent asking.
+         *
+         * She was told once and answered "وجاهزة لإصدار المستند النهائي
+         * لك" — so the push-back was both useless and expensive, and on
+         * a wide request the round it cost was the difference between
+         * finishing inside the platform's five minutes and losing the
+         * whole request. The gathering is already in context by now;
+         * the only thing missing is the decision, and that is no longer
+         * hers to make. */
+        if (wantsDoc && !doc && !docForced && !nearLimit()) {
           docForced = true;
           const heading = /^\s*#{1,4}\s*(.+)$/m.exec(answer)?.[1]?.trim();
           resp = {
@@ -1080,26 +1086,6 @@ export async function POST(req: Request) {
           continue;
         }
 
-        if (wantsDoc && !doc && !docPushed && !nearLimit()) {
-          docPushed = true;
-          context.push({
-            rejected_answer: answer,
-            why:
-              "المستخدم طلب مستنداً، ولم يُنشَأ بعد. لا تستأذني ولا تسألي «هل ترغب» — الطلب هو الإذن. " +
-              "ولا تكتبي التحليل في الرسالة: مكانه المستند. " +
-              (wantsPicture && !madePicture()
-                /* The body is written in a call that cannot run actions,
-                   so a picture has to exist before the document does —
-                   otherwise she reaches for one and invents its address. */
-                ? 'وطلب صورة، فأعيدي أولاً {"action":{"type":"generate_image","prompt":"…بالإنجليزية…","purpose":"غلاف التقرير"}} ' +
-                  "ثم create_document في الجولة التالية مستخدمةً الرابط الناتج.\n"
-                : "") +
-              'أعيدي الآن {"action":{"type":"create_document","title":"...","brief":"وصف الأقسام المطلوبة كلها"}} — ' +
-              "وبعد أن يجهز، رسالتك سطران يقولان ما فيه من أرقام.",
-          });
-          resp = parseTurn(await gemini(geminiKey, ask(false), true, usage, files));
-          continue;
-        }
 
         await logUsage(sb, cid, usage);
         return reply(answer, doc ? { doc } : {});
@@ -1155,7 +1141,10 @@ export async function POST(req: Request) {
                the picture has to exist before the writing starts — and
                left to her, she reached for one and invented its address
                at unsplash.com. */
-            if (wantsPicture && !madePicture() && !nearLimit()) {
+            /* A tighter budget than the rest of the loop: the cover runs
+               before the body, and the body is the slow one. Past two
+               minutes the report matters more than its front page. */
+            if (wantsPicture && !madePicture() && Date.now() - started < 120_000) {
               try {
                 const cover = await runAction(
                   sb,
