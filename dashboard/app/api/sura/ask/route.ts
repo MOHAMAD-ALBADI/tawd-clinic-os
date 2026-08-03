@@ -3,6 +3,7 @@ import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { platformSecrets } from "@/lib/platform-secrets";
 import { hasRole } from "@/lib/auth/role-redirect";
+import { runAction, type Action } from "@/lib/sura/actions";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -194,64 +195,13 @@ const tablesFor = (role: Role) => (role === "platform_admin" ? PLATFORM_TABLES :
 const OPS = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "ilike", "in", "is"]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-type AgentAction = { type: string; appointment_id?: string; reason?: string };
+/* The action set lives in lib/sura/actions.ts.
 
-/* Real, tightly-scoped mutations Sura may perform on explicit user request. */
-async function runAction(
-  sb: Awaited<ReturnType<typeof createServiceRoleClient>>,
-  action: AgentAction,
-  cid: string,
-  role: Role,
-  sub: string
-) {
-  if (role === "accountant") throw new Error("هذا الدور لا يملك صلاحية تنفيذ إجراءات على المواعيد");
-  /* Refused at the server too, not only left out of the prompt. */
-  if (role === "platform_admin") {
-    throw new Error("تعديل مواعيد عيادة لا يتم من لوحة المنصة — استخدم إذن الدخول من ملف العيادة");
-  }
-  const id = String(action.appointment_id ?? "");
-  if (!UUID_RE.test(id)) throw new Error("appointment_id يجب أن يكون UUID حقيقياً من نتيجة استعلام");
-
-  const nowIso = new Date().toISOString();
-  let patch: Record<string, unknown>;
-  let allowedFrom: string[];
-
-  if (action.type === "cancel_appointment") {
-    patch = {
-      status: "cancelled",
-      cancelled_at: nowIso,
-      cancelled_by: sub,
-      cancellation_reason: String(action.reason ?? "").trim() || "إلغاء عبر سُرى (لوحة التحكم)",
-      updated_at: nowIso,
-    };
-    allowedFrom = ["scheduled", "confirmed", "checked_in"];
-  } else if (action.type === "confirm_appointment") {
-    patch = { status: "confirmed", updated_at: nowIso };
-    allowedFrom = ["scheduled"];
-  } else {
-    throw new Error(`إجراء غير مدعوم: ${action.type}`);
-  }
-
-  let q = sb
-    .from("appointments")
-    .update(patch)
-    .eq("id", id)
-    .eq("clinic_id", cid)
-    .is("deleted_at", null)
-    .in("status", allowedFrom);
-  if (role === "doctor") q = q.eq("doctor_id", sub);
-
-  const { data, error } = await q.select("id, slot_time, status").maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) {
-    return {
-      action: action.type,
-      done: false,
-      reason: "لا يوجد موعد بهذا المعرف قابل للتعديل (تحققي من الحالة أو الصلاحية)",
-    };
-  }
-  return { action: action.type, done: true, appointment: data };
-}
+   It was two appointment mutations inlined here, which meant the only
+   things Sura could DO were cancel and confirm. Everything else she could
+   describe and not perform — a search box with opinions. The shared module
+   also lets the autonomous loop and this endpoint execute through one
+   implementation, so a permission fixed in one place is fixed in both. */
 
 type Filter = { col: string; op: string; value: unknown };
 type Plan = {
@@ -506,11 +456,20 @@ export async function POST(req: Request) {
        is the support-approval flow on the clinic file, which is logged. */
     (role === "accountant" || isPlatform
       ? ""
-      : `[الإجراءات المتاحة — عند طلب المستخدم الصريح فقط]\n` +
+      : `[الإجراءات التي تستطيعين تنفيذها — عند طلب المستخدم الصريح فقط]\n` +
+        `{"action":{"type":"book_appointment","patient_id":"<uuid>","service_id":"<uuid>","doctor_id":"<uuid>|any","date":"YYYY-MM-DD","time":"HH:MM"}} — حجز موعد حقيقي\n` +
+        `{"action":{"type":"reschedule_appointment","appointment_id":"<uuid>","date":"YYYY-MM-DD","time":"HH:MM"}} — تغيير موعد\n` +
         `{"action":{"type":"cancel_appointment","appointment_id":"<uuid>","reason":"اختياري"}} — إلغاء موعد\n` +
         `{"action":{"type":"confirm_appointment","appointment_id":"<uuid>"}} — تأكيد موعد مجدول\n` +
-        `- appointment_id يجب أن يأتي من نتيجة استعلام في هذه المحادثة (استعلمي أولاً إن لزم، ثم نفّذي في الرد التالي).\n` +
-        `- لا تنفّذي إجراء إلا إذا طلبه المستخدم صراحة في رسالته الأخيرة، وأكّدي له النتيجة الفعلية بعد التنفيذ.\n` +
+        (role === "doctor" ? "" :
+        `{"action":{"type":"add_to_waitlist","patient_id":"<uuid>","service_id":"<uuid>","from_date":"YYYY-MM-DD","to_date":"YYYY-MM-DD"}} — إضافة لقائمة الانتظار (يُعرض عليه أي إلغاء تلقائياً)\n` +
+        `{"action":{"type":"message_patient","patient_id":"<uuid>","text":"نص الرسالة"}} — إرسال رسالة واتساب\n`) +
+        `{"action":{"type":"draft_treatment_plan","patient_id":"<uuid>","title":"عنوان","items":[{"service_id":"<uuid>","description":"اختياري","tooth":"اختياري","qty":1}]}} — مسوّدة خطة علاجية (الأسعار تُؤخذ من جدول خدماتك)\n` +
+        `\nقواعد التنفيذ:\n` +
+        `- كل uuid يجب أن يأتي من نتيجة استعلام في هذه المحادثة. استعلمي أولاً ثم نفّذي في الردّ التالي.\n` +
+        `- لا تنفّذي إجراء إلا إذا طلبه المستخدم صراحة في رسالته الأخيرة.\n` +
+        `- التواريخ والأوقات بتوقيت عُمان.\n` +
+        `- بعد التنفيذ أكّدي النتيجة الفعلية كما رجعت، ولا تفترضي النجاح.\n` +
         `- أعيدي إما queries أو action في الرد الواحد — ليس كليهما.\n`);
 
   const historyBlock = history.length
@@ -537,6 +496,17 @@ export async function POST(req: Request) {
       `   - كل رقم من النتائج أعلاه حصراً — لا تخترعي شيئاً. المبالغ بصيغة 5.000 ر.ع.\n` +
       `   - إن لم تكفِ البيانات، قولي ذلك في سطر واحد واقترحي السؤال الذي يُجاب.\n` +
       `   - للتوكيد استخدمي **نجمتين** حول الكلمة، وللقوائم سطراً يبدأ بـ "- ". لا تستخدمي عناوين ولا جداول.` +
+      /* "What can you do?" was answered with a flat inventory of verbs —
+         query, analyse, cancel — which reads like a manual and sells
+         nothing. Someone asking that wants to know what changes for their
+         clinic, so the answer leads with the work she does unprompted. */
+      `   - إن سُئلتِ عمّا تستطيعين فعله: لا تعدّدي أفعالاً مجرّدة. اذكري ثلاثة أشياء ملموسة بصيغة النتيجة —
+` +
+      `     أنكِ تعملين وحدك كل عشر دقائق فتملئين الكراسي التي تُلغى وتلاحقين الخطط العلاجية المتوقّفة،
+` +
+      `     وأنكِ تحجزين وتؤجّلين وتلغين وتكتبين مسوّدات الخطط وترسلين للمرضى بأمر منه،
+` +
+      `     وأنكِ تجيبين عن أي رقم في عيادته من بياناته الحيّة. ثم اسأليه عمّا يريده الآن.` +
       (final
         ? ``
         : `\n2) {"queries":[...]} — إذا كنت تحتاجين بيانات (أو تصحيح استعلام خاطئ).\n` +
@@ -555,12 +525,12 @@ export async function POST(req: Request) {
       if (resp.action && typeof resp.action === "object" && role !== "accountant" && !isPlatform && actionsDone < 2) {
         actionsDone++;
         try {
-          const res = await runAction(sb, resp.action as AgentAction, cid, role, claims.sub);
+          const res = await runAction(sb, resp.action as Action, cid, role, claims.sub);
           context.push({ action_result: res });
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           console.error("[sura/ask] action failed:", msg);
-          context.push({ action_result: { action: (resp.action as AgentAction).type, done: false, error: msg } });
+          context.push({ action_result: { action: (resp.action as Action).type, done: false, error: msg } });
         }
       } else if (Array.isArray(resp.queries) && resp.queries.length) {
         for (const plan of (resp.queries as Plan[]).slice(0, 3)) {

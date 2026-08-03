@@ -66,13 +66,19 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
 
     { section: "النمو",
       label: "التسويق",      href: "/clinic-admin/marketing",     icon: Megaphone, module: "marketing" },
-    /* Two Sura entries, and they answer different questions. Analytics is
-       "how much did it talk"; the agent page is "what did it do without
-       being asked, and what did that earn". The second is the one an
-       owner checks. */
-    { label: "سُرى الوكيل",   href: "/clinic-admin/sura-agent",     icon: Sparkles, module: "sura" },
-    { label: "تحليلات سُرى",  href: "/clinic-admin/sura-analytics", icon: Bot, module: "sura" },
     { label: "التقارير",     href: "/clinic-admin/reports",       icon: BarChart3, module: "reports" },
+
+    /* Sura gets a section, not a line item filed under Growth.
+       She books, reschedules, drafts plans, messages patients and works
+       the clinic unprompted every ten minutes — that is not a marketing
+       feature sitting next to campaigns.
+
+       Two pages, two different questions. The agent page is "what did she
+       do without being asked, and what did it earn"; analytics is "how
+       much did she talk". Owners open the first. */
+    { section: "سُرى",
+      label: "الوكيل",       href: "/clinic-admin/sura-agent",     icon: Sparkles, module: "sura" },
+    { label: "التحليلات",   href: "/clinic-admin/sura-analytics", icon: Bot, module: "sura" },
 
     { section: "النظام",
       label: "الإعدادات",   href: "/clinic-admin/settings",      icon: Settings },
