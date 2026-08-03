@@ -15,6 +15,11 @@ type ApptRow = {
   doctor_name: string;
 };
 
+/* «د. د. محمد البادي». Some doctors are stored with the title already
+   in the name and some are not, and the template added one either way. */
+const titled = (n: string) =>
+  n === "—" ? "—" : /^\s*(د\.|دكتور|Dr\.?)/i.test(n) ? n : `د. ${n}`;
+
 export function AppointmentsTable({ appts }: { appts: ApptRow[] }) {
   if (appts.length === 0) {
     return (
@@ -69,7 +74,7 @@ export function AppointmentsTable({ appts }: { appts: ApptRow[] }) {
               <div className="flex items-center gap-2 min-w-0">
                 <AppointmentStatusBadge status={row.status as AppointmentStatus} />
                 <span className="text-[12px] truncate" style={{ color: "var(--text-3)" }}>
-                  {row.doctor_name !== "—" ? `د. ${row.doctor_name}` : "—"}
+                  {titled(row.doctor_name)}
                 </span>
               </div>
               <AppointmentRowActions id={row.id} status={row.status} slotTime={row.slot_time} />
@@ -112,7 +117,7 @@ export function AppointmentsTable({ appts }: { appts: ApptRow[] }) {
               <td className="py-3.5 px-5 font-semibold text-white">{row.patient_name}</td>
               <td className="py-3.5 px-5" style={{ color: "var(--text-2)" }}>{row.service_name}</td>
               <td className="py-3.5 px-5" style={{ color: "var(--text-2)" }}>
-                {row.doctor_name !== "—" ? `د. ${row.doctor_name}` : "—"}
+                {titled(row.doctor_name)}
               </td>
               <td className="py-3.5 px-5">
                 <AppointmentStatusBadge status={row.status as AppointmentStatus} />

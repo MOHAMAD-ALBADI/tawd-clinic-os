@@ -6,7 +6,14 @@ import { Clock, Loader2, CheckCircle2, XCircle, Eye } from "lucide-react";
 
 export const metadata = { title: "المواعيد — طود" };
 
-type Joined = { name: string } | null;
+/* Both names, and the Arabic one wins.
+ *
+ * The query asked only for `name`, so twenty-two of thirty-two patients
+ * showed as "Salim Al Aufi" on an Arabic screen sitting directly above
+ * ten who showed as "محمد" — the same list in two languages, decided by
+ * which column a row happened to be imported into. */
+type Joined = { name: string; name_ar?: string | null } | null;
+const ar = (j: Joined) => j?.name_ar?.trim() || j?.name || "—";
 
 export default async function AppointmentsPage() {
   const claims = await getUserClaims();
@@ -17,7 +24,7 @@ export default async function AppointmentsPage() {
   const [apptRes, patientsRes, servicesRes, doctorsRes] = await Promise.all([
     supabase
       .from("appointments")
-      .select("id,slot_time,status,patients(name),services(name),tawd_staff_users!doctor_id(name)")
+      .select("id,slot_time,status,patients(name,name_ar),services(name,name_ar),tawd_staff_users!doctor_id(name,name_ar)")
       .eq("clinic_id", claims.clinic_id)
       .order("slot_time", { ascending: false })
       .limit(200),
@@ -35,9 +42,9 @@ export default async function AppointmentsPage() {
     id:           r.id,
     slot_time:    r.slot_time,
     status:       r.status,
-    patient_name: (r.patients as unknown as Joined)?.name ?? "—",
-    service_name: (r.services as unknown as Joined)?.name ?? "—",
-    doctor_name:  (r.tawd_staff_users as unknown as Joined)?.name ?? "—",
+    patient_name: ar(r.patients as unknown as Joined),
+    service_name: ar(r.services as unknown as Joined),
+    doctor_name:  ar(r.tawd_staff_users as unknown as Joined),
   }));
 
   const sc = raw.reduce<Record<string, number>>((acc, a) => {
