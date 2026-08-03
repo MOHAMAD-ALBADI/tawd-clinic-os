@@ -86,20 +86,39 @@ ${rows}
 }
 
 function planPrompt(goal: Goal, patient: { name: string }): string {
-  const c = goal.context as Record<string, string | number>;
+  const c = goal.context as Record<string, string | number | null>;
+  const item = c.next_item ? String(c.next_item) : null;
+
+  /* Two different situations wearing one goal kind.
+   *
+   * A patient with an unfinished treatment gets named the treatment. A
+   * lapsed patient with no open plan has nothing to be reminded OF — and
+   * the earlier version handed the prompt whatever was in next_item,
+   * which for a hand-queued goal was the internal queue label. It went
+   * out on WhatsApp. */
+  if (!item) {
+    return `${RULES}
+
+الموقف: مريض لم يراجع العيادة منذ فترة. ليست لديه خطة علاجية مفتوحة — لا تذكري خطةً ولا بنداً ولا مبلغاً.
+
+المريض: ${patient.name}
+${c.queue_note ? `سبب الاختيار (داخلي — لا تذكريه له): ${c.queue_note}` : ""}
+
+اكتبي رسالة قصيرة ودّية تطمئنين فيها عليه وتذكّرينه أن العيادة موجودة، وتعرضين حجز موعد فحص إن أحبّ.
+لا تخترعي علاجاً ولا سعراً ولا تاريخ زيارة. لا تلومي ولا تُلحّي.`;
+  }
+
   return `${RULES}
 
 الموقف: مريض بدأ خطة علاجية ثم توقّف. التشخيص تمّ والعلاج لم يكتمل.
 
 المريض: ${patient.name}
-الخطة: ${c.plan_title}
-أُنجز: ${c.items_done} بند · متبقٍ: ${c.items_left} بند
-البند التالي: ${c.next_item} — ${c.next_price} ر.ع
-توقّف منذ: ${c.days_stalled} يوماً
-قيمة المتبقّي: ${goal.value_omr} ر.ع
+البند المتبقّي: ${item}${c.next_price ? ` — ${c.next_price} ر.ع` : ""}
+${c.days_stalled ? `توقّف منذ: ${c.days_stalled} يوماً` : ""}
+قيمة المتبقّي من الخطة: ${goal.value_omr} ر.ع
 
-اكتبي رسالة تذكّره بالبند التالي **تحديداً** لا بوجود خطة، وتعرضي حجز موعد له.
-لا تلومي ولا تُلحّي. إن كان التوقّف طويلاً جداً (أكثر من ١٢٠ يوماً) فاختاري drop — المريض غالباً انتقل لعيادة أخرى.`;
+اكتبي رسالة تذكّره بالبند المتبقّي **باسمه تحديداً** لا بوجود خطة، وتعرضي حجز موعد له.
+لا تلومي ولا تُلحّي. إن كان التوقّف أكثر من ١٢٠ يوماً فاختاري drop — المريض غالباً انتقل لعيادة أخرى.`;
 }
 
 type GeminiResponse = {

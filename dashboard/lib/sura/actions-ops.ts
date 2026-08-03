@@ -110,21 +110,51 @@ async function queueRecovery(
     owed.set(p.patient_id, (owed.get(p.patient_id) ?? 0) + Number(row.line_total || 0));
   }
 
-  const rows = reachable.map((p) => ({
-    clinic_id: cid,
-    kind: "plan_recovery" as const,
-    subject_id: p.id,          // the patient is the subject for a hand-queued goal
-    patient_id: p.id,
-    value_omr: owed.get(p.id) ?? 0,
-    context: {
-      plan_title: a.note?.slice(0, 160) ?? "استدعاء مريض منقطع",
-      queued_by: "sura_conversation",
-      items_left: 0, items_done: 0,
-      next_item: a.note?.slice(0, 160) ?? "متابعة",
-      next_price: owed.get(p.id) ?? 0,
-      days_stalled: 0,
-    },
-  }));
+  /* The specific treatment each one is missing, where there is one.
+   *
+   * Without this the goal carried the internal queue label as its
+   * "next item", and it went out on WhatsApp: "نود تذكيرك بأن بند
+   * 'مرضى لم يراجعوا منذ 3 أشهر' بمبلغ 35 ر.ع ما زال مفتوحاً". A patient
+   * reading that sees the inside of our database. */
+  const nextItem = new Map<string, { name: string; price: number }>();
+  const { data: items } = await sb.from("treatment_plan_items")
+    .select("description, unit_price, sort_order, status, treatment_plans!plan_id(patient_id, status)")
+    .eq("clinic_id", cid).eq("status", "pending").order("sort_order");
+
+  for (const row of (items ?? []) as unknown as {
+    description: string; unit_price: number;
+    treatment_plans: { patient_id: string; status: string } | null;
+  }[]) {
+    const p = row.treatment_plans;
+    if (!p || !["accepted", "in_progress"].includes(p.status)) continue;
+    if (!nextItem.has(p.patient_id)) {
+      nextItem.set(p.patient_id, { name: row.description, price: Number(row.unit_price || 0) });
+    }
+  }
+
+  const rows = reachable.map((p) => {
+    const item = nextItem.get(p.id);
+    return {
+      clinic_id: cid,
+      kind: "plan_recovery" as const,
+      subject_id: p.id,        // the patient is the subject for a hand-queued goal
+      patient_id: p.id,
+      value_omr: owed.get(p.id) ?? 0,
+      context: {
+        /* Null rather than a placeholder when there is no outstanding
+           treatment — the decision step reads it and frames a plain
+           recall instead of inventing a plan the patient never had. */
+        plan_title: item ? "خطة علاجية غير مكتملة" : null,
+        next_item: item?.name ?? null,
+        next_price: item?.price ?? null,
+        queued_by: "sura_conversation",
+        queue_note: a.note?.slice(0, 160) ?? null,
+        items_left: item ? 1 : 0,
+        items_done: 0,
+        days_stalled: null,
+      },
+    };
+  });
 
   /* The partial unique index makes this idempotent: a patient already in
      the queue is skipped rather than duplicated, which is what keeps a
