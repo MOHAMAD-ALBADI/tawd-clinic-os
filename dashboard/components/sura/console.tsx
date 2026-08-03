@@ -133,6 +133,26 @@ export function SuraConsole() {
     setErr(null);
   }
 
+  /* Looks for a document produced after the request started.
+   *
+   * Polled rather than asked once, because the killed function may have
+   * been mid-write when the browser gave up — a few seconds of patience
+   * here is the difference between recovering a report and asking the
+   * owner to sit through building it a second time. */
+  const rescueDocument = useCallback(async (since: string) => {
+    for (let attempt = 0; attempt < 6; attempt++) {
+      try {
+        const r = await fetch(`/api/sura/documents?since=${encodeURIComponent(since)}`, { cache: "no-store" });
+        if (r.ok) {
+          const j = await r.json();
+          if (j.doc?.url) return j.doc as { url: string; label: string };
+        }
+      } catch { /* the network is why we are here — keep trying */ }
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+    return null;
+  }, []);
+
   const send = useCallback(async (preset?: string, replay?: { text: string; files: StagedFile[] }) => {
     const text = replay?.text ?? (preset ?? input).trim();
     const sent = replay?.files ?? files;
@@ -157,6 +177,13 @@ export function SuraConsole() {
 
     const ac = new AbortController();
     abortRef.current = ac;
+
+    /* The platform stops a function at five minutes and the browser has
+       no opinion about it, so a killed run left this spinning forever
+       over a report that had already been written. Give up just before
+       the platform does, then go looking for the work. */
+    const startedAt = new Date().toISOString();
+    const giveUp = setTimeout(() => ac.abort("deadline"), 290_000);
 
     try {
       const res = await fetch("/api/sura/ask", {
@@ -191,18 +218,34 @@ export function SuraConsole() {
         retryable: j.retryable !== false && Boolean(j.failure),
       }]);
     } catch (e) {
-      const stopped = (e as Error)?.name === "AbortError";
+      const aborted = (e as Error)?.name === "AbortError";
+      const byUser = aborted && ac.signal.reason !== "deadline";
+
+      /* Ran out of time rather than out of work. The document is written
+         to the database before the answer is composed, so it can still
+         be there — and handing back the report beats handing back an
+         apology for a report that exists. */
+      const rescued = aborted && !byUser ? await rescueDocument(startedAt) : null;
+
       setMessages((p) => [...p.slice(0, -1), {
         role: "assistant",
-        content: stopped ? "أوقفتَ الردّ." : "تعذّر الاتصال.",
-        failure: stopped ? undefined : "network",
-        retryable: !stopped,
+        content: byUser
+          ? "أوقفتَ الردّ."
+          : rescued
+            ? "الطلب تجاوز مهلة الاتصال، لكن المستند اكتمل. هذا هو."
+            : aborted
+              ? "الطلب استغرق وقتاً أطول من المسموح. جرّب طلباً أضيق — مثلاً محوراً واحداً بدل عدّة محاور."
+              : "تعذّر الاتصال.",
+        doc: rescued ?? undefined,
+        failure: byUser || rescued ? undefined : "network",
+        retryable: !byUser && !rescued,
       }]);
     } finally {
+      clearTimeout(giveUp);
       setBusy(false);
       abortRef.current = null;
     }
-  }, [input, files, busy, convId, messages, loadHistory]);
+  }, [input, files, busy, convId, messages, loadHistory, rescueDocument]);
 
   return (
     <div className="panel flex h-[calc(100vh-13rem)] min-h-[560px] flex-col overflow-hidden">
