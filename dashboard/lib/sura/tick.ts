@@ -251,6 +251,19 @@ async function execute(
 
   const sent = await sendWhatsApp(svc, goal.clinic_id, target.phone, d.message_ar);
 
+  /* The same log the console writes to, so "what did you send my
+     patient?" has one answer and not two half-answers in two tables. */
+  await svc.from("sura_outbound").insert({
+    clinic_id: goal.clinic_id,
+    patient_id: target.patient_id,
+    channel: "whatsapp",
+    body: d.message_ar,
+    source: "agent",
+    goal_id: goal.id,
+    ok: sent.ok,
+    error: sent.error ?? null,
+  });
+
   await log(svc, {
     ...base,
     chose: "message_patient",

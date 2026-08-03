@@ -91,7 +91,7 @@ export async function runAction(
     case "reschedule_appointment": return reschedule(sb, action, clinicId, role);
     case "add_to_waitlist":      return waitlist(sb, action, clinicId);
     case "draft_treatment_plan": return draftPlan(sb, action, clinicId, actorId);
-    case "message_patient":      return message(sb, action, clinicId);
+    case "message_patient":      return message(sb, action, clinicId, actorId);
     case "open_document":        return openDocument(action);
     case "create_document":      return writeDocument(sb, action, clinicId, actorId, gathered);
     default:
@@ -291,7 +291,7 @@ async function draftPlan(sb: SB, a: Extract<Action, { type: "draft_treatment_pla
   };
 }
 
-async function message(sb: SB, a: Extract<Action, { type: "message_patient" }>, cid: string) {
+async function message(sb: SB, a: Extract<Action, { type: "message_patient" }>, cid: string, actor: string) {
   requireId(a.patient_id, "patient_id");
   const text = a.text.trim();
   if (!text) return { action: a.type, done: false, reason: "الرسالة فارغة" };
@@ -320,9 +320,23 @@ async function message(sb: SB, a: Extract<Action, { type: "message_patient" }>, 
       text: { body: text },
     }),
   });
-  if (!res.ok) {
-    return { action: a.type, done: false, reason: waError(await res.text()) };
-  }
+  const failed = res.ok ? null : waError(await res.text());
+
+  /* Logged either way. "We tried and Meta refused" is also an answer to
+     "what did you send my patient?", and the refusal is the half that
+     nobody can reconstruct afterwards. */
+  await sb.from("sura_outbound").insert({
+    clinic_id: cid,
+    patient_id: a.patient_id,
+    channel: "whatsapp",
+    body: text,
+    source: "conversation",
+    sent_by: actor,
+    ok: !failed,
+    error: failed,
+  });
+
+  if (failed) return { action: a.type, done: false, reason: failed };
   return { action: a.type, done: true, to: patient.name_ar ?? patient.name };
 }
 
