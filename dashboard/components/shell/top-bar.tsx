@@ -1,9 +1,10 @@
 "use client";
 
-import { Bell, X, AlertTriangle, Info, CheckCircle2, ChevronLeft } from "lucide-react";
+import { Bell, X, AlertTriangle, Info, CheckCircle2, ChevronLeft, Menu } from "lucide-react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { GlobalSearch } from "./global-search";
+import { useNav } from "./nav-state";
 
 interface TopBarProps {
   title?: string;
@@ -25,6 +26,7 @@ const SEV: Record<string, { color: string; Icon: typeof Info }> = {
 };
 
 export function TopBar({ title, searchPlaceholder }: TopBarProps) {
+  const { setOpen: setNavOpen } = useNav();
   const [notifOpen, setNotifOpen] = useState(false);
   const [items, setItems] = useState<NotifItem[] | null>(null);
   const [count, setCount] = useState(0);
@@ -65,6 +67,17 @@ export function TopBar({ title, searchPlaceholder }: TopBarProps) {
         borderBottom: "1px solid rgba(255,255,255,0.06)",
       }}
     >
+      {/* The only way into the menu on a phone. Forty-four square, which
+          is the smallest target a thumb finds reliably. */}
+      <button
+        onClick={() => setNavOpen(true)}
+        className="lg:hidden -ms-1.5 w-11 h-11 shrink-0 rounded-xl flex items-center justify-center"
+        style={{ color: "var(--text-2)" }}
+        aria-label="فتح القائمة"
+      >
+        <Menu className="w-5 h-5" />
+      </button>
+
       {title ? (
         <h1 className="text-base font-semibold flex-1 truncate text-white">{title}</h1>
       ) : (
@@ -97,9 +110,9 @@ export function TopBar({ title, searchPlaceholder }: TopBarProps) {
 
         {notifOpen && (
           <div
-            className="fixed w-[340px] rounded-2xl overflow-hidden"
+            className="fixed inset-x-3 w-auto sm:inset-x-auto sm:w-[340px] sm:start-4 lg:start-[17rem] rounded-2xl overflow-hidden"
             style={{
-              top: "3.75rem", left: "17rem", zIndex: 60,
+              top: "3.75rem", zIndex: 60,
               background: "#0e0e10",
               border: "1px solid rgba(255,255,255,0.1)",
               boxShadow: "0 24px 64px rgba(0,0,0,0.9)",

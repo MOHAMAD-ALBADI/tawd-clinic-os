@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getUserClaims } from "@/lib/auth/get-user-claims";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { AppSidebar } from "@/components/shell/app-sidebar";
+import { NavProvider } from "@/components/shell/nav-state";
 import { TopBar } from "@/components/shell/top-bar";
 import { SuraWidget } from "@/components/sura-widget/sura-widget";
 import { getEntitlements } from "@/lib/entitlements";
@@ -39,8 +40,9 @@ export default async function ProtectedLayout({
     /* No background here. This used to hardcode #0A0D16 — a blue-black left
        over from an older theme — which sat under every page fighting the warm
        stone canvas that body already paints. */
+    <NavProvider>
     <div className="min-h-screen">
-      {/* Dark sidebar — fixed on end (RTL = right) */}
+      {/* Dark sidebar — furniture from lg up, a drawer below it */}
       <AppSidebar
         role={claims.role}
         allRoles={claims.all_roles}
@@ -50,8 +52,9 @@ export default async function ProtectedLayout({
         modules={entitlements?.modules}
       />
 
-      {/* Main content — offset by sidebar width */}
-      <div className="pe-64 min-h-screen flex flex-col">
+      {/* Main content — offset by the sidebar only where the sidebar is
+          actually there. On a phone the drawer floats over this instead. */}
+      <div className="lg:pe-64 min-h-screen flex flex-col">
         <TopBar
           searchPlaceholder={
             claims.role === "platform_admin" ? "ابحث عن عيادة..."
@@ -59,7 +62,7 @@ export default async function ProtectedLayout({
             : "ابحث عن مريض، خدمة، فاتورة..."
           }
         />
-        <main className="flex-1 p-6 max-w-[1400px] w-full mx-auto">
+        <main className="flex-1 p-4 sm:p-6 max-w-[1400px] w-full mx-auto">
           {children}
         </main>
       </div>
@@ -67,5 +70,6 @@ export default async function ProtectedLayout({
       {/* Sura AI widget — floats on end-bottom */}
       <SuraWidget userRole={claims.role} />
     </div>
+    </NavProvider>
   );
 }

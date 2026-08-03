@@ -8,6 +8,7 @@ import { NAV_ITEMS } from "./nav-config";
 import { TawdLogoMark } from "./tawd-logo";
 import { ROLE_LABELS } from "@/lib/auth/role-redirect";
 import { createClient } from "@/lib/supabase/client";
+import { useNav } from "./nav-state";
 import type { Role } from "@/types/tawd";
 
 interface AppSidebarProps {
@@ -24,6 +25,7 @@ interface AppSidebarProps {
 export function AppSidebar({ role, allRoles, userName, clinicName, avatarUrl, modules }: AppSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { open, setOpen } = useNav();
   const supabase = createClient();
 
   /* one account may hold several roles (front-desk PC = reception + accounting):
@@ -58,13 +60,34 @@ export function AppSidebar({ role, allRoles, userName, clinicName, avatarUrl, mo
   const initial = userName.charAt(0).toUpperCase();
 
   return (
-    <aside
-      className="fixed inset-y-0 end-0 w-64 flex flex-col z-40"
-      style={{
-        background: "#0c0c0d",
-        borderInlineStart: "1px solid rgba(255,255,255,0.06)",
-      }}
-    >
+    <>
+      {/* The page behind the drawer, dimmed and tappable to dismiss.
+          Below lg only — on a desktop the sidebar is furniture, not a
+          layer over the work. */}
+      <div
+        onClick={() => setOpen(false)}
+        aria-hidden={!open}
+        className={cn(
+          "fixed inset-0 z-40 lg:hidden transition-opacity duration-200",
+          open ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
+        style={{ background: "rgba(0,0,0,0.6)" }}
+      />
+
+      <aside
+        className={cn(
+          "fixed inset-y-0 end-0 w-64 flex flex-col z-50",
+          "transition-transform duration-250 ease-out lg:transition-none",
+          /* Parked off the end of the screen until asked for. A CSS
+             transform is not direction-aware, and the drawer sits on the
+             right in Arabic, so positive X is the way out. */
+          open ? "translate-x-0" : "translate-x-full lg:translate-x-0",
+        )}
+        style={{
+          background: "#0c0c0d",
+          borderInlineStart: "1px solid rgba(255,255,255,0.06)",
+        }}
+      >
       {/* ── Brand ── */}
       <div
         className="flex items-center gap-3 px-4 h-[68px] shrink-0"
@@ -133,6 +156,7 @@ export function AppSidebar({ role, allRoles, userName, clinicName, avatarUrl, mo
                 )}
               <Link
                 href={item.href}
+                onClick={() => setOpen(false)}
                 className={cn(
                   "relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13.5px] transition-all duration-150 group",
                   isActive
@@ -232,6 +256,7 @@ export function AppSidebar({ role, allRoles, userName, clinicName, avatarUrl, mo
           تسجيل الخروج
         </button>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }
