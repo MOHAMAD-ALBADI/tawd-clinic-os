@@ -414,7 +414,10 @@ async function gemini(
                ceiling this high costs nothing on a short answer and is
                the difference between a document arriving and arriving
                truncated. */
-            maxOutputTokens: 8192,
+            /* Measured: a long Arabic document completes cleanly at
+               16k in text mode and degenerates in JSON mode at any
+               budget. Planning turns are short and never approach this. */
+            maxOutputTokens: json ? 4096 : 16384,
             thinkingConfig: { thinkingBudget: 0 },
             ...(json ? { responseMimeType: "application/json" } : {}),
           },
@@ -439,7 +442,18 @@ async function gemini(
     usage.output += Number(j.usageMetadata.candidatesTokenCount ?? 0);
   }
   const why = j?.candidates?.[0]?.finishReason;
-  const text = j?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+  /* Every part, not the first.
+   *
+   * Gemini splits a long response across several parts, and reading
+   * parts[0] returned the opening fragment of a JSON object — valid
+   * text, invalid JSON, and a "وصل ردّ غير مكتمل" that had nothing to do
+   * with the model. Short answers have one part, which is why this
+   * survived until she started writing documents. */
+  const back = j?.candidates?.[0]?.content?.parts;
+  const text = Array.isArray(back)
+    ? back.map((p: { text?: string }) => p?.text ?? "").join("").trim()
+    : undefined;
 
   /* MAX_TOKENS is fatal even when text came back, and that was the bug
      behind "تعذّر التحليل الآن".
@@ -455,12 +469,37 @@ async function gemini(
   return text;
 }
 
-/** Parses a model turn, so a malformed one is named rather than "unknown". */
+/* Parses a model turn.
+ *
+ * JSON mode is a strong guarantee, not an absolute one — a model asked
+ * for JSON still occasionally wraps it in a markdown fence, or prefixes
+ * a sentence. Both are trivially recoverable and neither is worth
+ * showing a clinic an error for, so they are recovered here and only a
+ * genuinely unparseable turn is named as a failure. */
 function parseTurn(raw: string): Record<string, unknown> {
-  try {
-    const v = JSON.parse(raw);
+  const attempt = (s: string) => {
+    const v = JSON.parse(s);
     if (v && typeof v === "object") return v as Record<string, unknown>;
-  } catch { /* named below */ }
+    throw new Error("not an object");
+  };
+
+  try {
+    return attempt(raw);
+  } catch { /* try the recoveries below */ }
+
+  /* ```json … ``` */
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/.exec(raw);
+  if (fenced) {
+    try { return attempt(fenced[1].trim()); } catch { /* keep going */ }
+  }
+
+  /* A prose preamble before the object. */
+  const first = raw.indexOf("{");
+  const last = raw.lastIndexOf("}");
+  if (first >= 0 && last > first) {
+    try { return attempt(raw.slice(first, last + 1)); } catch { /* out of ideas */ }
+  }
+
   throw new SuraError("bad_json");
 }
 
@@ -635,13 +674,9 @@ export async function POST(req: Request) {
         `{"action":{"type":"add_to_waitlist","patient_id":"<uuid>","service_id":"<uuid>","from_date":"YYYY-MM-DD","to_date":"YYYY-MM-DD"}} — إضافة لقائمة الانتظار (يُعرض عليه أي إلغاء تلقائياً)\n` +
         `{"action":{"type":"message_patient","patient_id":"<uuid>","text":"نص الرسالة"}} — إرسال رسالة واتساب\n`) +
         `{"action":{"type":"open_document","kind":"monthly_report","month":"YYYY-MM-01 اختياري"}} — إصدار تقرير الشهر جاهزاً للطباعة أو الحفظ PDF\n` +
-        `{"action":{"type":"create_document","title":"عنوان المستند","body_md":"# عنوان\\n\\nالمحتوى بصيغة Markdown — عناوين وجداول وقوائم","prompt":"ما طُلب منكِ"}} — مستند تكتبينه أنتِ: تحليل، خطة، دراسة، ملخّص. استخدميه كلما طُلب «مستند» أو «تقرير» غير تقرير الشهر الجاهز\n` +
+        `{"action":{"type":"create_document","title":"عنوان المستند","brief":"وصف دقيق لما يُكتب فيه، بالأقسام المطلوبة"}} — مستند تكتبينه أنتِ: تحليل، خطة، دراسة. لا تكتبي محتواه هنا — اكتبي العنوان والوصف فقط، والمحتوى يُكتب في خطوة تالية\n` +
         `\n[المستند]\n` +
-        `الردّ سطران يقولان ما فيه؛ المستند هو العمل. كل قسم: الرقم الذي وجدتِه، ثم معناه، ثم التوصية. الأرقام في جداول.\n` +
-        /* The fence markers are escaped: this is a template literal, and
-           three unescaped backticks end it mid-sentence. */
-        `للمقارنة أو التوزيع ارسمي مخطّطاً داخل body_md: سطر \\\`\\\`\\\`chart ثم type: bar أو donut، وعنوان، وسطر لكل بند «الاسم | الرقم»، ثم سطر \\\`\\\`\\\`\n` +
-        `أرقام المخطّط من استعلاماتك فقط. اختمي بقسم يفصل ما نُفّذ عمّا ينتظر موافقته.\n` +
+        `الردّ سطران يقولان ما فيه؛ المستند هو العمل. استعلمي البيانات أولاً، ثم نفّذي create_document بعنوان ووصف الأقسام.\n` +
         `\nقواعد التنفيذ:\n` +
         `- كل uuid يجب أن يأتي من نتيجة استعلام في هذه المحادثة. استعلمي أولاً ثم نفّذي في الردّ التالي.\n` +
         `- لا تنفّذي إجراء إلا إذا طلبه المستخدم صراحة في رسالته الأخيرة.\n` +
@@ -703,7 +738,34 @@ export async function POST(req: Request) {
       if (resp.action && typeof resp.action === "object" && role !== "accountant" && !isPlatform && actionsDone < 2) {
         actionsDone++;
         try {
-          const res = await runAction(sb, resp.action as Action, cid, role, claims.sub, context);
+          const act = resp.action as Record<string, unknown>;
+
+          /* Stage two of a document. The planning turn supplies the
+             title and the brief; the body is written here, in plain
+             text, because JSON mode cannot carry it intact. */
+          if (act.type === "create_document" && !String(act.body_md ?? "").trim()) {
+            act.body_md = await gemini(
+              geminiKey,
+              `أنتِ سُرى، تكتبين مستنداً لعيادة ${clinicName}.\n\n` +
+                `[المطلوب]\n${String(act.brief ?? question)}\n\n` +
+                `[البيانات التي قرأتِها — لا تستخدمي رقماً خارجها]\n${JSON.stringify(context).slice(0, 18000)}\n\n` +
+                `اكتبي المستند الآن بصيغة Markdown مباشرة، بلا JSON وبلا أي غلاف وبلا مقدّمة عن نفسك.\n` +
+                `- عناوين بـ ## ، والأرقام في جداول Markdown.\n` +
+                `- كل قسم: الرقم الذي وُجد، ثم معناه، ثم التوصية.\n` +
+                `- ممنوع «سنقوم» و«سيتم» و«سأقوم» وممنوع «نحتاج بيانات» — استخدمي ما هو أمامك.\n` +
+                `- ما لا يحتفظ به النظام (مثل سبب عدم الحضور) قوليه صراحةً ولا تخمّني نسبة.\n` +
+                /* The fence is spelled out rather than written, because
+                   three backticks inside a template literal end it. */
+                "- للمقارنة ارسمي مخطّطاً: سطر ```chart ثم type: bar، وعنوان، وسطر لكل بند «الاسم | الرقم»، ثم سطر ```\n" +
+                `  وأرقام المخطّط من البيانات أعلاه فقط.\n` +
+                `- اختمي بقسم «الخطوات التالية» يفصل ما نُفّذ عمّا ينتظر الموافقة.\n` +
+                `- ألف إلى ألفي كلمة. لا تكرّري.`,
+              false,
+              usage,
+            );
+          }
+
+          const res = await runAction(sb, act as unknown as Action, cid, role, claims.sub, context);
           const d = (res as { document?: { url: string; label: string } }).document;
           if (d?.url) doc = d;
           context.push({ action_result: res });
