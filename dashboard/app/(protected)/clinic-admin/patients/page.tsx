@@ -107,9 +107,12 @@ export default async function PatientsPage() {
                   )}
                 </div>
 
+                {/* The date yields, the actions do not: without shrink-0 the
+                    row squeezed "٢٠٢٦/٠٨/٠٣" down to "٢٠٢٦/٠٨/" against the
+                    edge. */}
                 <div className="flex items-center justify-between gap-2 mt-3">
-                  <span className="ltr-nums text-[11.5px]" style={{ color: "var(--text-4)" }}>{formatDate(p.created_at)}</span>
-                  <div className="flex items-center gap-2">
+                  <span className="ltr-nums text-[11.5px] shrink-0" style={{ color: "var(--text-4)" }}>{formatDate(p.created_at)}</span>
+                  <div className="flex items-center justify-end gap-2 flex-wrap">
                     <EditPatientTrigger patient={p} />
                     <Link href={`/clinic-admin/patients/${p.id}`} className="btn-ghost">
                       الملف <ChevronLeft className="w-3 h-3" />
