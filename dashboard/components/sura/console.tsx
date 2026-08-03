@@ -23,7 +23,8 @@ import { RichText } from "@/components/sura-widget/rich-text";
  */
 
 type Attach = { name: string; mime: string; data: string; preview?: string };
-type Msg = { role: "user" | "assistant"; content: string; files?: { name: string; preview?: string }[] };
+type Doc = { url: string; label: string };
+type Msg = { role: "user" | "assistant"; content: string; files?: { name: string; preview?: string }[]; doc?: Doc };
 
 const MAX_FILES = 2;
 const MAX_BYTES = 4 * 1024 * 1024;
@@ -113,6 +114,7 @@ export function SuraConsole() {
         copy[copy.length - 1] = {
           role: "assistant",
           content: String(j.answer ?? j.error ?? "تعذّر التحليل — حاول مرّة أخرى."),
+          doc: j.doc && typeof j.doc.url === "string" ? j.doc : undefined,
         };
         return copy;
       });
@@ -221,6 +223,21 @@ export function SuraConsole() {
                 : busy && i === messages.length - 1
                   ? <Loader2 className="size-4 animate-spin" style={{ color: "var(--accent-1)" }} />
                   : null}
+
+              {/* She produced something. It is a thing to open, not a
+                  path to read out. */}
+              {m.doc && (
+                <a
+                  href={m.doc.url}
+                  target="_blank"
+                  rel="noopener"
+                  className="mt-2.5 inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-[12.5px] font-bold text-white transition-opacity hover:opacity-90"
+                  style={{ background: "var(--accent-2)" }}
+                >
+                  <FileDown className="size-4" />
+                  {m.doc.label}
+                </a>
+              )}
             </div>
           </div>
         ))}

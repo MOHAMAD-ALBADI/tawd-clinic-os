@@ -31,7 +31,8 @@ export type Action =
   | { type: "reschedule_appointment"; appointment_id: string; date: string; time: string }
   | { type: "add_to_waitlist"; patient_id: string; service_id: string; from_date: string; to_date: string }
   | { type: "draft_treatment_plan"; patient_id: string; title: string; items: { service_id: string; description?: string; tooth?: string; qty?: number }[] }
-  | { type: "message_patient"; patient_id: string; text: string };
+  | { type: "message_patient"; patient_id: string; text: string }
+  | { type: "open_document"; kind: "monthly_report"; month?: string };
 
 export type ActionResult = {
   action: string;
@@ -76,6 +77,7 @@ export async function runAction(
     case "add_to_waitlist":      return waitlist(sb, action, clinicId);
     case "draft_treatment_plan": return draftPlan(sb, action, clinicId, actorId);
     case "message_patient":      return message(sb, action, clinicId);
+    case "open_document":        return openDocument(action);
     default:
       throw new Error(`إجراء غير مدعوم: ${(action as { type: string }).type}`);
   }
@@ -306,6 +308,41 @@ async function message(sb: SB, a: Extract<Action, { type: "message_patient" }>, 
     return { action: a.type, done: false, reason: waError(await res.text()) };
   }
   return { action: a.type, done: true, to: patient.name_ar ?? patient.name };
+}
+
+/* Produce the document, rather than explain where it lives.
+ *
+ * Asked "can you make me a PDF?" she used to recite navigation — open
+ * this page, press that button — which is a help article, not an agent.
+ * She now returns the finished document and the interface renders it as
+ * something to click.
+ *
+ * The url is a page styled for paper, not a generated file, because the
+ * common PDF libraries do no Arabic shaping and produce disconnected
+ * letters in reverse. The browser already renders it correctly, and its
+ * print dialog writes the PDF. */
+function openDocument(a: Extract<Action, { type: "open_document" }>): ActionResult {
+  if (a.kind !== "monthly_report") {
+    return { action: a.type, done: false, reason: `مستند غير معروف: ${a.kind}` };
+  }
+
+  const month = /^\d{4}-\d{2}-\d{2}$/.test(a.month ?? "") ? a.month! : undefined;
+  const label = month
+    ? `تقرير ${new Date(`${month}T00:00:00+04:00`).toLocaleDateString("ar-OM", { month: "long", year: "numeric", timeZone: "Asia/Muscat" })}`
+    : "تقرير الشهر";
+
+  return {
+    action: a.type,
+    done: true,
+    document: {
+      url: `/clinic-admin/sura-agent/report${month ? `?month=${month}` : ""}`,
+      label,
+    },
+    /* Said plainly so she confirms it exists rather than describing how
+       to reach it. The interface shows the button; she should not
+       repeat its contents as prose. */
+    note: "المستند جاهز ومعروض للمستخدم كزرّ. أخبريه أنه جاهز وما الذي يحتويه، بجملة أو جملتين. لا تشرحي خطوات فتحه.",
+  };
 }
 
 /* ── shared ───────────────────────────────────────────────────────── */

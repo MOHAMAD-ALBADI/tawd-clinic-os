@@ -498,7 +498,7 @@ export async function POST(req: Request) {
       `١. القراءة من قاعدة بيانات العيادة الحيّة والإجابة عن أي رقم فيها — إيرادات، تحصيل، مواعيد، عدم حضور، إنتاجية طبيب، خطط علاجية، مخزون، تأمين.\n` +
       `٢. التنفيذ: تحجزين موعداً حقيقياً، تؤجّلين، تلغين، تؤكّدين، تضيفين لقائمة الانتظار، تكتبين مسوّدة خطة علاجية بأسعار العيادة، وترسلين رسالة واتساب للمريض.\n` +
       `٣. قراءة الملفات: إن أرفق المستخدم صورة أو ملف PDF فأنتِ ترينه فعلاً وتقرئينه — بطاقة تأمين، تقرير مختبر، أشعة، عرض سعر، فاتورة مورّد. اقرأيه واستخرجي منه ما يخدم سؤاله.\n` +
-      `٤. إصدار مستند: يوجد تقرير شهري جاهز للطباعة أو الحفظ PDF فيه المال والمواعيد وما استرجعتِه. إن طُلب منكِ تقرير أو PDF فوجّهيه إلى صفحة «سُرى ← الوكيل ← تقرير الشهر» أو الرابط /clinic-admin/sura-agent/report، ثم زرّ «طباعة أو حفظ PDF». لا تقولي إنكِ لا تستطيعين.\n` +
+      `٤. إصدار مستند: إن طُلب منكِ تقرير أو PDF أو ملف، نفّذي open_document — يظهر للمستخدم زرّاً جاهزاً يفتح المستند. لا تشرحي خطوات ولا تعطي مساراً؛ نفّذي.\n` +
       `٥. العمل وحدك: كل عشر دقائق تستيقظين بلا أن يطلب منكِ أحد، فتبحثين عن كرسي فارغ بسبب إلغاء وتعرضينه على أنسب مريض، وعن خطة علاجية توقّفت فتتابعين صاحبها. كل قرار تتّخذينه مسجَّل بسببه في صفحة الوكيل.\n` +
       `ما لا تفعلينه: لا تشخّصين ولا تصفين دواءً ولا تعطين رأياً طبياً، ولا تخترعين رقماً أو سعراً ليس في البيانات.\n\n`) +
     `لديك وصول كامل لقاعدة بيانات العيادة عبر خطط استعلام JSON. الجداول المتاحة:\n${catalogFor(role)}\n\n` +
@@ -524,6 +524,7 @@ export async function POST(req: Request) {
         (role === "doctor" ? "" :
         `{"action":{"type":"add_to_waitlist","patient_id":"<uuid>","service_id":"<uuid>","from_date":"YYYY-MM-DD","to_date":"YYYY-MM-DD"}} — إضافة لقائمة الانتظار (يُعرض عليه أي إلغاء تلقائياً)\n` +
         `{"action":{"type":"message_patient","patient_id":"<uuid>","text":"نص الرسالة"}} — إرسال رسالة واتساب\n`) +
+        `{"action":{"type":"open_document","kind":"monthly_report","month":"YYYY-MM-01 اختياري"}} — إصدار تقرير الشهر جاهزاً للطباعة أو الحفظ PDF\n` +
         `{"action":{"type":"draft_treatment_plan","patient_id":"<uuid>","title":"عنوان","items":[{"service_id":"<uuid>","description":"اختياري","tooth":"اختياري","qty":1}]}} — مسوّدة خطة علاجية (الأسعار تُؤخذ من جدول خدماتك)\n` +
         `\nقواعد التنفيذ:\n` +
         `- كل uuid يجب أن يأتي من نتيجة استعلام في هذه المحادثة. استعلمي أولاً ثم نفّذي في الردّ التالي.\n` +
@@ -540,6 +541,10 @@ export async function POST(req: Request) {
     /* agent loop: each model turn returns answer | queries | action (max 4 turns) */
     const context: unknown[] = [];
     let actionsDone = 0;
+    /* Anything the answer should render as more than text. Kept as a
+       field rather than a URL inside the prose, so the interface can
+       show a button and she never has to describe one. */
+    let doc: { url: string; label: string } | null = null;
     const usage: Usage = { input: 0, output: 0 };
 
     const fileNote = files.length
@@ -556,22 +561,14 @@ export async function POST(req: Request) {
          able to do, which is a menu rather than a reply. Someone who asked
          a question wants the number, then the context. */
       `1) {"answer":"..."} — الإجابة النهائية بالعربية.\n` +
-      `   [المضمون]\n` +
-      `   - ابدئي بالجواب المباشر. لا تمهيد ولا تعداد لقدراتك ما لم يُسأل عنها.\n` +
-      `   - كل رقم من النتائج أعلاه حصراً. لا تخترعي شيئاً. المبالغ بصيغة 5.000 ر.ع.\n` +
-      `   - لا تكتفي بالرقم: أضيفي ما يعنيه إن كان له معنى (ارتفاع، انخفاض، نسبة، مقارنة).\n` +
-      `   - إن لم تكفِ البيانات، قوليها في سطر واقترحي السؤال الذي يُجاب.\n` +
-      `   [الشكل — طوّعيه للسؤال، لا قالباً واحداً]\n` +
-      `   - رقم واحد مطلوب ← جملة أو جملتان. لا تحوّليها قائمة.\n` +
-      `   - عدّة أرقام أو مقارنة ← سطر لكل بند يبدأ بـ "- "، والاسم **بنجمتين** ثم الرقم.\n` +
-      `   - قائمة أشخاص أو مواعيد ← سطر لكل واحد فيه الاسم والوقت والحالة.\n` +
-      `   - خطوات أو ترتيب زمني ← ترقيم 1. 2. 3.\n` +
-      `   - موضوعان مختلفان في جواب واحد ← عنوان قصير لكل قسم على سطر مستقل يبدأ بـ "## ".\n` +
-      `   - جواب طويل ← اختمي بسطر واحد يقترح الخطوة التالية أو السؤال التالي.\n` +
-      `   - لا تكتبي فقرة واحدة طويلة متلاصقة أبداً. اترك سطراً فارغاً بين الأقسام.\n` +
-      `   [إن سُئلتِ عمّا تستطيعين فعله]\n` +
-      `   - اعرضي الخمسة كاملة من قسم [ما أنتِ عليه] بعناوين وقوائم مرتّبة، بصيغة النتيجة لا الفعل المجرّد،\n` +
-      `     مع مثال واقعي واحد لكل قدرة يستطيع كتابته الآن. ثم اسأليه ماذا يريد.` +
+      `   اكتبي كما يكتب زميل يعرف عمله: مباشرة، بلا تمهيد، وبثقة.\n` +
+      `   - الجواب أولاً. كل رقم من النتائج أعلاه حصراً، والمبالغ بصيغة 5.000 ر.ع.\n` +
+      `   - أضيفي ما يعنيه الرقم إن كان له معنى — ارتفاع، انخفاض، مقارنة، سبب محتمل.\n` +
+      `   - إن لم تكفِ البيانات فقوليها في سطر واقترحي السؤال الذي يُجاب.\n` +
+      `   - نسّقي بما يناسب السؤال: رقم واحد يكفيه سطر، والمقارنة أسطر، والقائمة صفوف،\n` +
+      `     والخطوات ترقيم، والموضوعان عنوان لكل منهما بـ "## ". لا فقرة طويلة متلاصقة.\n` +
+      `   - **بنجمتين** للتوكيد، وسطر فارغ بين الأقسام.\n` +
+      `   - إن سُئلتِ عمّا تستطيعين: اعرضي الخمس من [ما أنتِ عليه] مرتّبة، ولكل واحدة مثال يكتبه الآن.` +
       (final
         ? ``
         : `\n2) {"queries":[...]} — إذا كنت تحتاجين بيانات (أو تصحيح استعلام خاطئ).\n` +
@@ -584,13 +581,15 @@ export async function POST(req: Request) {
     for (let step = 0; step < 4; step++) {
       if (resp.answer && !resp.queries && !resp.action) {
         await logUsage(sb, cid, usage);
-        return NextResponse.json({ answer: String(resp.answer) });
+        return NextResponse.json({ answer: String(resp.answer), ...(doc ? { doc } : {}) });
       }
 
       if (resp.action && typeof resp.action === "object" && role !== "accountant" && !isPlatform && actionsDone < 2) {
         actionsDone++;
         try {
           const res = await runAction(sb, resp.action as Action, cid, role, claims.sub);
+          const d = (res as { document?: { url: string; label: string } }).document;
+          if (d?.url) doc = d;
           context.push({ action_result: res });
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
@@ -615,7 +614,7 @@ export async function POST(req: Request) {
     }
 
     await logUsage(sb, cid, usage);
-    if (resp?.answer) return NextResponse.json({ answer: String(resp.answer) });
+    if (resp?.answer) return NextResponse.json({ answer: String(resp.answer), ...(doc ? { doc } : {}) });
     return NextResponse.json({
       answer: "ما قدرت أكمل هذا الطلب — جرّب صياغته بشكل أوضح أو قسّمه لخطوتين.",
     });
