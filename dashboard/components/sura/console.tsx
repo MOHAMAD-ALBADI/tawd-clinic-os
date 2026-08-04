@@ -160,7 +160,11 @@ export function SuraConsole() {
 
     lastAsk.current = { text, files: sent };
     const shown = sent.map((f) => ({ name: f.name, preview: f.preview }));
-    const priorTurns = messages.filter((m) => !m.failure).slice(-6);
+    /* The server keeps twenty turns; sending six meant it could never
+       have them. A working thread is long — ask, read, correct, ask
+       again — and the fourth question was already talking to someone who
+       had forgotten the first. */
+    const priorTurns = messages.filter((m) => !m.failure && m.content.trim()).slice(-20);
 
     if (!replay) {
       setInput("");

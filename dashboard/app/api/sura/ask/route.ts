@@ -873,8 +873,11 @@ export async function POST(req: Request) {
        * Empty turns go too: the console appends a blank assistant
        * message as a placeholder while a reply streams, and a part with
        * an empty string is itself a 400. */
+      /* Twenty turns, not six. A working conversation is a long one —
+         the owner asks, reads, corrects, asks again — and six meant she
+         forgot the beginning of her own thread by the fourth question. */
       history = body.history
-        .slice(-6)
+        .slice(-20)
         .map((m: { role?: string; text?: string; content?: string }) => ({
           role: m.role === "user" ? "user" : "model",
           text: String(m.text ?? m.content ?? "").trim().slice(0, 600),
@@ -1101,7 +1104,7 @@ ${catalogFor(role)}
      * trained to, and nothing has to be re-serialised into a string. */
     const contents: Record<string, unknown>[] = [];
 
-    for (const h of history.slice(-6)) {
+    for (const h of history.slice(-20)) {
       contents.push({ role: h.role === "user" ? "user" : "model", parts: [{ text: h.text }] });
     }
     contents.push({
@@ -1258,7 +1261,14 @@ ${catalogFor(role)}
      * the model issues several calls at once and gets several results
      * back. Measured on this key, Pro asks for two in a single turn. */
     let answer = "";
-    for (let round = 0; round < 8; round++) {
+    /* Bounded by the clock, not by a number I picked.
+     *
+     * Eight rounds was arbitrary, and a request large enough to need a
+     * ninth got «لم أصل إلى نتيجة» — a surrender written while a full
+     * transcript of results sat in memory. A planning turn costs about
+     * three seconds, so twenty of them still finish inside the time
+     * budget, and the time budget is the honest limit. */
+    for (let round = 0; round < 20; round++) {
       let turn = await geminiTurn(geminiKey, persona, contents, tools, usage);
 
       /* Spent the turn thinking and said nothing. Ask again for words
@@ -1322,21 +1332,47 @@ ${catalogFor(role)}
       contents.push({ role: "model", parts: turn.parts });
 
       const responses = [];
-      for (const c of turn.calls.slice(0, 6)) {
+      for (const c of turn.calls.slice(0, 10)) {
         responses.push({ functionResponse: { name: c.name, response: await execute(c) } });
       }
       contents.push({ role: "user", parts: responses });
 
-      if (nearLimit()) {
-        contents.push({ role: "user", parts: [{ text: "انتهى الوقت المتاح. أجيبي الآن من المعطيات، بلا نداء أدوات." }] });
+      if (nearLimit()) break;
+    }
+
+    /* A request always ends in an answer.
+     *
+     * Whatever stopped the loop — the clock, the round ceiling, a model
+     * that kept reaching for one more tool — the work is already done
+     * and sitting in the transcript. Returning "قسّمه لجزأين" or "لم
+     * أصل إلى نتيجة" threw all of it away and asked the owner to type
+     * the request again, which is the single most infuriating thing a
+     * system can do with work it has already paid for.
+     *
+     * No tools on this call, so there is nothing to reach for. */
+    if (!answer) {
+      contents.push({
+        role: "user",
+        parts: [{
+          text:
+            "توقّفي عن الاستعلام وأجيبي الآن من كل ما جمعتِه أعلاه. " +
+            "غطّي كل جزء طلبه المستخدم بعنوان مستقلّ، واذكري صراحةً أي جزء لم تكتمل بياناته وما ينقصه — " +
+            "ولا تطلبي منه إعادة صياغة طلبه.",
+        }],
+      });
+      try {
         const last = await geminiTurn(geminiKey, persona, contents, [], usage);
         answer = last.text;
-        break;
+      } catch (e) {
+        console.error("[sura/ask] final answer failed:", e instanceof Error ? e.message : e);
       }
     }
 
     await logUsage(sb, cid, usage);
-    return reply(answer || "لم أصل إلى نتيجة. أعد صياغة الطلب بمحور واحد.", doc ? { doc } : {});
+    return reply(
+      answer || "نفّذتُ ما طلبت، ولم أصل إلى صياغة نهائية. اسألني «وش سويتِ؟» وسأسرد ما تمّ.",
+      doc ? { doc } : {},
+    );
 
   } catch (e) {
     const kind: SuraFailure = e instanceof SuraError ? e.kind : "unknown";
