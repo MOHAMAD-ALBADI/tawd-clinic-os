@@ -25,7 +25,10 @@ export default async function ProtectedLayout({
       .maybeSingle(),
     supabase
       .from("tawd_clinics")
-      .select("name")
+      /* The sidebar read `name` and the dashboard heading read `name_ar`,
+         so the same clinic was "Towd Dental Clinic" in the corner and
+         «عيادة طود للأسنان» in the middle of the screen. */
+      .select("name, name_ar")
       .eq("id", claims.clinic_id)
       .single(),
   ]);
@@ -47,7 +50,7 @@ export default async function ProtectedLayout({
         role={claims.role}
         allRoles={claims.all_roles}
         userName={staffData?.name_ar || staffData?.name || claims.email.split("@")[0]}
-        clinicName={clinicData?.name}
+        clinicName={clinicData?.name_ar?.trim() || clinicData?.name}
         avatarUrl={staffData?.avatar_url ?? null}
         modules={entitlements?.modules}
       />
