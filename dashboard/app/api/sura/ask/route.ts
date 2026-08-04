@@ -882,7 +882,17 @@ async function geminiTurn(
        nothing else, which cost another round of guessing. details names
        the field. */
     const detail = j.error.details ? ` | ${JSON.stringify(j.error.details).slice(0, 400)}` : "";
-    const shape = `turns=${contents.length} tools=${(tools as unknown[])?.length ?? 0}`;
+    /* The transcript's shape, because "invalid argument" is about a
+       field and the field is in here somewhere. Roles and part kinds
+       only — no patient data goes into an error log. */
+    const shape = (contents as { role?: string; parts?: Record<string, unknown>[] }[])
+      .map((c) => {
+        const kinds = (c.parts ?? []).map((p) =>
+          p.functionCall ? "call" : p.functionResponse ? "resp" : p.inlineData ? "file" : p.text ? "text" : "?",
+        );
+        return `${c.role}:${kinds.join("+") || "EMPTY"}`;
+      })
+      .join(" | ");
     console.error(`[sura/ask] ${model} rejected:`, j.error.status, j.error.message, detail, shape);
     throw new SuraError(
       res.status === 400 ? "unknown" : "provider_down",
