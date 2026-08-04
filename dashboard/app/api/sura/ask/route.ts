@@ -333,6 +333,20 @@ const FALLBACK = "gemini-3.6-flash";
 /** Pro is patient enough to be worth waiting for, once. */
 const DEADLINE_MS = (model: string) => (model === WRITER ? 90_000 : 30_000);
 
+/* A ceiling on what one clinic can spend in a day.
+ *
+ * An agent that calls a paid model in a loop has no natural stopping
+ * point: a runaway conversation, a stuck retry, or somebody curious with
+ * a login can all run a bill up quietly. Spending caps are named in the
+ * programme's scope of work as a requirement, and they are simply right.
+ *
+ * Two million tokens is far above a working clinic's day — the heaviest
+ * request measured here, a full analytical document with a generated
+ * cover, cost about forty thousand. It is a runaway guard, not a
+ * rationing scheme, and it is counted per clinic so one tenant cannot
+ * spend another's allowance. */
+const DAILY_TOKEN_CEILING = 2_000_000;
+
 const OPS = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "ilike", "in", "is"]);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -1093,6 +1107,29 @@ ${catalogFor(role)}
 
   /* Everything from here is one attempt. The catch at the bottom names
      the failure so the interface can offer the right recovery. */
+  /* Checked before the first model call, not after — a cap that only
+     notices once the money is gone is a report, not a cap. */
+  if (cid) {
+    const since = new Date(Date.now() - 86_400_000).toISOString();
+    const { data: spend } = await sb
+      .from("ai_usage_metrics")
+      .select("tokens_total")
+      .eq("clinic_id", cid)
+      .gte("recorded_at", since);
+
+    const used = (spend ?? []).reduce((s, r) => s + Number(r.tokens_total || 0), 0);
+    if (used >= DAILY_TOKEN_CEILING) {
+      console.warn(`[sura/ask] clinic ${cid} hit the daily ceiling: ${used}`);
+      return NextResponse.json({
+        answer:
+          "بلغت العيادة سقف الاستخدام اليومي للذكاء الاصطناعي. يُعاد ضبط السقف تلقائياً خلال ٢٤ ساعة، " +
+          "أو تواصل مع دعم طَود لرفعه.",
+        failure: "rate_limited",
+        retryable: false,
+      });
+    }
+  }
+
   try {
     const modelKey: string = geminiKey;
     const actorId: string = claims.sub;
