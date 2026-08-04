@@ -322,7 +322,11 @@ type SuraFailure =
   | "provider_down" | "refused" | "too_long" | "empty" | "bad_json" | "unknown";
 
 class SuraError extends Error {
-  constructor(public kind: SuraFailure) { super(kind); }
+  /* detail carries what the provider actually said. A rejection used to
+     reach the clinic as «تعذّر التحليل الآن» and reach nobody else at
+     all, so the same three-second failure had to be re-guessed each
+     time. */
+  constructor(public kind: SuraFailure, public detail?: string) { super(detail ? kind + ": " + detail : kind); }
 }
 
 const FAILURE_AR: Record<SuraFailure, string> = {
@@ -736,7 +740,7 @@ async function geminiTurn(
    * malformed and Google had said so plainly in the body. */
   if (j?.error) {
     console.error(`[sura/ask] ${model} rejected the request:`, j.error.status, j.error.message);
-    throw new SuraError(res.status === 400 ? "unknown" : "provider_down");
+    throw new SuraError(res.status === 400 ? "unknown" : "provider_down", `${model}: ${j.error.message}`);
   }
 
   if (j?.usageMetadata) {
@@ -846,6 +850,14 @@ export async function POST(req: Request) {
           text: String(m.text ?? m.content ?? "").trim().slice(0, 600),
         }))
         .filter((m: { text: string }) => m.text.length > 0);
+
+      /* A conversation has to open with the user.
+       *
+       * The stored thread is replayed on reload, and after a failed turn
+       * it can begin with Sura's own message — so the transcript opened
+       * on a model turn and Gemini refused the whole request. Same class
+       * as the role labels: correct as prose, invalid as a transcript. */
+      while (history.length && history[0].role !== "user") history.shift();
     }
   } catch { /* fallthrough */ }
   if (!question) return NextResponse.json({ error: "empty question" }, { status: 400 });
@@ -1247,6 +1259,21 @@ ${catalogFor(role)}
   } catch (e) {
     const kind: SuraFailure = e instanceof SuraError ? e.kind : "unknown";
     console.error("[sura/ask]", kind, e instanceof Error ? e.message : e);
+
+    /* Written down, not just printed. Vercel's log is unreachable from
+       the clinic and from anyone debugging on their behalf, so a failure
+       that says «تعذّر التحليل الآن» on screen leaves no trace anywhere
+       it can be read. */
+    try {
+      await sb.from("tawd_error_logs").insert({
+        workflow_id: "sura-ask",
+        clinic_id: claims.clinic_id || null,
+        error_message: `${kind}: ${e instanceof Error ? e.message : String(e)}`.slice(0, 2000),
+        severity: "error",
+        context: { question: question.slice(0, 200), role },
+      });
+    } catch { /* never fail the reply because logging failed */ }
+
     /* A named failure, so the interface can offer the right thing —
        retry now, wait a minute, or tell the owner the key is dead. */
     return reply(FAILURE_AR[kind], { failure: kind, retryable: kind !== "bad_key" }, kind);
