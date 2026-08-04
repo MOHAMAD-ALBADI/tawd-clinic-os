@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { LogOut, UserCog } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -9,6 +10,7 @@ import { TawdLogoMark } from "./tawd-logo";
 import { ROLE_LABELS } from "@/lib/auth/role-redirect";
 import { createClient } from "@/lib/supabase/client";
 import { useNav } from "./nav-state";
+import { Modal } from "@/components/ui/modal";
 import type { Role } from "@/types/tawd";
 
 interface AppSidebarProps {
@@ -26,6 +28,8 @@ export function AppSidebar({ role, allRoles, userName, clinicName, avatarUrl, mo
   const pathname = usePathname();
   const router = useRouter();
   const { open, setOpen } = useNav();
+  const [confirmOut, setConfirmOut] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const supabase = createClient();
 
   /* one account may hold several roles (front-desk PC = reception + accounting):
@@ -52,9 +56,18 @@ export function AppSidebar({ role, allRoles, userName, clinicName, avatarUrl, mo
     });
 
   async function handleSignOut() {
-    await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
+    /* Guarded because signOut is a network call: a second tap while the
+       first is in flight used to fire a second sign-out and a second
+       navigation. */
+    if (leaving) return;
+    setLeaving(true);
+    try {
+      await supabase.auth.signOut();
+      router.push("/login");
+      router.refresh();
+    } catch {
+      setLeaving(false);
+    }
   }
 
   const initial = userName.charAt(0).toUpperCase();
@@ -241,16 +254,19 @@ export function AppSidebar({ role, allRoles, userName, clinicName, avatarUrl, mo
           </div>
           <UserCog className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--text-4)" }} />
         </Link>
+        {/* Was --text-4 (#57524d) on #0c0c0d — under 3:1, which reads as a
+            disabled control rather than an available one, and its only
+            colour lived in a hover a finger never fires. */}
         <button
-          onClick={handleSignOut}
-          className="flex items-center gap-2 text-xs w-full py-1.5 px-2 rounded-lg transition-all"
-          style={{ color: "var(--text-4)" }}
+          onClick={() => setConfirmOut(true)}
+          className="flex items-center gap-2 text-[12.5px] font-medium w-full py-2 px-2 rounded-lg transition-colors"
+          style={{ color: "var(--text-2)" }}
           onMouseEnter={(e) => {
             e.currentTarget.style.color = "#fda4b4";
             e.currentTarget.style.background = "rgba(244,63,94,0.07)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.color = "var(--text-4)";
+            e.currentTarget.style.color = "var(--text-2)";
             e.currentTarget.style.background = "transparent";
           }}
         >
@@ -259,6 +275,29 @@ export function AppSidebar({ role, allRoles, userName, clinicName, avatarUrl, mo
         </button>
       </div>
       </aside>
+
+      {/* Signing out is one tap from every screen and it throws away
+          whatever was half-typed. Cheap to confirm, expensive not to —
+          and a native confirm() was ruled out of this product because it
+          cannot be styled, cannot be read in Arabic reliably, and looks
+          like the browser rather than the clinic. */}
+      <Modal
+        open={confirmOut}
+        onClose={() => setConfirmOut(false)}
+        title="تسجيل الخروج؟"
+        subtitle="ستحتاج إلى إدخال بريدك وكلمة المرور من جديد."
+        maxWidth="420px"
+      >
+        <div className="flex items-center justify-end gap-2">
+          <button className="btn-ghost" onClick={() => setConfirmOut(false)} disabled={leaving}>
+            إلغاء
+          </button>
+          <button className="btn-danger" onClick={handleSignOut} disabled={leaving}>
+            <LogOut className="w-3.5 h-3.5" />
+            {leaving ? "جارٍ الخروج…" : "تسجيل الخروج"}
+          </button>
+        </div>
+      </Modal>
     </>
   );
 }

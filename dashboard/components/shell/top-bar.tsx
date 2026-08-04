@@ -109,10 +109,22 @@ export function TopBar({ title, searchPlaceholder }: TopBarProps) {
         </button>
 
         {notifOpen && (
+          /* Anchored to the bell rather than to a coordinate.
+           *
+           * It used to be fixed at left: 17rem — the desktop gap beside
+           * the sidebar — which put it off-screen on a phone. Making it
+           * responsive with start-* was worse: `start` under dir=rtl is
+           * the RIGHT edge, and the bell sits on the left, so the panel
+           * opened across the page away from the button that opened it.
+           *
+           * A popover belongs to its trigger. end-0 aligns it with the
+           * bell (left, in Arabic) and it grows inward from there, so it
+           * is correct at every width without naming one. */
           <div
-            className="fixed inset-x-3 w-auto sm:inset-x-auto sm:w-[340px] sm:start-4 lg:start-[17rem] rounded-2xl overflow-hidden"
+            className="absolute top-full mt-2 end-0 rounded-2xl overflow-hidden"
             style={{
-              top: "3.75rem", zIndex: 60,
+              width: "min(340px, calc(100vw - 1.5rem))",
+              zIndex: 60,
               background: "#0e0e10",
               border: "1px solid rgba(255,255,255,0.1)",
               boxShadow: "0 24px 64px rgba(0,0,0,0.9)",
