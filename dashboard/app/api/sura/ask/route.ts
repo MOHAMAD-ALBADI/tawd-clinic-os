@@ -555,6 +555,26 @@ async function runPlan(sb: Awaited<ReturnType<typeof createServiceRoleClient>>, 
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as unknown as Record<string, unknown>[];
 
+  /* Names are the clinic's work. Contact lists are an export.
+   *
+   * "اعطيني أرقام هواتف كل المرضى" returned all of them, which is
+   * defensible — the owner sees those on the patients page and RLS keeps
+   * them inside their own clinic — but an agent that hands over a whole
+   * contact list on a vague request is a different thing from a page
+   * that shows them one screen at a time behind an audit trail.
+   *
+   * So the distinction is drawn where it belongs: a list of patients
+   * with what they owe or what treatment stalled stays whole, because
+   * that is the job. Phone numbers and emails past the first ten are
+   * withheld, with the count kept so nothing is silently lost. */
+  const CONTACT = ["phone", "email"];
+  const contactCols = CONTACT.filter((c) => (plan.select ?? []).includes(c) || plan.embed);
+  if (contactCols.length && rows.length > 10) {
+    for (let i = 10; i < rows.length; i++) {
+      for (const c of contactCols) if (rows[i][c]) rows[i][c] = "—";
+    }
+  }
+
   if (agg) {
     const num = (r: Record<string, unknown>) => Number(r[agg.col ?? ""] ?? 0);
     if (agg.group_by) {
@@ -601,7 +621,18 @@ async function runPlan(sb: Awaited<ReturnType<typeof createServiceRoleClient>>, 
     };
   }
 
-  return { table: plan.table, rows: rows.slice(0, 30), row_count: rows.length };
+  return {
+    table: plan.table,
+    rows: rows.slice(0, 30),
+    row_count: rows.length,
+    ...(contactCols.length && rows.length > 10
+      ? {
+          contact_withheld:
+            "أرقام التواصل معروضة لأول عشرة فقط. القائمة الكاملة في صفحة المرضى، وهي مسجَّلة في سجلّ الاطّلاع — " +
+            "قل ذلك للمستخدم بدل أن تسرد الباقي.",
+        }
+      : {}),
+  };
 }
 
 /* uuid → the name a person would use for it.
