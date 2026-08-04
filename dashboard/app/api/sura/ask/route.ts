@@ -692,7 +692,7 @@ async function geminiTurn(
   tools: unknown[],
   usage: Usage,
   model: string = MODEL,
-): Promise<{ calls: FnCall[]; text: string }> {
+): Promise<{ calls: FnCall[]; text: string; parts: unknown[] }> {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), DEADLINE_MS(model));
 
@@ -763,7 +763,19 @@ async function geminiTurn(
     const why = j?.candidates?.[0]?.finishReason;
     throw new SuraError(why === "SAFETY" ? "refused" : why === "MAX_TOKENS" ? "too_long" : "empty");
   }
-  return { calls, text };
+
+  /* The parts go back exactly as they arrived.
+   *
+   * Gemini 3 attaches a thoughtSignature to each functionCall, and the
+   * next request must carry it verbatim — «Function call is missing a
+   * thought_signature in functionCall parts» was the 400 that made this
+   * page fail on «هلا» while the widget, which finishes in one turn and
+   * never echoes a model turn back, worked fine.
+   *
+   * Rebuilding the turn from name and args looked equivalent and threw
+   * the signature away. Returning the raw parts keeps whatever the
+   * provider put there, including fields not invented yet. */
+  return { calls, text, parts };
 }
 
 /* parseTurn lived here: a hand-rolled JSON reader with fence recovery,
@@ -1227,17 +1239,24 @@ ${catalogFor(role)}
             name: "create_document",
             args: { title: (heading || `تقرير: ${question.slice(0, 60)}`).slice(0, 200), brief: question },
           });
-          contents.push({ role: "model", parts: [{ functionCall: { name: "create_document", args: {} } }] });
-          contents.push({ role: "user", parts: [{ functionResponse: { name: "create_document", response: res } }] });
+          /* Told as prose, not forged as a tool turn. A functionCall the
+             model never made has no thought signature to carry, and the
+             next request is rejected for the missing one. */
+          contents.push({ role: "model", parts: [{ text: answer }] });
+          contents.push({
+            role: "user",
+            parts: [{ text: `أنشأتُ المستند نيابةً عنك: ${JSON.stringify(res).slice(0, 600)}\nاذكري في سطرين ما فيه من أرقام.` }],
+          });
           continue;
         }
 
         break;
       }
 
-      /* The model's turn, then the results, exactly as the API expects
-         them — this is what lets it reason over its own tool use. */
-      contents.push({ role: "model", parts: turn.calls.map((c) => ({ functionCall: { name: c.name, args: c.args } })) });
+      /* The model's turn verbatim, then the results — this is what lets
+         it reason over its own tool use, and what carries the thought
+         signature the next request is rejected without. */
+      contents.push({ role: "model", parts: turn.parts });
 
       const responses = [];
       for (const c of turn.calls.slice(0, 6)) {
