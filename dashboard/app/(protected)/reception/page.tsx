@@ -259,12 +259,7 @@ export default async function ReceptionPage() {
                     style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}
                   >
                     <span className="text-[13px] font-bold ltr-nums w-16 shrink-0 text-white">{fmtTime(a.slot_time)}</span>
-                    {/* flex-1 means flex: 1 1 0%, so on a narrow row this was
-                        crushed to seventeen pixels — "مروان الخروصي" rendered
-                        as "م…" — while the badge and the check-in button, both
-                        shrink-0, kept their full width. Given a basis wide
-                        enough to fill the line, they wrap underneath instead. */}
-                    <div className="flex-1 min-w-0 basis-[calc(100%-5.5rem)] sm:basis-0">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <Link href={`/reception/patients/${a.patient_id}`}
                           className="text-[13px] font-bold text-white truncate hover:underline">

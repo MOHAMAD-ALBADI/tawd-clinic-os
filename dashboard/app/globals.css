@@ -342,3 +342,29 @@ body {
 @media (hover: none) {
   .group-hover\:opacity-100 { opacity: 1 !important; }
 }
+
+/* The content column of a wrapping row must not be crushed.
+ *
+ * The pattern is everywhere — 27 files — and it always reads:
+ *
+ *   <div class="flex items-center gap-3 flex-wrap">
+ *     <span class="w-16 shrink-0">09:00</span>
+ *     <div class="flex-1 min-w-0"> …the patient… </div>
+ *     <span class="shrink-0">badge</span>
+ *     <button>check in</button>
+ *
+ * flex-1 is `flex: 1 1 0%`, so when the line runs out the one part that
+ * matters gives way and the decorations keep their width. Measured on
+ * the desk screen: "مروان بن ثاني الخروصي" in a 17px box, "منى بنت سالم
+ * الشكيلية" in 44px — both rendered as a single letter and an ellipsis,
+ * with the status pill sitting on top of the amount owed.
+ *
+ * A floor of 60% forces the siblings onto the next line instead, which
+ * is what flex-wrap was asked for in the first place. Phones only:
+ * above 640px the row has the width it was designed for.
+ *
+ * Truncation still works — the element keeps a definite width, and the
+ * clipping lives on .truncate. */
+@media (max-width: 639px) {
+  .flex-wrap > .flex-1.min-w-0 { min-width: 60%; }
+}
