@@ -727,6 +727,18 @@ async function geminiTurn(
   if (res.status >= 500) throw new SuraError("provider_down");
 
   const j = await res.json();
+
+  /* Say what the provider said.
+   *
+   * A 400 fell straight through here into "no candidates", which the
+   * clinic saw as «لم يصل ردّ من النموذج» — the one message that tells
+   * nobody anything. It cost an hour to find that the request was
+   * malformed and Google had said so plainly in the body. */
+  if (j?.error) {
+    console.error(`[sura/ask] ${model} rejected the request:`, j.error.status, j.error.message);
+    throw new SuraError(res.status === 400 ? "unknown" : "provider_down");
+  }
+
   if (j?.usageMetadata) {
     usage.input += Number(j.usageMetadata.promptTokenCount ?? 0);
     usage.output += Number(j.usageMetadata.candidatesTokenCount ?? 0);
@@ -815,10 +827,25 @@ export async function POST(req: Request) {
         }));
     }
     if (Array.isArray(body?.history)) {
-      history = body.history.slice(-6).map((m: { role?: string; text?: string; content?: string }) => ({
-        role: m.role === "user" ? "المدير" : "سُرى",
-        text: String(m.text ?? m.content ?? "").slice(0, 300),
-      }));
+      /* Real roles, not display labels.
+       *
+       * These used to be "المدير" and "سُرى" because history was pasted
+       * into a prompt as text. It is a transcript now, and the API reads
+       * `role` — so the labels made every prior turn a model turn, the
+       * conversation opened with several of those in a row, and Gemini
+       * rejected the request. The route reported "لم يصل ردّ من النموذج"
+       * because it never looked at the 400 it was handed.
+       *
+       * Empty turns go too: the console appends a blank assistant
+       * message as a placeholder while a reply streams, and a part with
+       * an empty string is itself a 400. */
+      history = body.history
+        .slice(-6)
+        .map((m: { role?: string; text?: string; content?: string }) => ({
+          role: m.role === "user" ? "user" : "model",
+          text: String(m.text ?? m.content ?? "").trim().slice(0, 600),
+        }))
+        .filter((m: { text: string }) => m.text.length > 0);
     }
   } catch { /* fallthrough */ }
   if (!question) return NextResponse.json({ error: "empty question" }, { status: 400 });
@@ -914,66 +941,32 @@ export async function POST(req: Request) {
 
       `ممنوعان: التشخيص ووصف الدواء والرأي الطبي؛ واختراع رقم أو سعر.\n` +
       `وفي غيرهما لا ترفضي رفضاً مجرّداً ولا تبدئي بـ«لا أستطيع» — سلّمي أقرب شيء تستطيعينه في نفس الردّ.\n\n`) +
-    `لديك وصول كامل لقاعدة بيانات العيادة عبر خطط استعلام JSON. الجداول المتاحة:\n${catalogFor(role)}\n\n` +
-    `صيغة خطة الاستعلام:\n` +
-    `{"queries":[{"table":"...","select":["col",...],"embed":true|false,"filters":[{"col":"...","op":"eq|neq|gt|gte|lt|lte|ilike|in|is","value":...}],"order":{"col":"...","desc":true},"limit":25,"aggregate":{"op":"sum|count|avg","col":"...","group_by":"..."}}]}\n` +
-    `- استخدمي aggregate للمجاميع/العدّ/المتوسط (group_by للتجميع مثل أكثر خدمة/طبيب).\n` +
-    `- embed=true يجلب اسم المريض/الخدمة/الطبيب مع الصف.\n` +
-    `- للبحث باسم شخص: ilike على name (بدون %). النظام يطابق كل كلمة على حدة في name وname_ar معاً ويتجاوز «بن/بنت» واختلاف الهمزة — فاكتبي الاسم كما نطقه المستخدم ولا تجرّبي الأعمدة واحداً واحداً.\n` +
-    `- لا تضيفي أبداً فلاتر clinic_id أو doctor_id أو deleted_at — تُضاف تلقائياً من النظام.\n` +
-    `- أعمدة *_id تقبل UUID حقيقياً فقط (من نتيجة استعلام سابق) — للبحث بالاسم استخدمي ilike على name.\n` +
-    `- فلاتر التاريخ/الوقت على slot_time أو created_at بصيغة ISO مثل "2026-07-04T00:00:00+04:00" أو "2026-07-04".\n` +
-    `- بحد أقصى 3 استعلامات بالجولة، وضمّني "id" في select دائماً.\n\n` +
-    /* The platform owner writes nothing into a clinic from here. Cancelling a
-       patient's appointment is the clinic's act; the operator's route into that
-       is the support-approval flow on the clinic file, which is logged. */
-    (role === "accountant" || isPlatform
-      ? ""
-      : `[الإجراءات التي تستطيعين تنفيذها — عند طلب المستخدم الصريح فقط]\n` +
-        `{"action":{"type":"book_appointment","patient_id":"<uuid>","service_id":"<uuid>","doctor_id":"<uuid>|any","date":"YYYY-MM-DD","time":"HH:MM"}} — حجز موعد حقيقي\n` +
-        `{"action":{"type":"reschedule_appointment","appointment_id":"<uuid>","date":"YYYY-MM-DD","time":"HH:MM"}} — تغيير موعد\n` +
-        `{"action":{"type":"cancel_appointment","appointment_id":"<uuid>","reason":"اختياري"}} — إلغاء موعد\n` +
-        `{"action":{"type":"confirm_appointment","appointment_id":"<uuid>"}} — تأكيد موعد مجدول\n` +
-        (role === "doctor" ? "" :
-        `{"action":{"type":"add_to_waitlist","patient_id":"<uuid>","service_id":"<uuid>","from_date":"YYYY-MM-DD","to_date":"YYYY-MM-DD"}} — إضافة لقائمة الانتظار (يُعرض عليه أي إلغاء تلقائياً)\n` +
-        `{"action":{"type":"message_patient","patient_id":"<uuid>","text":"نص الرسالة"}} — إرسال رسالة واتساب\n`) +
-        `{"action":{"type":"open_document","kind":"monthly_report","month":"YYYY-MM-01 اختياري"}} — إصدار تقرير الشهر جاهزاً للطباعة أو الحفظ PDF\n` +
-        `{"action":{"type":"create_document","title":"عنوان المستند","brief":"وصف دقيق لما يُكتب فيه، بالأقسام المطلوبة"}} — مستند تكتبينه أنتِ: تحليل، خطة، دراسة. لا تكتبي محتواه هنا — اكتبي العنوان والوصف فقط، والمحتوى يُكتب في خطوة تالية\n` +
+    /* The tables she may read. The query-plan format and the action
+       catalogue that used to follow this were a hundred lines telling
+       the model how to hand-write JSON — replaced by the declarations
+       in lib/sura/tools, which Google enforces instead of asking. */
+    `الجداول المتاحة لك عبر query_clinic:
+${catalogFor(role)}
 
-        /* The clinic's day. These were advertised, then silently lost
-           when a later edit spliced a neighbouring section out — nine
-           actions that existed in the executor and were unreachable
-           because nothing told her they were there. */
-        `{"action":{"type":"create_patient","name":"الاسم","phone":"+968…","gender":"male|female"}} — تسجيل مريض جديد\n` +
-        `{"action":{"type":"invoice_appointment","appointment_id":"<uuid>","discount":0}} — إصدار فاتورة لموعد بضريبة ٥٪\n` +
-        `{"action":{"type":"record_payment","invoice_id":"<uuid>","amount":0,"method":"cash|card|bank_transfer|thawani|insurance"}} — تسجيل دفعة\n` +
-        `{"action":{"type":"submit_insurance_claim","invoice_id":"<uuid>","provider_id":"<uuid>"}} — رفع مطالبة تأمين\n` +
-        `{"action":{"type":"write_prescription","patient_id":"<uuid>","diagnosis":"اختياري","items":[{"drug":"اسم الدواء","dosage":"","frequency":"","duration":""}]}} — مسوّدة وصفة طبية\n` +
-        `{"action":{"type":"add_clinical_note","patient_id":"<uuid>","note":"النص"}} — ملاحظة في ملف المريض\n` +
-        `{"action":{"type":"complete_plan_item","item_id":"<uuid>"}} — إنجاز بند من خطة علاجية\n` +
-        `{"action":{"type":"block_doctor_day","doctor_id":"<uuid>","date":"YYYY-MM-DD","reason":"إجازة"}} — إغلاق يوم طبيب\n` +
-        `{"action":{"type":"add_service","name":"الاسم","price":0,"duration_minutes":30}} — إضافة خدمة للقائمة\n` +
+` +
+    `- ضمّني id دائماً في select. لا تضيفي فلاتر clinic_id أو deleted_at — تُضاف تلقائياً.
+` +
+    `- أعمدة *_id تقبل UUID من نتيجة استعلام سابق فقط.
+` +
+    `- التواريخ بصيغة ISO مثل "2026-08-04".
 
-        /* The bridge to the autonomous half. */
-        `{"action":{"type":"queue_recovery","patient_ids":["<uuid>"],"note":"سبب المتابعة"}} — تسليم مرضى منقطعين لسُرى الذاتية فتتواصل معهم بنفسها خلال عشر دقائق\n` +
-        `  استخدميه بدل أن توصي بالتواصل. «أوصي بالتواصل مع ٢٠ منقطعاً» توصية؛ queue_recovery تنفيذ.\n` +
-        `{"action":{"type":"generate_image","prompt":"وصف الصورة بالإنجليزية","purpose":"وصف عربي قصير يظهر تحت الصورة","aspect":"landscape|square|portrait"}} — توليد صورة فعلية (شعار، ملصق حملة، رسم توضيحي)\n` +
-        `  الوصف بالإنجليزية لأن نموذج الصور يفهمها أدقّ. النتيجة رابط تضعينه في المستند بسطر ![الوصف](الرابط).\n` +
-        `  ممنوع توليد صورة طبية أو صورة تخصّ مريضاً (أشعة، حالة سنّ، تشخيص) — الصورة المولَّدة ليست سجلاً طبياً.\n` +
+` +
+    `نفّذي بالأدوات مباشرة. لا تصفي ما ستفعلينه ولا تستأذني فيما طُلب منك صراحةً.`;
 
-        `\n[المستند]\n` +
-        `الردّ سطران يقولان ما فيه؛ المستند هو العمل. استعلمي البيانات أولاً، ثم نفّذي create_document بعنوان ووصف الأقسام.\n` +
-        `\nقواعد التنفيذ:\n` +
-        `- كل uuid يجب أن يأتي من نتيجة استعلام في هذه المحادثة. استعلمي أولاً ثم نفّذي في الردّ التالي.\n` +
-        `- لا تنفّذي إجراء إلا إذا طلبه المستخدم صراحة في رسالته الأخيرة.\n` +
-        `- التواريخ والأوقات بتوقيت عُمان.\n` +
-        `- بعد التنفيذ أكّدي النتيجة الفعلية كما رجعت، ولا تفترضي النجاح.\n` +
-        `- أعيدي إما queries أو action في الرد الواحد — ليس كليهما.\n`);
-
-  /* The transcript is sent as turns now, not pasted into a prompt. */
-
+  /* Everything from here is one attempt. The catch at the bottom names
+     the failure so the interface can offer the right recovery. */
   try {
-    /* agent loop: each model turn returns answer | queries | action (max 4 turns) */
+    const modelKey: string = geminiKey;
+    const actorId: string = claims.sub;
+
+    /* Everything read or written this request. The model sees its own
+       tool results through the transcript; this is the copy the document
+       writer reads, since that call cannot use tools. */
     const context: unknown[] = [];
 
     /* She sees the screen.
@@ -981,12 +974,8 @@ export async function POST(req: Request) {
      * The bell said «١٦ فاتورة متأخرة تحتاج متابعة». Asked to deal with
      * it, she queried sura_alerts — emergencies and complaints, and
      * genuinely empty — and answered that there were no alerts at all.
-     * She was not refusing; the number on the screen was computed in a
-     * route she had no way to reach.
-     *
-     * Now every turn starts with exactly what the bell is showing, for
-     * this person and this clinic, computed from their own rows. Costs a
-     * few counts and removes a whole class of "I cannot see that". */
+     * The number on the screen was computed in a route she had no way to
+     * reach. Now every turn starts with exactly what the bell shows. */
     try {
       const bell = await notificationsFor(claims);
       if (bell.length) {
@@ -998,13 +987,6 @@ export async function POST(req: Request) {
     } catch (e) {
       console.error("[sura/ask] notifications failed:", e instanceof Error ? e.message : e);
     }
-    /* The persona travels as systemInstruction rather than as the top of
-       every user message, so it stops being something the model has to
-       re-read past its own transcript each round. */
-    /* Captured where the narrowing still holds: documentBody is a nested
-       declaration, and TypeScript will not carry a null check into one. */
-    const modelKey: string = geminiKey;
-    const actorId: string = claims.sub;
 
     /* The attachment is in this message, not described by it.
      *
