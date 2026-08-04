@@ -1000,13 +1000,22 @@ ${catalogFor(role)}
      * genuinely empty — and answered that there were no alerts at all.
      * The number on the screen was computed in a route she had no way to
      * reach. Now every turn starts with exactly what the bell shows. */
+    let bellNote = "";
     try {
       const bell = await notificationsFor(claims);
       if (bell.length) {
-        context.push({
-          screen_notifications: bell.map((n) => ({ title: n.title, severity: n.severity, opens: n.href })),
-          note: "هذه هي التنبيهات المعروضة للمستخدم على الشاشة الآن — إن سأل عنها فهذه هي، ولا تقولي إنها فارغة.",
-        });
+        context.push({ screen_notifications: bell });
+        /* Into the system instruction, not into context.
+         *
+         * context is what the document writer reads; the model reads the
+         * transcript. Pushing the bell into context meant she still
+         * answered «لا توجد أي تنبيهات» to a screen showing sixteen —
+         * the same bug as before, moved one layer down. */
+        bellNote =
+          `\n\n[التنبيهات المعروضة للمستخدم على شاشته الآن]\n` +
+          bell.map((n) => `- ${n.title}${n.sub ? ` (${n.sub})` : ""}`).join("\n") +
+          `\nإن سأل عن التنبيهات أو الإشعارات فهذه هي — لا تقولي إنها فارغة ولا تبحثي في sura_alerts وحده، ` +
+          `فأكثرها محسوب من الفواتير والمواعيد لا من جدول تنبيهات.`;
       }
     } catch (e) {
       console.error("[sura/ask] notifications failed:", e instanceof Error ? e.message : e);
@@ -1025,7 +1034,7 @@ ${catalogFor(role)}
         `وما لم يتّضح قولي إنه غير مقروء واطلبي صورة أوضح. اسم الملف ليس مصدراً.\n` +
         `إن كانت وثيقة مريض فلخّصي المهمّ منها ولا تنسخيها كاملة.\n`
       : "";
-    const persona = header + fileNote;
+    const persona = header + fileNote + bellNote;
     let pushedBack = false;
 
     /* One request, one write of any given thing.
