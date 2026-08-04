@@ -88,6 +88,83 @@ const TABLES: Record<string, { cols: string[]; clinicCol: boolean; desc: string 
     clinicCol: true,
     desc: "سجل الغياب عن المواعيد",
   },
+
+  /* ── the half of the clinic she could not see ──────────────────────
+   *
+   * Asked how many treatment plans were open, she called query_clinic on
+   * treatment_plans and was refused: the table was not on the list. She
+   * fell back to the summary and answered from that — right by luck, and
+   * the same shape of failure as every "she cannot see X" before it.
+   *
+   * A clinic OS grew modules for a year — plans, payments, expenses,
+   * insurance, stock, the waiting room — and this list was never widened
+   * to match. Adding them is not a feature; it is the reach the product
+   * already sells. */
+  treatment_plans: {
+    cols: ["id", "patient_id", "doctor_id", "title", "status", "total_estimate", "created_at", "updated_at"],
+    clinicCol: true,
+    desc: "خطط العلاج (status: draft|proposed|accepted|in_progress|completed|cancelled — total_estimate بالريال)",
+  },
+  treatment_plan_items: {
+    cols: ["id", "plan_id", "service_id", "description", "tooth_number", "quantity", "unit_price", "line_total", "status", "done_at"],
+    clinicCol: true,
+    desc: "بنود خطط العلاج (status: pending|done — done_at وقت الإنجاز)",
+  },
+  payments: {
+    cols: ["id", "invoice_id", "gateway", "amount", "status", "paid_at", "received_by", "voided_at", "void_reason"],
+    clinicCol: true,
+    desc: "الدفعات المستلمة (gateway: cash|card|transfer|thawani، status: completed|pending|refunded|voided)",
+  },
+  expenses: {
+    cols: ["id", "category", "amount", "expense_date", "payment_method", "description", "vendor", "created_at"],
+    clinicCol: true,
+    desc: "مصروفات العيادة (amount بالريال) — الربح = الإيراد ناقص هذه",
+  },
+  insurance_claims: {
+    cols: ["id", "patient_id", "provider_id", "invoice_id", "status", "claim_ref", "submitted_amount", "approved_amount", "submitted_at", "resolved_at", "rejection_reason"],
+    clinicCol: true,
+    desc: "مطالبات التأمين (status: draft|submitted|approved|rejected|paid)",
+  },
+  patient_insurance: {
+    cols: ["id", "patient_id", "provider_id", "policy_number", "coverage_percent", "valid_until", "is_active"],
+    clinicCol: true,
+    desc: "تغطية المرضى التأمينية (coverage_percent نسبة التغطية)",
+  },
+  inventory_items: {
+    cols: ["id", "name", "name_ar", "sku", "category", "unit", "current_stock", "reorder_level", "cost_price", "is_active"],
+    clinicCol: true,
+    desc: "المخزون (current_stock أقل من reorder_level يعني يحتاج طلب)",
+  },
+  waiting_queue: {
+    cols: ["id", "appt_id", "patient_id", "queue_position", "status", "check_in_at", "called_at", "estimated_wait_minutes"],
+    clinicCol: true,
+    desc: "غرفة الانتظار الآن (status: waiting|called|in_room|done)",
+  },
+  doctor_schedules: {
+    cols: ["id", "doctor_id", "day_of_week", "start_time", "end_time", "slot_duration_minutes", "is_active"],
+    clinicCol: true,
+    desc: "دوام الأطباء (day_of_week: 0=الأحد … 6=السبت — قد يكون للطبيب أكثر من فترة في اليوم)",
+  },
+  prescriptions: {
+    cols: ["id", "patient_id", "doctor_id", "appt_id", "status", "diagnosis", "signed_at", "created_at"],
+    clinicCol: true,
+    desc: "الوصفات الطبية",
+  },
+  patient_notes: {
+    cols: ["id", "patient_id", "doctor_id", "note_text", "is_private", "created_at"],
+    clinicCol: true,
+    desc: "الملاحظات السريرية على ملفات المرضى",
+  },
+  sura_goals: {
+    cols: ["id", "kind", "state", "patient_id", "value_omr", "attempts", "next_action_at", "outcome", "closed_reason", "created_at"],
+    clinicCol: true,
+    desc: "أهداف سُرى الذاتية (kind: gap_fill|plan_recovery، state: open|waiting|done|dropped) — ما تعمل عليه بنفسها",
+  },
+  sura_outbound: {
+    cols: ["id", "patient_id", "channel", "body", "source", "ok", "error", "created_at"],
+    clinicCol: true,
+    desc: "سجل الرسائل المُرسَلة للمرضى (source: conversation=بطلب موظف، agent=بمبادرة سُرى)",
+  },
 };
 
 /* embedded relations allowed per table (names resolved server-side) */
@@ -98,6 +175,17 @@ const EMBEDS: Record<string, string> = {
   appointment_waitlist: "patients!patient_id(name,phone), services!service_id(name_ar)",
   chat_sessions: "patients!patient_id(name,phone)",
   no_show_log: "patients!patient_id(name,phone)",
+  treatment_plans: "patients!patient_id(name,name_ar), tawd_staff_users!doctor_id(name_ar,name)",
+  treatment_plan_items: "services!service_id(name_ar,name)",
+  payments: "invoices!invoice_id(invoice_number,total,patient_id)",
+  insurance_claims: "patients!patient_id(name,name_ar), insurance_providers!provider_id(name_ar,name)",
+  patient_insurance: "patients!patient_id(name,name_ar), insurance_providers!provider_id(name_ar,name)",
+  waiting_queue: "patients!patient_id(name,name_ar)",
+  prescriptions: "patients!patient_id(name,name_ar)",
+  patient_notes: "patients!patient_id(name,name_ar)",
+  sura_goals: "patients!patient_id(name,name_ar)",
+  sura_outbound: "patients!patient_id(name,name_ar)",
+  doctor_schedules: "tawd_staff_users!doctor_id(name_ar,name)",
 };
 
 /* ── the platform owner's own catalogue ──────────────────────────────────────
