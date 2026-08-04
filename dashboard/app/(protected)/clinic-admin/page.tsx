@@ -212,7 +212,16 @@ export default async function ClinicAdminPage() {
   const noShow     = appts.filter((a) => a.status === "no_show").length;
   const completionRate = appts.length > 0 ? Math.round((completed / appts.length) * 100) : 0;
 
-  const revenueChange = yesterdayRev > 0
+  /* No verdict on a day that has not happened yet.
+   *
+   * This compared today against yesterday from the first minute of the
+   * clinic day, so at eight in the morning every clinic in the country
+   * would read a red −100% — zero against a full day. It is arithmetically
+   * true and completely useless, and it is the first thing anyone sees.
+   *
+   * The comparison waits until the day has produced something. Before
+   * that the card simply does not offer one. */
+  const revenueChange = todayRevenue > 0 && yesterdayRev > 0
     ? Math.round(((todayRevenue - yesterdayRev) / yesterdayRev) * 100)
     : null;
 
