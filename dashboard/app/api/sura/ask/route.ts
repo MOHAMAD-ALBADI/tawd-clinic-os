@@ -707,7 +707,13 @@ async function geminiTurn(
         tools,
         generationConfig: {
           temperature: 0.3,
-          maxOutputTokens: 8192,
+          /* Thinking is charged against this ceiling, and a long Arabic
+             answer costs more than the same text in English. Raised
+             because an exhausted budget surfaces as «الجواب أطول من
+             المساحة المتاحة» on a question that was not long — and
+             tokens are billed as produced, so a high ceiling costs
+             nothing on a short reply. */
+          maxOutputTokens: 16384,
           thinkingConfig: { thinkingLevel: "low" },
         },
       }),
@@ -759,9 +765,21 @@ async function geminiTurn(
   /* Thought parts are the model reasoning aloud, not its reply. */
   const text = parts.filter((p) => p.text && !p.thought).map((p) => p.text).join("").trim();
 
+  const finish = j?.candidates?.[0]?.finishReason;
+  if (finish === "SAFETY") throw new SuraError("refused");
+  if (finish === "MAX_TOKENS") throw new SuraError("too_long");
+
+  /* A turn with neither a call nor an answer is not fatal here.
+   *
+   * A thinking model can spend a turn thinking and return only that —
+   * measured on a two-word follow-up («نقدا كلهم»), where it came back
+   * with a thought part and nothing else. Throwing made that the end of
+   * the request; the caller can simply ask again without tools, which
+   * is what a person would do. The detail rides along so the next case
+   * is readable rather than re-derived. */
   if (calls.length === 0 && !text) {
-    const why = j?.candidates?.[0]?.finishReason;
-    throw new SuraError(why === "SAFETY" ? "refused" : why === "MAX_TOKENS" ? "too_long" : "empty");
+    const kinds = parts.map((p) => (p.functionCall ? "call" : p.thought ? "thought" : p.text ? "text" : "other"));
+    console.warn(`[sura/ask] ${model} returned nothing usable — finish=${finish} parts=[${kinds.join(",")}]`);
   }
 
   /* The parts go back exactly as they arrived.
@@ -1241,7 +1259,17 @@ ${catalogFor(role)}
      * back. Measured on this key, Pro asks for two in a single turn. */
     let answer = "";
     for (let round = 0; round < 8; round++) {
-      const turn = await geminiTurn(geminiKey, persona, contents, tools, usage);
+      let turn = await geminiTurn(geminiKey, persona, contents, tools, usage);
+
+      /* Spent the turn thinking and said nothing. Ask again for words
+         only — no tools to reach for, so there is nothing to do but
+         answer. One retry; if it is still silent, that is a real
+         failure and gets named. */
+      if (turn.calls.length === 0 && !turn.text) {
+        contents.push({ role: "user", parts: [{ text: "أجيبي الآن بالعربية من المعطيات التي بين يديك." }] });
+        turn = await geminiTurn(geminiKey, persona, contents, [], usage);
+        if (!turn.text) throw new SuraError("empty");
+      }
 
       if (turn.calls.length === 0) {
         answer = turn.text;
