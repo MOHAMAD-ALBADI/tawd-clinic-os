@@ -1099,7 +1099,33 @@ ${catalogFor(role)}
     /* Executes one call through exactly the audited paths the old
        protocol used — runPlan for reading, runAction for writing. The
        transport changed; the guardrails did not. */
+    /* Every call written down, argument and result, whether it worked or
+       not. The autonomous loop has logged its decisions since it was
+       built; the conversation had no equivalent, so "she said she queued
+       fourteen patients and no goal exists" was unanswerable. */
+    const audit = async (tool: string, args: unknown, result: Record<string, unknown>, ms: number) => {
+      try {
+        await sb.from("sura_tool_calls").insert({
+          clinic_id: cid || null,
+          user_id: actorId,
+          conv_id: conv,
+          tool,
+          args: args as Record<string, unknown>,
+          result: JSON.parse(JSON.stringify(result ?? {})),
+          ok: result?.done !== false && !result?.error,
+          ms,
+        });
+      } catch { /* an audit that breaks the reply is worse than none */ }
+    };
+
     const execute = async (c: FnCall): Promise<Record<string, unknown>> => {
+      const t0 = Date.now();
+      const out = await runTool(c);
+      await audit(c.name, c.args, out, Date.now() - t0);
+      return out;
+    };
+
+    const runTool = async (c: FnCall): Promise<Record<string, unknown>> => {
       if (c.name === "query_clinic") {
         try {
           const out = await runPlan(sb, c.args as unknown as Plan, cid, role, claims.sub);
