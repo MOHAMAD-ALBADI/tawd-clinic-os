@@ -252,21 +252,49 @@ async function queueRecovery(
     };
   });
 
-  /* The partial unique index makes this idempotent: a patient already in
-     the queue is skipped rather than duplicated, which is what keeps a
-     re-run of the same analysis from messaging anyone twice. */
-  const { data: made, error } = await sb.from("sura_goals")
-    .insert(rows).select("id");
+  /* Already in the queue, asked separately.
+   *
+   * This used to insert every row in one statement and lean on the
+   * partial unique index for idempotence. Postgres fails the whole
+   * statement on the first conflict, so fourteen patients where nine
+   * were already queued inserted nobody — including the five who were
+   * new — and the code read the empty result as "they were all already
+   * there" and reported that. The owner asked twice for a follow-up
+   * that never started, and was told each time that it had.
+   *
+   * Excluding them first makes the skip count true and lets the rest
+   * through. */
+  const { data: existing } = await sb.from("sura_goals")
+    .select("subject_id")
+    .eq("clinic_id", cid)
+    .in("state", ["open", "waiting"])
+    .in("subject_id", reachable.map((p) => p.id));
 
+  const already = new Set((existing ?? []).map((g) => g.subject_id as string));
+  const fresh = rows.filter((r) => !already.has(r.subject_id));
+
+  if (fresh.length === 0) {
+    return {
+      action: a.type, done: false, queued: 0, skipped: reachable.length,
+      reason: `جميعهم (${reachable.length}) مُدرجون في قائمة المتابعة بالفعل — لا حاجة لتكرارهم.`,
+    };
+  }
+
+  const { data: made, error } = await sb.from("sura_goals")
+    .insert(fresh).select("id");
+
+  /* A race with the autonomous scanner can still collide; that is a
+     genuine duplicate and is not worth failing the request over. */
   if (error && !/duplicate|unique/i.test(error.message)) throw new Error(error.message);
 
   const queued = made?.length ?? 0;
   return {
-    action: a.type, done: queued > 0,
+    action: a.type,
+    done: queued > 0,
     queued,
-    skipped: reachable.length - queued,
-    value_omr: rows.reduce((s, r) => s + r.value_omr, 0),
-    reason: queued === 0 ? "جميعهم مُدرجون في قائمة المتابعة بالفعل" : undefined,
+    already_queued: already.size,
+    unreachable: ids.length - reachable.length,
+    value_omr: fresh.reduce((s, r) => s + r.value_omr, 0),
     note: "سُرى ستتواصل معهم تلقائياً خلال عشر دقائق، بحدّ رسالة واحدة لكل مريض يومياً وخارج ساعات الهدوء.",
   };
 }
