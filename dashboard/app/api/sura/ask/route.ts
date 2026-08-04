@@ -6,6 +6,7 @@ import { hasRole } from "@/lib/auth/role-redirect";
 import { runAction, type Action } from "@/lib/sura/actions";
 import { deferring, refusing } from "@/lib/sura/doc-guard";
 import { notificationsFor } from "@/lib/notifications";
+import { toolsFor } from "@/lib/sura/tools";
 import type { Attachment } from "@/lib/sura/types";
 import { ensureConversation, saveTurn, type StoredFile } from "@/lib/sura/conversations";
 
@@ -666,64 +667,94 @@ async function gemini(
   return text;
 }
 
-/* Parses a model turn.
+/* ── one turn of a real tool-calling conversation ──────────────────
  *
- * JSON mode is a strong guarantee, not an absolute one — a model asked
- * for JSON still occasionally wraps it in a markdown fence, or prefixes
- * a sentence. Both are trivially recoverable and neither is worth
- * showing a clinic an error for, so they are recovered here and only a
- * genuinely unparseable turn is named as a failure. */
-function parseTurn(raw: string): Record<string, unknown> {
-  const attempt = (s: string) => {
-    const v = JSON.parse(s);
-    if (v && typeof v === "object") return v as Record<string, unknown>;
-    throw new Error("not an object");
-  };
+ * The difference from gemini() above is the whole point of this rewrite.
+ * There, the model wrote JSON as prose and the route parsed it; here the
+ * API returns functionCall parts that are structured before they leave
+ * Google. «وصل ردّ غير مكتمل من النموذج» was JSON.parse failing on text
+ * that was very nearly JSON — a failure that has no way to occur now.
+ *
+ * The persona goes in systemInstruction rather than at the top of the
+ * first user message, so it stays out of the transcript the model is
+ * reasoning over and does not have to survive being re-sent every round.
+ */
+export type FnCall = { name: string; args: Record<string, unknown> };
 
+async function geminiTurn(
+  key: string,
+  system: string,
+  contents: unknown[],
+  tools: unknown[],
+  usage: Usage,
+  model: string = MODEL,
+): Promise<{ calls: FnCall[]; text: string }> {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), DEADLINE_MS(model));
+
+  const call = (m: string) =>
+    fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`, {
+      signal: ac.signal,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents,
+        tools,
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 8192,
+          thinkingConfig: { thinkingLevel: "low" },
+        },
+      }),
+    });
+
+  let res: Response;
   try {
-    return attempt(raw);
-  } catch { /* try the recoveries below */ }
-
-  /* ```json … ``` */
-  const fenced = /```(?:json)?\s*([\s\S]*?)```/.exec(raw);
-  if (fenced) {
-    try { return attempt(fenced[1].trim()); } catch { /* keep going */ }
-  }
-
-  /* A prose preamble before the object. */
-  const first = raw.indexOf("{");
-  const last = raw.lastIndexOf("}");
-  if (first >= 0 && last > first) {
-    try { return attempt(raw.slice(first, last + 1)); } catch { /* keep going */ }
-  }
-
-  /* Every balanced object in the string, longest first.
-   *
-   * The slice above assumes exactly one object with prose around it. It
-   * fails on two — reasoning that itself contains braces, or a thought
-   * object followed by the real turn — and produces "{…}{…}", which
-   * parses as nothing. Scanning for balanced spans handles both, and
-   * taking the longest picks the turn over any fragment inside it. */
-  const spans: string[] = [];
-  for (let i = 0; i < raw.length; i++) {
-    if (raw[i] !== "{") continue;
-    let depth = 0, inStr = false, esc = false;
-    for (let k = i; k < raw.length; k++) {
-      const ch = raw[k];
-      if (esc) { esc = false; continue; }
-      if (ch === "\\") { esc = true; continue; }
-      if (ch === '"') { inStr = !inStr; continue; }
-      if (inStr) continue;
-      if (ch === "{") depth++;
-      else if (ch === "}" && --depth === 0) { spans.push(raw.slice(i, k + 1)); break; }
+    res = await call(model);
+    if (model !== FALLBACK && (res.status === 429 || res.status >= 500)) {
+      console.warn(`[sura/ask] ${model} returned ${res.status} — falling back to ${FALLBACK}`);
+      res = await call(FALLBACK);
     }
-  }
-  for (const s of spans.sort((a, b) => b.length - a.length)) {
-    try { return attempt(s); } catch { /* next span */ }
+  } catch (e) {
+    throw new SuraError((e as Error)?.name === "AbortError" ? "timeout" : "network");
+  } finally {
+    clearTimeout(timer);
   }
 
-  throw new SuraError("bad_json");
+  if (res.status === 429) throw new SuraError("rate_limited");
+  if (res.status === 401 || res.status === 403) throw new SuraError("bad_key");
+  if (res.status >= 500) throw new SuraError("provider_down");
+
+  const j = await res.json();
+  if (j?.usageMetadata) {
+    usage.input += Number(j.usageMetadata.promptTokenCount ?? 0);
+    usage.output += Number(j.usageMetadata.candidatesTokenCount ?? 0);
+  }
+
+  const parts = (j?.candidates?.[0]?.content?.parts ?? []) as {
+    text?: string; thought?: boolean; functionCall?: { name: string; args?: Record<string, unknown> };
+  }[];
+
+  const calls: FnCall[] = parts
+    .filter((p) => p.functionCall?.name)
+    .map((p) => ({ name: p.functionCall!.name, args: p.functionCall!.args ?? {} }));
+
+  /* Thought parts are the model reasoning aloud, not its reply. */
+  const text = parts.filter((p) => p.text && !p.thought).map((p) => p.text).join("").trim();
+
+  if (calls.length === 0 && !text) {
+    const why = j?.candidates?.[0]?.finishReason;
+    throw new SuraError(why === "SAFETY" ? "refused" : why === "MAX_TOKENS" ? "too_long" : "empty");
+  }
+  return { calls, text };
 }
+
+/* parseTurn lived here: a hand-rolled JSON reader with fence recovery,
+   preamble stripping and a balanced-brace scanner, all of it built to
+   survive a model writing JSON as prose. Declared functions come back
+   structured, so there is nothing left to parse and nothing left to
+   fail — «وصل ردّ غير مكتمل من النموذج» cannot be produced any more. */
 
 /** Best-effort token accounting into ai_usage_metrics (never blocks the reply). */
 async function logUsage(
@@ -939,9 +970,7 @@ export async function POST(req: Request) {
         `- بعد التنفيذ أكّدي النتيجة الفعلية كما رجعت، ولا تفترضي النجاح.\n` +
         `- أعيدي إما queries أو action في الرد الواحد — ليس كليهما.\n`);
 
-  const historyBlock = history.length
-    ? `\n[المحادثة السابقة]\n${history.map((h) => `${h.role}: ${h.text}`).join("\n")}\n`
-    : "";
+  /* The transcript is sent as turns now, not pasted into a prompt. */
 
   try {
     /* agent loop: each model turn returns answer | queries | action (max 4 turns) */
@@ -969,7 +998,29 @@ export async function POST(req: Request) {
     } catch (e) {
       console.error("[sura/ask] notifications failed:", e instanceof Error ? e.message : e);
     }
-    let actionsDone = 0;
+    /* The persona travels as systemInstruction rather than as the top of
+       every user message, so it stops being something the model has to
+       re-read past its own transcript each round. */
+    /* Captured where the narrowing still holds: documentBody is a nested
+       declaration, and TypeScript will not carry a null check into one. */
+    const modelKey: string = geminiKey;
+    const actorId: string = claims.sub;
+
+    /* The attachment is in this message, not described by it.
+     *
+     * The earlier wording named the file and told her to read it, which
+     * is exactly what a model does when the bytes are missing: it reads
+     * the name. Handed «بطاقة-تأمين.png» and nothing else, she reported
+     * an insurer, a policy number, a tier and a ceiling — all invented,
+     * and a different set on each round. */
+    const fileNote = files.length
+      ? `\n[مرفقات]\nمرفق مع هذه الرسالة ${files.length} ملفاً (${files.map((f) => f.name ?? f.mime).join("، ")}) — الملف نفسه أمامك في هذه الرسالة.\n` +
+        `اقرئي منه ما تبصرينه فعلاً. لا تذكري اسم شركة ولا رقماً ولا تاريخاً إلا إن قرأتِه في الصورة حرفاً حرفاً؛ ` +
+        `وما لم يتّضح قولي إنه غير مقروء واطلبي صورة أوضح. اسم الملف ليس مصدراً.\n` +
+        `إن كانت وثيقة مريض فلخّصي المهمّ منها ولا تنسخيها كاملة.\n`
+      : "";
+    const persona = header + fileNote;
+    let pushedBack = false;
 
     /* One request, one write of any given thing.
      *
@@ -1009,295 +1060,208 @@ export async function POST(req: Request) {
     let doc: { url: string; label: string } | null = null;
     const usage: Usage = { input: 0, output: 0 };
 
-    /* The attachment is in this message, not described by it.
+    /* ── the conversation, as the API models it ───────────────────
      *
-     * The earlier wording named the file and told her to read it, which
-     * is exactly what a model does when the bytes are missing: it reads
-     * the name. Handed «بطاقة-تأمين.png» and nothing else, she reported
-     * an insurer, a policy number, a tier and a ceiling — all invented,
-     * and a different set on each round. */
-    const fileNote = files.length
-      ? `\n[مرفقات]\nمرفق مع هذه الرسالة ${files.length} ملفاً (${files.map((f) => f.name ?? f.mime).join("، ")}) — الملف نفسه أمامك في هذه الرسالة.\n` +
-        `اقرئي منه ما تبصرينه فعلاً. لا تذكري اسم شركة ولا رقماً ولا تاريخاً إلا إن قرأتِه في الصورة حرفاً حرفاً؛ ` +
-        `وما لم يتّضح قولي إنه غير مقروء واطلبي صورة أوضح. اسم الملف ليس مصدراً.\n` +
-        `إن كانت وثيقة مريض فلخّصي المهمّ منها ولا تنسخيها كاملة.\n`
-      : "";
+     * Not a prompt that grows a "results so far" blob each round. A real
+     * transcript: what the user asked, what the model called, what those
+     * calls returned. The model sees its own history the way it was
+     * trained to, and nothing has to be re-serialised into a string. */
+    const contents: Record<string, unknown>[] = [];
 
-    const ask = (final: boolean) =>
-      header + historyBlock + fileNote +
-      `\n[سؤال المستخدم]\n${question}\n` +
-      (context.length ? `\n[نتائج الاستعلامات والإجراءات حتى الآن]\n${JSON.stringify(context).slice(0, 14000)}\n` : "") +
-      `\nأعيدي JSON فقط بأحد الأشكال:\n` +
-      /* The answer used to arrive as a bulleted catalogue of what Sura is
-         able to do, which is a menu rather than a reply. Someone who asked
-         a question wants the number, then the context. */
-      `1) {"answer":"..."} — الإجابة النهائية بالعربية.\n` +
-      `   اكتبي كما يكتب زميل يعرف عمله: مباشرة، بلا تمهيد، وبثقة.\n` +
-      `   - الجواب أولاً. كل رقم من النتائج أعلاه حصراً، والمبالغ بصيغة 5.000 ر.ع.\n` +
-      `   - أضيفي ما يعنيه الرقم إن كان له معنى — ارتفاع، انخفاض، مقارنة، سبب محتمل.\n` +
-      `   - إن لم تكفِ البيانات فقوليها في سطر واقترحي السؤال الذي يُجاب.\n` +
-      `   - نسّقي بما يناسب السؤال: رقم واحد يكفيه سطر، والمقارنة أسطر، والقائمة صفوف،\n` +
-      `     والخطوات ترقيم، والموضوعان عنوان لكل منهما بـ "## ". لا فقرة طويلة متلاصقة.\n` +
-      `   - **بنجمتين** للتوكيد، وسطر فارغ بين الأقسام.\n` +
-      `   - إن سُئلتِ عمّا تستطيعين: اعرضي أقسام [من أنتِ] بعناوين، ولكل قسم مثال واقعي يستطيع كتابته الآن.` +
-      (final
-        ? ``
-        : `\n2) {"queries":[...]} — إذا كنت تحتاجين بيانات (أو تصحيح استعلام خاطئ).\n` +
-          /* The action budget never closes the door on a document that
-             was asked for and not yet made — otherwise the loop can
-             spend its two actions elsewhere and then be unable to
-             deliver the one thing the request was about. */
-          (role === "accountant" || isPlatform || (actionsDone >= 2 && !(wantsDoc && !doc))
-            ? ``
-            : `3) {"action":{...}} — لتنفيذ إجراء طلبه المستخدم صراحة (بعد حصولك على id من استعلام).`));
+    for (const h of history.slice(-6)) {
+      contents.push({ role: h.role === "user" ? "user" : "model", parts: [{ text: h.text }] });
+    }
+    contents.push({
+      role: "user",
+      parts: [
+        ...files.map((f) => ({ inlineData: { mimeType: f.mime, data: f.data } })),
+        { text: question },
+      ],
+    });
 
-    let resp = parseTurn(await gemini(geminiKey, ask(false), true, usage, files));
-    let pushedBack = false;
+    const tools = [{ functionDeclarations: toolsFor(role) }];
 
-    for (let step = 0; step < 5; step++) {
-      if (resp.answer && !resp.queries && !resp.action) {
-        const answer = String(resp.answer);
+    /* Executes one call through exactly the audited paths the old
+       protocol used — runPlan for reading, runAction for writing. The
+       transport changed; the guardrails did not. */
+    const execute = async (c: FnCall): Promise<Record<string, unknown>> => {
+      if (c.name === "query_clinic") {
+        try {
+          const out = await runPlan(sb, c.args as unknown as Plan, cid, role, claims.sub);
+          context.push(out);
+          return out as unknown as Record<string, unknown>;
+        } catch (e) {
+          const error = e instanceof Error ? e.message : String(e);
+          return { error, hint: "صحّحي الاستعلام وأعيدي النداء" };
+        }
+      }
 
-        /* She answered with an offer to investigate rather than the
-           investigation. Send her back with the rounds she did not
-           spend — once, so a genuine "I need a decision from you"
-           still gets through on the second pass. */
-        if (!pushedBack && step < 4 && (deferring(answer) || refusing(answer))) {
+      if (c.name === "clinic_brief") {
+        const { data, error } = await sb.rpc("sura_clinic_brief", { p_clinic: cid });
+        if (error) return { error: error.message };
+        context.push({ clinic_brief: data });
+        return { brief: data };
+      }
+
+      /* One write per subject per request. Asked once to file an
+         insurance card, she wrote two clinical notes two seconds apart;
+         the second was worded differently and would have passed any
+         exact-text comparison, so this keys on the action and whom it
+         touches. Documents are exempt — asking for two is legitimate. */
+      const target = String(c.args.patient_id ?? c.args.appointment_id ?? c.args.invoice_id ?? "");
+      const key = `${c.name}:${target}`;
+      if (c.name !== "create_document" && target && written.has(key)) {
+        return { done: false, error: "نُفِّذ هذا الإجراء لهذا الشخص في هذا الطلب — لا تكرّريه." };
+      }
+      if (target) written.add(key);
+
+      if (c.name === "create_document") {
+        const body = await documentBody(String(c.args.brief ?? question));
+        const res = await runAction(
+          sb,
+          { type: "create_document", title: String(c.args.title ?? "مستند"), body_md: body, prompt: question } as Action,
+          cid, role, actorId, context,
+        );
+        const d = (res as { document?: { url: string; label: string } }).document;
+        if (d?.url) doc = d;
+        context.push({ action_result: res });
+        return res as unknown as Record<string, unknown>;
+      }
+
+      try {
+        const res = await runAction(sb, { type: c.name, ...c.args } as unknown as Action, cid, role, claims.sub, context);
+        const d = (res as { document?: { url: string; label: string } }).document;
+        if (d?.url) doc = d;
+        context.push({ action_result: res });
+        return res as unknown as Record<string, unknown>;
+      } catch (e) {
+        const error = e instanceof Error ? e.message : String(e);
+        console.error("[sura/ask] tool failed:", c.name, error);
+        return { done: false, error };
+      }
+    };
+
+    /* Writing the body is its own call, on the strong model, in plain
+       text — a document inside a structured field is thousands of tokens
+       of escaping, and it degenerated every time. The sweep and the
+       cover run first because the writer cannot call tools. */
+    async function documentBody(brief: string): Promise<string> {
+      const { data: sweep } = await sb.rpc("sura_clinic_brief", { p_clinic: cid });
+      if (sweep) context.push({ clinic_brief: sweep });
+
+      if (wantsPicture && !madePicture() && Date.now() - started < 120_000) {
+        try {
+          const cover = await runAction(
+            sb,
+            {
+              type: "generate_image",
+              prompt:
+                "A calm, professional cover illustration for a dental clinic performance report. " +
+                "Minimal flat vector style, soft blue and white, abstract geometric shapes suggesting " +
+                "growth and care. No text, no words, no letters, no numbers anywhere in the image.",
+              purpose: "غلاف التقرير",
+              aspect: "landscape",
+            } as unknown as Action,
+            cid, role, actorId, context,
+          );
+          context.push({ action_result: cover });
+        } catch (e) {
+          console.error("[sura/ask] cover failed:", e instanceof Error ? e.message : e);
+        }
+      }
+
+      return gemini(
+        modelKey,
+        `أنتِ سُرى، تكتبين مستنداً لعيادة ${clinicName}.\n\n` +
+          `[المطلوب]\n${brief}\n\n` +
+          `[البيانات التي قرأتِها — لا تستخدمي رقماً خارجها]\n${JSON.stringify(context).slice(0, 18000)}\n\n` +
+          `البيانات أعلاه كاملة وكافية. لا تقولي إنها لا تكفي ولا تطلبي غيرها — اكتبي من الموجود، ` +
+          `وإن غاب محور بعينه اذكري غيابه في سطر واحد وواصلي.\n` +
+          `اكتبي المستند الآن بصيغة Markdown مباشرة، بلا JSON وبلا أي غلاف وبلا مقدّمة عن نفسك.\n` +
+          `- عناوين بـ ## ، والأرقام في جداول Markdown.\n` +
+          `- كل قسم: الرقم الذي وُجد، ثم معناه، ثم التوصية.\n` +
+          `- ممنوع «سنقوم» و«سيتم» و«سأقوم» وممنوع «نحتاج بيانات» — استخدمي ما هو أمامك.\n` +
+          `- ما لا يحتفظ به النظام (مثل سبب عدم الحضور) قوليه صراحةً ولا تخمّني نسبة.\n` +
+          "- ارسمي مخطّطاً لكل قسم فيه ثلاثة أرقام قابلة للمقارنة أو أكثر — ثلاثة مخطّطات على الأقل:\n" +
+          "  سطر ```chart ثم type: bar، وعنوان، وسطر لكل بند «الاسم | الرقم»، ثم سطر ```\n" +
+          `  مرشّحات: الإيراد لكل خدمة، عدم الحضور بأيام الأسبوع وبالساعة وبالطبيب، المفوتَر مقابل المحصّل.\n` +
+          `- الصور: لا تكتبي سطر ![...](...) إلا برابط موجود حرفياً في البيانات أعلاه ناتجاً عن generate_image.\n` +
+          `- اختمي بقسم «الخطوات التالية» يفصل ما نُفّذ عمّا ينتظر الموافقة.\n` +
+          `- ألف إلى ألفي كلمة. لا تكرّري.`,
+        false, usage, files, WRITER,
+      );
+    }
+
+    /* ── the loop ─────────────────────────────────────────────────
+     *
+     * Eight rounds rather than five, and no cap on calls per round,
+     * because a request naming six jobs is now arithmetically possible:
+     * the model issues several calls at once and gets several results
+     * back. Measured on this key, Pro asks for two in a single turn. */
+    let answer = "";
+    for (let round = 0; round < 8; round++) {
+      const turn = await geminiTurn(geminiKey, persona, contents, tools, usage);
+
+      if (turn.calls.length === 0) {
+        answer = turn.text;
+
+        /* Two things an answer may not be. Both were measured, both were
+           reworded around every list I wrote, so they are enforced on the
+           turn rather than requested in the prompt. */
+        if (!pushedBack && (deferring(answer) || refusing(answer))) {
           pushedBack = true;
-          /* Hand her the whole sweep rather than the instruction to go
-             and find it. She refused for lack of data; the answer to
-             that is data, not another sentence telling her to look. */
           const { data: brief } = await sb.rpc("sura_clinic_brief", { p_clinic: cid });
-          if (brief) context.push({ clinic_brief: brief });
-          context.push({
-            rejected_answer: answer,
-            why:
-              "هذا ليس جواباً. المسح الكامل لبيانات العيادة مرفق أعلاه في clinic_brief: الإيراد لكل خدمة، " +
-              "وعدم الحضور بالطبيب والساعة واليوم والخدمة ومدّة الحجز المسبق والمرضى المتكرّرين، والفترة مقابل الفترة، " +
-              "والمنقطعون، وقبول الخطط، والتحصيل. اكتبي من هذه الأرقام الآن. " +
-              "وأنتِ ترسمين مخطّطات من بيانات حقيقية داخل المستند وتُخرجينه صفحةً جاهزة للطباعة و PDF — " +
-              "فلا تقولي إنك لا تستطيعين إنشاء رسوم أو ملفات. " +
-              "ولا تنقلي للمستخدم سبب رفضٍ داخلي: ذاك تعليمة لكِ لتصحيح عملك، وليس جواباً له.",
+          contents.push({ role: "model", parts: [{ text: answer }] });
+          contents.push({
+            role: "user",
+            parts: [{
+              text:
+                "هذا ليس جواباً. المسح الكامل لبيانات العيادة: " + JSON.stringify(brief).slice(0, 8000) +
+                "\nاكتبي من هذه الأرقام الآن. وأنتِ ترسمين مخطّطات وتُخرجين مستنداً جاهزاً للطباعة و PDF " +
+                "وتولّدين صوراً — فلا تقولي إنك لا تستطيعين. ولا تنقلي للمستخدم سبب رفضٍ داخلي.",
+            }],
           });
-          resp = parseTurn(await gemini(geminiKey, ask(false), true, usage, files));
           continue;
         }
 
-        /* The request named a document and none exists. Whatever this
-           answer says — a summary, an offer, a promise — it is not the
-           deliverable, and the analysis behind it is already in context
-           so the retry costs a turn rather than the work. */
-        /* Straight to it, with no round spent asking.
-         *
-         * She was told once and answered "وجاهزة لإصدار المستند النهائي
-         * لك" — so the push-back was both useless and expensive, and on
-         * a wide request the round it cost was the difference between
-         * finishing inside the platform's five minutes and losing the
-         * whole request. The gathering is already in context by now;
-         * the only thing missing is the decision, and that is no longer
-         * hers to make. */
+        /* The request named a document and none exists. The gathering is
+           already done, so this costs a call rather than the work. */
         if (wantsDoc && !doc && !docForced && !nearLimit()) {
           docForced = true;
           const heading = /^\s*#{1,4}\s*(.+)$/m.exec(answer)?.[1]?.trim();
-          resp = {
-            action: {
-              type: "create_document",
-              title: (heading || `تقرير: ${question.slice(0, 60)}`).slice(0, 200),
-              brief: question,
-              prompt: question,
-            },
-          };
+          const res = await execute({
+            name: "create_document",
+            args: { title: (heading || `تقرير: ${question.slice(0, 60)}`).slice(0, 200), brief: question },
+          });
+          contents.push({ role: "model", parts: [{ functionCall: { name: "create_document", args: {} } }] });
+          contents.push({ role: "user", parts: [{ functionResponse: { name: "create_document", response: res } }] });
           continue;
         }
 
-
-        await logUsage(sb, cid, usage);
-        return reply(answer, doc ? { doc } : {});
-      }
-
-      if (resp.action && typeof resp.action === "object" && role !== "accountant" && !isPlatform && actionsDone < 2) {
-        actionsDone++;
-        try {
-          const act = resp.action as Record<string, unknown>;
-
-          /* Keyed on the type and whom it touches rather than on the
-             whole payload — the second note was worded differently and
-             would have slipped past an exact-text comparison. Documents
-             are exempt: asking for two is a legitimate request. */
-          const target = String(act.patient_id ?? act.appointment_id ?? act.invoice_id ?? "");
-          const key = `${String(act.type)}:${target}`;
-          if (act.type !== "create_document" && target && written.has(key)) {
-            context.push({
-              action_result: {
-                action: act.type, done: false,
-                error: "نُفِّذ هذا الإجراء لهذا الشخص في هذا الطلب — لا تكرّريه. أجيبي بالنتيجة.",
-              },
-            });
-            resp = parseTurn(await gemini(geminiKey, ask(true), true, usage, files));
-            continue;
-          }
-          written.add(key);
-
-          /* Stage two of a document. The planning turn supplies the
-             title and the brief; the body is written here, in plain
-             text, because JSON mode cannot carry it intact. */
-          if (act.type === "create_document" && !String(act.body_md ?? "").trim()) {
-            /* Gather before writing, in code.
-             *
-             * A six-part request needs a dozen queries and she has three
-             * a round. She ran out, the guard refused the thin document,
-             * and she handed the guard's own words to the owner as an
-             * excuse — "أحتاج إلى استعراض بيانات أكثر تفصيلاً حول
-             * الإيرادات لكل خدمة، وأنماط عدم الحضور، ومقارنة الأداء" is
-             * verbatim the rejection text in doc-guard.
-             *
-             * So the sweep runs here, unconditionally, before the body is
-             * written. Revenue by service, no-shows on six axes, period
-             * over period, the lapsed list, plan acceptance, collection.
-             * She can no longer lack the data, which means she can no
-             * longer say she lacks it. */
-            const { data: brief, error: briefErr } = await sb.rpc("sura_clinic_brief", { p_clinic: cid });
-            if (briefErr) console.error("[sura/ask] brief failed:", briefErr.message);
-            else if (brief) context.push({ clinic_brief: brief });
-
-            /* A cover, when one was asked for and none exists.
-               The body is written by a call that cannot run actions, so
-               the picture has to exist before the writing starts — and
-               left to her, she reached for one and invented its address
-               at unsplash.com. */
-            /* A tighter budget than the rest of the loop: the cover runs
-               before the body, and the body is the slow one. Past two
-               minutes the report matters more than its front page. */
-            if (wantsPicture && !madePicture() && Date.now() - started < 120_000) {
-              try {
-                const cover = await runAction(
-                  sb,
-                  {
-                    type: "generate_image",
-                    prompt:
-                      "A calm, professional cover illustration for a dental clinic performance report. " +
-                      "Minimal flat vector style, soft blue and white, abstract geometric shapes suggesting " +
-                      "growth and care. No text, no words, no letters, no numbers anywhere in the image.",
-                    purpose: "غلاف التقرير",
-                    aspect: "landscape",
-                  } as unknown as Action,
-                  cid, role, claims.sub, context,
-                );
-                context.push({ action_result: cover });
-              } catch (e) {
-                /* A missing cover is a smaller loss than a missing
-                   report, so this never stops the document. */
-                console.error("[sura/ask] cover failed:", e instanceof Error ? e.message : e);
-              }
-            }
-
-            act.body_md = await gemini(
-              geminiKey,
-              `أنتِ سُرى، تكتبين مستنداً لعيادة ${clinicName}.\n\n` +
-                `[المطلوب]\n${String(act.brief ?? question)}\n\n` +
-                `[البيانات التي قرأتِها — لا تستخدمي رقماً خارجها]\n${JSON.stringify(context).slice(0, 18000)}\n\n` +
-                `البيانات أعلاه كاملة وكافية. لا تقولي إنها لا تكفي ولا تطلبي غيرها — اكتبي من الموجود، ` +
-                `وإن غاب محور بعينه اذكري غيابه في سطر واحد وواصلي.\n` +
-                `اكتبي المستند الآن بصيغة Markdown مباشرة، بلا JSON وبلا أي غلاف وبلا مقدّمة عن نفسك.\n` +
-                `- عناوين بـ ## ، والأرقام في جداول Markdown.\n` +
-                `- كل قسم: الرقم الذي وُجد، ثم معناه، ثم التوصية.\n` +
-                `- ممنوع «سنقوم» و«سيتم» و«سأقوم» وممنوع «نحتاج بيانات» — استخدمي ما هو أمامك.\n` +
-                `- ما لا يحتفظ به النظام (مثل سبب عدم الحضور) قوليه صراحةً ولا تخمّني نسبة.\n` +
-                /* The fence is spelled out rather than written, because
-                   three backticks inside a template literal end it. */
-                /* One chart was drawn where the owner asked for رسوم.
-                   Every axis in the brief is a comparison of three or
-                   more things, and a comparison read as a table is a
-                   comparison nobody reads. */
-                "- ارسمي مخطّطاً لكل قسم فيه ثلاثة أرقام قابلة للمقارنة أو أكثر — ثلاثة مخطّطات على الأقل في المستند:\n" +
-                "  سطر ```chart ثم type: bar، وعنوان، وسطر لكل بند «الاسم | الرقم»، ثم سطر ```\n" +
-                `  مرشّحات جاهزة: الإيراد لكل خدمة، عدم الحضور بأيام الأسبوع، عدم الحضور بالساعة، عدم الحضور بالطبيب، المفوتَر مقابل المحصّل.\n` +
-                `  وأرقام المخطّط من البيانات أعلاه فقط.\n` +
-                /* She wrote ![غلاف المستند](https://images.unsplash.com/…)
-                   — an address she made up, in a document a clinic
-                   prints. The renderer drops anything outside our own
-                   bucket, but the honest place to stop it is here. */
-                `- الصور: لا تكتبي سطر ![...](...) إلا برابط موجود حرفياً في البيانات أعلاه ناتجاً عن generate_image. ` +
-                `إن لم يوجد رابط كهذا فلا تضعي صورة إطلاقاً — ولا تخترعي رابطاً من الإنترنت.\n` +
-                `- اختمي بقسم «الخطوات التالية» يفصل ما نُفّذ عمّا ينتظر الموافقة.\n` +
-                `- ألف إلى ألفي كلمة. لا تكرّري.`,
-              false,
-              usage,
-              files,
-              /* The one turn Pro is paid for. */
-              WRITER,
-            );
-          }
-
-          const res = await runAction(sb, act as unknown as Action, cid, role, claims.sub, context);
-          const d = (res as { document?: { url: string; label: string } }).document;
-          if (d?.url) doc = d;
-          context.push({ action_result: res });
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          console.error("[sura/ask] action failed:", msg);
-          context.push({ action_result: { action: (resp.action as Action).type, done: false, error: msg } });
-        }
-      } else if (Array.isArray(resp.queries) && resp.queries.length) {
-        for (const plan of (resp.queries as Plan[]).slice(0, 3)) {
-          try {
-            context.push(await runPlan(sb, plan, cid, role, claims.sub));
-          } catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            console.error("[sura/ask] plan failed:", plan?.table, msg);
-            context.push({ table: plan?.table, error: msg, hint: "صحّحي الاستعلام وأعيدي المحاولة" });
-          }
-        }
-      } else {
         break;
       }
 
-      /* Files travel on every round, not just the first.
-         The bytes cost tokens each time; a fabricated policy number
-         written into a patient's file costs more. */
-      resp = parseTurn(await gemini(geminiKey, ask(step >= 3 || nearLimit()), true, usage, files));
-    }
+      /* The model's turn, then the results, exactly as the API expects
+         them — this is what lets it reason over its own tool use. */
+      contents.push({ role: "model", parts: turn.calls.map((c) => ({ functionCall: { name: c.name, args: c.args } })) });
 
-    if (resp?.answer) {
-      await logUsage(sb, cid, usage);
-      return reply(String(resp.answer), doc ? { doc } : {});
-    }
+      const responses = [];
+      for (const c of turn.calls.slice(0, 6)) {
+        responses.push({ functionResponse: { name: c.name, response: await execute(c) } });
+      }
+      contents.push({ role: "user", parts: responses });
 
-    /* Out of rounds with data in hand. Force the conclusion rather than
-       discarding the work — a wide request ("analyse no-shows, plan the
-       recalls, find the profitable services, put it all in a document")
-       is exactly the case that exhausts the loop, and it is also exactly
-       the case worth answering. */
-    if (context.length > 0) {
-      try {
-        const forced = parseTurn(
-          await gemini(
-            geminiKey,
-            header + historyBlock + fileNote +
-              `\n[سؤال المستخدم]\n${question}\n` +
-              `\n[كل ما جمعتِه]\n${JSON.stringify(context).slice(0, 16000)}\n` +
-              `\nانتهت جولات الاستعلام. أجيبي الآن من المعطيات أعلاه فقط.\n` +
-              `إن كان الطلب متعدّد الأجزاء فغطّي كل جزء بعنوان، وقولي صراحةً عن أي جزء لم تكفِ بياناته.\n` +
-              `أعيدي {"answer":"..."} فقط — لا استعلامات ولا إجراءات.`,
-            true,
-            usage,
-          ),
-        );
-        if (forced?.answer) {
-          await logUsage(sb, cid, usage);
-          return reply(String(forced.answer), doc ? { doc } : {});
-        }
-      } catch {
-        /* fall through to the honest message below */
+      if (nearLimit()) {
+        contents.push({ role: "user", parts: [{ text: "انتهى الوقت المتاح. أجيبي الآن من المعطيات، بلا نداء أدوات." }] });
+        const last = await geminiTurn(geminiKey, persona, contents, [], usage);
+        answer = last.text;
+        break;
       }
     }
 
     await logUsage(sb, cid, usage);
-    return reply(
-      "الطلب واسع وما قدرت أغطّيه كاملاً في مرّة واحدة. قسّمه لجزأين وأنا أنفّذ كل واحد.",
-      { failure: "unknown" },
-      "incomplete",
-    );
+    return reply(answer || "لم أصل إلى نتيجة. أعد صياغة الطلب بمحور واحد.", doc ? { doc } : {});
+
   } catch (e) {
     const kind: SuraFailure = e instanceof SuraError ? e.kind : "unknown";
     console.error("[sura/ask]", kind, e instanceof Error ? e.message : e);
