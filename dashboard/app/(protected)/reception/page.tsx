@@ -35,6 +35,12 @@ const relMin = (iso: string) => {
   return m < 60 ? `منذ ${m} د` : `منذ ${Math.round(m / 60)} س`;
 };
 
+/* The Arabic name when the clinic recorded one. Twenty-two of thirty-two
+   patients keep theirs in name_ar, so reading only `name` printed an
+   Arabic desk screen half in English. */
+const who = (x: { name?: string | null; name_ar?: string | null } | null | undefined) =>
+  x?.name_ar?.trim() || x?.name || "مريض";
+
 export default async function ReceptionPage() {
   const claims = await getUserClaims();
   if (!claims || !(hasRole(claims, "receptionist") || claims.role === "clinic_admin")) redirect("/login");
@@ -47,12 +53,12 @@ export default async function ReceptionPage() {
 
   const [apptsRes, queueRes, alertsRes, waitlistRes, doctorsRes, servicesRes, patientsRes] = await Promise.all([
     sb.from("appointments")
-      .select("id, slot_time, status, patient_id, patients!patient_id(name, phone), services!service_id(name_ar), tawd_staff_users!doctor_id(name_ar, name)")
+      .select("id, slot_time, status, patient_id, patients!patient_id(name, name_ar, phone), services!service_id(name_ar), tawd_staff_users!doctor_id(name_ar, name)")
       .eq("clinic_id", claims.clinic_id)
       .gte("slot_time", dayFrom).lte("slot_time", dayTo)
       .is("deleted_at", null).order("slot_time"),
     sb.from("waiting_queue")
-      .select("id, queue_position, status, check_in_at, patients!patient_id(name), appointments!appt_id(services!service_id(name_ar), tawd_staff_users!doctor_id(name_ar, name))")
+      .select("id, queue_position, status, check_in_at, patients!patient_id(name, name_ar), appointments!appt_id(services!service_id(name_ar), tawd_staff_users!doctor_id(name_ar, name))")
       .eq("clinic_id", claims.clinic_id)
       .in("status", ["waiting", "called", "in_room"])
       .gte("check_in_at", dayFrom)
@@ -112,7 +118,7 @@ export default async function ReceptionPage() {
       id: q.id,
       position: q.queue_position,
       status: q.status,
-      patientName: (q.patients as unknown as { name?: string } | null)?.name ?? "مريض",
+      patientName: who(q.patients as unknown as { name?: string; name_ar?: string } | null),
       serviceName: appt?.services?.name_ar ?? null,
       doctorName: appt?.tawd_staff_users?.name_ar ?? appt?.tawd_staff_users?.name ?? null,
       waitingSince: relMin(q.check_in_at),
@@ -155,7 +161,7 @@ export default async function ReceptionPage() {
             <h1 className="text-xl font-bold text-white mt-1">لوحة الاستقبال</h1>
             {next ? (
               <p className="text-[12px] mt-1.5" style={{ color: "var(--text-3)" }}>
-                القادم: <span className="font-bold text-white">{(next.patients as unknown as { name?: string } | null)?.name ?? "مريض"}</span>
+                القادم: <span className="font-bold text-white">{who(next.patients as unknown as { name?: string; name_ar?: string } | null)}</span>
                 {" · "}
                 <span className="ltr-nums font-bold" style={{ color: "var(--accent-1)" }}>{fmtTime(next.slot_time)}</span>
               </p>
@@ -203,11 +209,11 @@ export default async function ReceptionPage() {
           </div>
           <div className="space-y-1.5">
             {late.slice(0, 5).map(({ a, mins }) => {
-              const p = a.patients as unknown as { name?: string; phone?: string } | null;
+              const p = a.patients as unknown as { name?: string; name_ar?: string; phone?: string } | null;
               return (
                 <div key={a.id} className="flex items-center gap-3 px-3.5 py-2 rounded-xl flex-wrap"
                   style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.2)" }}>
-                  <span className="text-[12.5px] font-bold text-white">{p?.name ?? "مريض"}</span>
+                  <span className="text-[12.5px] font-bold text-white">{who(p)}</span>
                   <span className="text-[11px] ltr-nums" style={{ color: "#fbbf24" }}>متأخر {mins} دقيقة</span>
                   {p?.phone && (
                     <>
@@ -253,11 +259,16 @@ export default async function ReceptionPage() {
                     style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}
                   >
                     <span className="text-[13px] font-bold ltr-nums w-16 shrink-0 text-white">{fmtTime(a.slot_time)}</span>
-                    <div className="flex-1 min-w-0">
+                    {/* flex-1 means flex: 1 1 0%, so on a narrow row this was
+                        crushed to seventeen pixels — "مروان الخروصي" rendered
+                        as "م…" — while the badge and the check-in button, both
+                        shrink-0, kept their full width. Given a basis wide
+                        enough to fill the line, they wrap underneath instead. */}
+                    <div className="flex-1 min-w-0 basis-[calc(100%-5.5rem)] sm:basis-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <Link href={`/reception/patients/${a.patient_id}`}
                           className="text-[13px] font-bold text-white truncate hover:underline">
-                          {p?.name ?? "مريض"}
+                          {who(p)}
                         </Link>
                         {/* The two things a desk acts on: what could harm them,
                             and what they owe before they walk back out. */}
