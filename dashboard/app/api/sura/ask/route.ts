@@ -878,8 +878,16 @@ async function geminiTurn(
    * nobody anything. It cost an hour to find that the request was
    * malformed and Google had said so plainly in the body. */
   if (j?.error) {
-    console.error(`[sura/ask] ${model} rejected the request:`, j.error.status, j.error.message);
-    throw new SuraError(res.status === 400 ? "unknown" : "provider_down", `${model}: ${j.error.message}`);
+    /* The message alone said "Request contains an invalid argument" and
+       nothing else, which cost another round of guessing. details names
+       the field. */
+    const detail = j.error.details ? ` | ${JSON.stringify(j.error.details).slice(0, 400)}` : "";
+    const shape = `turns=${contents.length} tools=${(tools as unknown[])?.length ?? 0}`;
+    console.error(`[sura/ask] ${model} rejected:`, j.error.status, j.error.message, detail, shape);
+    throw new SuraError(
+      res.status === 400 ? "unknown" : "provider_down",
+      `${model}: ${j.error.message}${detail} (${shape})`,
+    );
   }
 
   if (j?.usageMetadata) {
