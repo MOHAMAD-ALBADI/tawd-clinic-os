@@ -855,9 +855,27 @@ async function geminiTurn(
   let res: Response;
   try {
     res = await call(model);
+
     if (model !== FALLBACK && (res.status === 429 || res.status >= 500)) {
       console.warn(`[sura/ask] ${model} returned ${res.status} — falling back to ${FALLBACK}`);
       res = await call(FALLBACK);
+    }
+
+    /* One retry on a 400, which is not what a 400 usually deserves.
+     *
+     * A malformed request stays malformed, so retrying should be
+     * pointless — except this one is intermittent. The same question, on
+     * the same transcript, failed twice at 17:43 with "Request contains
+     * an invalid argument" and then succeeded unchanged minutes later.
+     * Whatever the cause, it is not the shape of what we send, and the
+     * alternative is showing an error to someone trying the product.
+     *
+     * The retry is the mitigation; the logging below is still the
+     * investigation, and it fires either way. */
+    if (res.status === 400) {
+      console.warn(`[sura/ask] ${model} returned 400 — retrying once`);
+      await new Promise((r) => setTimeout(r, 400));
+      res = await call(model);
     }
   } catch (e) {
     throw new SuraError((e as Error)?.name === "AbortError" ? "timeout" : "network");
