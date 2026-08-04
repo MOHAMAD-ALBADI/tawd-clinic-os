@@ -1269,7 +1269,10 @@ ${catalogFor(role)}
         workflow_id: "sura-ask",
         clinic_id: claims.clinic_id || null,
         error_message: `${kind}: ${e instanceof Error ? e.message : String(e)}`.slice(0, 2000),
-        severity: "error",
+        /* severity_level is low|medium|high|critical — "error" is not a
+           member, so every insert here failed silently and the log I
+           added to stop guessing was itself unreadable. */
+        severity: "high",
         context: { question: question.slice(0, 200), role },
       });
     } catch { /* never fail the reply because logging failed */ }
