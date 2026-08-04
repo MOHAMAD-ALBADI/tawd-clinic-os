@@ -5,6 +5,7 @@ import { platformSecrets } from "@/lib/platform-secrets";
 import { hasRole } from "@/lib/auth/role-redirect";
 import { runAction, type Action } from "@/lib/sura/actions";
 import { deferring, refusing } from "@/lib/sura/doc-guard";
+import { notificationsFor } from "@/lib/notifications";
 import type { Attachment } from "@/lib/sura/types";
 import { ensureConversation, saveTurn, type StoredFile } from "@/lib/sura/conversations";
 
@@ -945,6 +946,29 @@ export async function POST(req: Request) {
   try {
     /* agent loop: each model turn returns answer | queries | action (max 4 turns) */
     const context: unknown[] = [];
+
+    /* She sees the screen.
+     *
+     * The bell said «١٦ فاتورة متأخرة تحتاج متابعة». Asked to deal with
+     * it, she queried sura_alerts — emergencies and complaints, and
+     * genuinely empty — and answered that there were no alerts at all.
+     * She was not refusing; the number on the screen was computed in a
+     * route she had no way to reach.
+     *
+     * Now every turn starts with exactly what the bell is showing, for
+     * this person and this clinic, computed from their own rows. Costs a
+     * few counts and removes a whole class of "I cannot see that". */
+    try {
+      const bell = await notificationsFor(claims);
+      if (bell.length) {
+        context.push({
+          screen_notifications: bell.map((n) => ({ title: n.title, severity: n.severity, opens: n.href })),
+          note: "هذه هي التنبيهات المعروضة للمستخدم على الشاشة الآن — إن سأل عنها فهذه هي، ولا تقولي إنها فارغة.",
+        });
+      }
+    } catch (e) {
+      console.error("[sura/ask] notifications failed:", e instanceof Error ? e.message : e);
+    }
     let actionsDone = 0;
 
     /* One request, one write of any given thing.
