@@ -294,7 +294,7 @@ export default async function ClinicAdminPage() {
           <div className="relative flex-1 flex flex-col justify-center py-5">
             <div className="flex items-center gap-3 mb-2">
               <p className="eyebrow" style={{ color: "var(--accent-2)" }}>
-                إيراد اليوم · ر.ع
+                إيراد اليوم
               </p>
               {revenueChange !== null && (
                 <span className={`badge ltr-nums ${revenueChange >= 0 ? "badge-ok" : "badge-bad"}`} style={{ padding: "0.125rem 0.5rem", fontSize: 10 }}>
@@ -305,17 +305,23 @@ export default async function ClinicAdminPage() {
                 </span>
               )}
             </div>
-            <p
-              className="ltr-nums font-bold leading-none"
-              style={{
-                fontSize: "clamp(2.6rem, 5.5vw, 4.2rem)",
-                color: todayRevenue > 0 ? "#ffffff" : "rgba(255,255,255,0.45)",
-                letterSpacing: "-0.03em",
-              }}
-            >
-              {todayRevenue > 0
-                ? todayRevenue.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })
-                : "0.000"}
+            {/* The unit moved out of the eyebrow and alongside the figure.
+                «إيراد اليوم · ر.ع» made the currency part of the label; it
+                belongs to the measurement, small and quiet, the way a
+                readout carries its units. */}
+            <p className="readout">
+              <span
+                className="readout__value"
+                style={{
+                  fontSize: "clamp(2.6rem, 5.5vw, 4.2rem)",
+                  color: todayRevenue > 0 ? "#ffffff" : "rgba(255,255,255,0.45)",
+                }}
+              >
+                {todayRevenue > 0
+                  ? todayRevenue.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 })
+                  : "0.000"}
+              </span>
+              <span className="readout__unit">ر.ع</span>
             </p>
 
             {/* ops strip — what matters right now */}
@@ -358,7 +364,11 @@ export default async function ClinicAdminPage() {
               </div>
             </div>
             <div className="flex flex-col items-end gap-1">
-              <p className="eyebrow" style={{ fontSize: 9 }}>7 أيام</p>
+              {/* Every other label in the codebase writes a duration in
+                  Arabic-Indic — «٦٠ يوم», «٣١–٦٠ يوم», «٧ أيام». This one
+                  said "7". The rule is quantities in Latin, prose in
+                  Arabic; a duration inside a label is prose. */}
+              <p className="eyebrow" style={{ fontSize: 9 }}>٧ أيام</p>
               <SparkLine data={weekSparkData} color="rgba(255,255,255,0.45)" width={100} height={36} />
             </div>
           </div>
