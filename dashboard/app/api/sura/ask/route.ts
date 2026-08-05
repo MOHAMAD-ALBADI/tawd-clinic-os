@@ -1008,7 +1008,12 @@ async function logUsage(
     channel: "web_chat",
     tokens_input: usage.input,
     tokens_output: usage.output,
-    tokens_total: usage.input + usage.output,
+    /* tokens_total is a generated column — supplying it makes Postgres
+       reject the whole row ("cannot insert a non-DEFAULT value into a
+       generated column"). This was the second fault stacked behind the
+       same swallowed catch as the enum, which is exactly what silence
+       buys: two independent bugs, one of them invisible even after the
+       other was fixed. */
   });
   /* Logged, not swallowed. Observability must not break the product —
      but silence is how this went unnoticed for the life of the route. */
