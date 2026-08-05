@@ -2,6 +2,7 @@ import { createServiceRoleClient } from "@/lib/supabase/server";
 import { platformSecrets } from "@/lib/platform-secrets";
 import { decide } from "./decide";
 import { LIMITS, agentEnabled, gateOutbound, minutesUntilOpen, e164 } from "./policy";
+import { waError } from "./wa-error";
 import type { ActionLog, Decision, GapCandidate, Goal } from "./types";
 
 /* One beat of the agent.
@@ -396,7 +397,15 @@ async function sendWhatsApp(
         }),
       },
     );
-    if (!res.ok) return { ok: false, error: (await res.text()).slice(0, 300) };
+    if (!res.ok) {
+      /* The raw Graph body used to go straight into sura_actions and
+         from there onto the owner's screen — a truncated English JSON
+         blob in the middle of an Arabic timeline. The human reads a
+         sentence; the log keeps the code. */
+      const raw = await res.text();
+      console.error("[sura/tick] whatsapp send failed:", clinicId, raw.slice(0, 400));
+      return { ok: false, error: waError(raw) };
+    }
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "network" };

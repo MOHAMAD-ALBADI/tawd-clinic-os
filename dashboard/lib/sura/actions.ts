@@ -4,6 +4,7 @@ import { loadAvailability, freeAt, pickDoctor } from "@/lib/availability";
 import { runOps, opsHandles, type OpsAction } from "./actions-ops";
 import { guardDocument } from "./doc-guard";
 import { e164 } from "./policy";
+import { waError } from "./wa-error";
 
 /* What Sura can actually DO when asked.
  *
@@ -442,11 +443,3 @@ function parseWhen(date: string, time: string) {
   return { hh, mm, ms };
 }
 
-/** Meta's numeric codes mean nothing to a clinic manager. */
-function waError(body: string): string {
-  if (body.includes("131030")) return "رقم المريض غير مضاف لقائمة الأرقام المسموحة في حساب واتساب التجريبي";
-  if (body.includes("131047")) return "خارج نافذة الـ٢٤ ساعة — واتساب يمنع الرسائل الحرة لمن لم يراسل العيادة مؤخراً";
-  if (body.includes("131026")) return "الرقم غير مسجّل في واتساب";
-  if (body.includes("190")) return "انتهت صلاحية رمز واتساب — جدّده من الإعدادات";
-  return "تعذّر الإرسال عبر واتساب";
-}
