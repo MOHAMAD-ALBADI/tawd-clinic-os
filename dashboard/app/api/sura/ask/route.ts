@@ -1225,6 +1225,19 @@ export async function POST(req: Request) {
 ${catalogFor(role)}
 
 ` +
+    /* Rounds are the whole latency budget.
+     *
+     * Measured: prep is 700ms and each planning turn is about three and a
+     * half seconds, so a request costs almost exactly its round count.
+     * «قارني مواعيد هذا الأسبوع بالأسبوع الي قبله» took seven — she asked
+     * for this week, waited, asked for last week, waited, and so on, when
+     * the two queries have nothing to say to each other. The loop has
+     * accepted ten calls in a single turn all along; nothing had told her
+     * she could use them. */
+    `- اطلبي كل الاستعلامات المستقلّة في جولة واحدة معاً (عدّة نداءات query_clinic في نفس الردّ)، لا واحداً ثمّ انتظار نتيجته.
+` +
+    `  مقارنة فترتين = استعلامان يُطلبان معاً. ولا تنتظري نتيجة إلا إن كان الاستعلام التالي يحتاج قيمةً منها فعلاً.
+` +
     `- ضمّني id دائماً في select. لا تضيفي فلاتر clinic_id أو deleted_at — تُضاف تلقائياً.
 ` +
     `- أعمدة *_id تقبل UUID من نتيجة استعلام سابق فقط.
