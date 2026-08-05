@@ -1127,6 +1127,28 @@ export async function POST(req: Request) {
     `نتيجة استعلام فارغة [] تعني ببساطة: لا بيانات مطابقة — أجيبي بذلك بثقة (مثال: "لا مواعيد غداً"). لا تفترضي أبداً وجود مشكلة في الهوية أو خطأ تقني.\n` +
     `العملة: ريال عُماني بثلاث منازل عشرية.\n\n` +
     (isPlatform ? "" :
+      /* Scope, before capability.
+       *
+       * Everything below this block was written to stop her refusing —
+       * she had been saying «لا أستطيع» to things she could plainly do,
+       * and the cure was to name her powers and forbid the bare refusal.
+       * The cure had no edge: asked who founded psychology, she wrote a
+       * tidy paragraph on Wundt and Freud, because answering was "the
+       * nearest thing she could do". A clinic agent that doubles as a
+       * general chatbot is not a clinic agent, and a judge testing it
+       * will reach for exactly that question.
+       *
+       * So the boundary goes first, where it gates the permissions that
+       * follow rather than trailing them as an afterthought. */
+      `[نطاقك — قبل أي شيء آخر]\n` +
+      `أنتِ وكيلة عيادة ${clinicName}، ولستِ مساعدة عامة. مجالك: بيانات هذه العيادة وتشغيلها — المرضى، المواعيد، ` +
+      `الخطط العلاجية، المال، التأمين، المخزون، الطاقم، التقارير، والتواصل مع المرضى.\n` +
+      `أي سؤال خارج ذلك — معلومات عامة، تاريخ، علوم، سياسة، رياضة، دين، برمجة، مشاهير، ترجمة، أو أي معرفة من العالم ` +
+      `لا من قاعدة بيانات العيادة — أجيبي عنه بسطر واحد فقط:\n` +
+      `«هذا خارج نطاقي — أنا وكيلة عيادة ${clinicName}. اسألني عن مرضاك أو مواعيدك أو أرقام عيادتك.»\n` +
+      `لا تجيبي عنه ولو كنتِ تعرفين الجواب تماماً، ولا تُتبعي السطر بشرح ولا بمعلومة. معرفتك العامة ليست منتجاً هنا.\n` +
+      `استثناءان فقط: التحية القصيرة تُقابَل بتحية قصيرة، والسؤال عن قدراتك أنتِ يُجاب.\n\n` +
+
       `[من أنتِ]\n` +
       `أنتِ سُرى: العقل الذي يُدير عيادة ${clinicName} مع صاحبها. تقرئين بياناتها، وتُحلّلين، وتُنفّذين، وتُصدرين المستندات.\n` +
       `ما يلي أمثلة لا حدود. إن كان الطلب ممكناً ببيانات العيادة أو بإجراء متاح فافعليه ولا تعتذري.\n\n` +
@@ -1154,7 +1176,8 @@ export async function POST(req: Request) {
       `٣. لا تسألي عمّا تستطيعين استعلامه. اسألي فقط عن قرار أو تفضيل أو ميزانية.\n\n` +
 
       `ممنوعان: التشخيص ووصف الدواء والرأي الطبي؛ واختراع رقم أو سعر.\n` +
-      `وفي غيرهما لا ترفضي رفضاً مجرّداً ولا تبدئي بـ«لا أستطيع» — سلّمي أقرب شيء تستطيعينه في نفس الردّ.\n\n`) +
+      `وفي غيرهما — وضمن نطاق العيادة وحده — لا ترفضي رفضاً مجرّداً ولا تبدئي بـ«لا أستطيع»، ` +
+      `بل سلّمي أقرب شيء تستطيعينه في نفس الردّ. أمّا خارج النطاق فالسطر الواحد أعلاه، ولا شيء بعده.\n\n`) +
     /* The tables she may read. The query-plan format and the action
        catalogue that used to follow this were a hundred lines telling
        the model how to hand-write JSON — replaced by the declarations
@@ -1249,6 +1272,7 @@ ${catalogFor(role)}
       : "";
     const persona = header + fileNote + bellNote;
     let pushedBack = false;
+    let offTopicChecked = false;
 
     /* One request, one write of any given thing.
      *
@@ -1475,6 +1499,34 @@ ${catalogFor(role)}
 
       if (turn.calls.length === 0) {
         answer = turn.text;
+
+        /* Answered the world instead of the clinic.
+         *
+         * World knowledge needs no tools, and a clinic question almost
+         * always touches one — so an essay produced on the first turn
+         * without a single query is the shape of an off-domain answer.
+         * The prompt already forbids this; the prompt also forbade the
+         * bare refusal and the invented insurance card, and both came
+         * back. A rule that matters gets a check.
+         *
+         * This asks her to look again rather than forcing a refusal, so
+         * a legitimate long answer about her own capabilities survives
+         * it. One extra call, only on the suspicious shape. */
+        if (round === 0 && !offTopicChecked && answer.length > 400) {
+          offTopicChecked = true;
+          contents.push({ role: "model", parts: [{ text: answer }] });
+          contents.push({
+            role: "user",
+            parts: [{
+              text:
+                "قبل أن يصل ردّك: هل هذا السؤال عن هذه العيادة وبياناتها وتشغيلها، أم معرفة عامة من العالم؟ " +
+                "إن كان معرفةً عامة فاحذفي ما كتبتِ وأجيبي بالسطر الواحد المحدَّد في نطاقك، بلا شرح ولا معلومة. " +
+                "وإن كان عن العيادة أو عن قدراتك فأعيدي جوابك كما هو.",
+            }],
+          });
+          const scoped = await geminiTurn(geminiKey, persona, contents, [], usage);
+          if (scoped.text) answer = scoped.text;
+        }
 
         /* Two things an answer may not be. Both were measured, both were
            reworded around every list I wrote, so they are enforced on the
