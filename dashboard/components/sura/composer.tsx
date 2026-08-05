@@ -248,7 +248,10 @@ export function Composer({
           }}
           rows={1}
           placeholder={listening ? "أستمع…" : "اسأل، أو اطلب تنفيذ شيء…"}
-          className="max-h-44 min-h-9 flex-1 resize-none bg-transparent px-1 py-1.5 text-[13.5px] text-white outline-none placeholder:text-[var(--text-3)]"
+          /* Capped lower on a phone. The box grows as you type, and at
+             176px it was eating half a small screen — which is the other
+             half of "the screen gets bigger every time I write". */
+          className="max-h-28 min-h-9 flex-1 resize-none bg-transparent px-1 py-1.5 text-[14px] text-white outline-none placeholder:text-[var(--text-3)] sm:max-h-44"
         />
 
         <button
@@ -276,7 +279,10 @@ export function Composer({
         </button>
       </div>
 
-      <p className="mt-1.5 px-1 text-[10.5px] text-[var(--text-3)]">
+      {/* Keyboard shortcuts are not news on a phone, where there is no
+          keyboard to have shortcuts on — and the line was competing with
+          the input directly above it. */}
+      <p className="mt-1.5 hidden px-1 text-[10.5px] text-[var(--text-3)] sm:block">
         Enter للإرسال · Shift+Enter لسطر جديد · اسحب ملفاً أو الصق صورة
       </p>
     </div>

@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import {
   Sparkles, FileText, FileDown, Loader2, Trash2, Plus, History,
-  RotateCw, Copy, Check, AlertTriangle, MessageSquare,
+  RotateCw, Copy, Check, AlertTriangle, MessageSquare, ArrowDown,
 } from "lucide-react";
 import { RichText } from "@/components/sura-widget/rich-text";
 import { Composer, type StagedFile } from "./composer";
@@ -58,13 +58,34 @@ export function SuraConsole() {
   const [showHistory, setShowHistory] = useState(false);
   const [loadingConv, setLoadingConv] = useState(false);
 
-  const endRef = useRef<HTMLDivElement | null>(null);
+  const threadRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const lastAsk = useRef<{ text: string; files: StagedFile[] } | null>(null);
+  const [atBottom, setAtBottom] = useState(true);
+
+  /* Scrolling used to be scrollIntoView on an anchor div, which moves the
+     nearest scrollable ancestor — sometimes the page, not the thread, so
+     the whole dashboard lurched. And it fired on every message, which
+     yanked you back to the newest answer the moment you scrolled up to
+     read an older one.
+
+     Now the thread scrolls itself, and only when you were already at the
+     bottom. Scroll up and it leaves you there, with a button to come
+     back. */
+  const onScroll = useCallback(() => {
+    const el = threadRef.current;
+    if (!el) return;
+    setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 120);
+  }, []);
+
+  const toBottom = useCallback((smooth = true) => {
+    const el = threadRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+  }, []);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, busy]);
+    if (atBottom) toBottom();
+  }, [messages, busy, atBottom, toBottom]);
 
   /* The phase resets where the work starts, not in an effect reacting to
      it. Writing state synchronously inside an effect schedules a second
@@ -178,6 +199,9 @@ export function SuraConsole() {
     setErr(null);
     setPhase(0);
     setBusy(true);
+    /* You just spoke, so you want to see it — even if you were reading
+       something further up a second ago. */
+    setAtBottom(true);
 
     const ac = new AbortController();
     abortRef.current = ac;
@@ -252,19 +276,29 @@ export function SuraConsole() {
   }, [input, files, busy, convId, messages, loadHistory, rescueDocument]);
 
   return (
-    <div className="panel flex h-[calc(100vh-13rem)] min-h-[560px] flex-col overflow-hidden">
+    /* dvh, not vh. A phone's 100vh is the height with the browser chrome
+       hidden and it does not shrink when the keyboard opens, so the panel
+       stayed taller than what you could see and the page grew under you
+       every time you typed. dvh tracks the visible viewport. The minimum
+       is also gone below `sm` — on a short phone it was forcing 560px
+       into a 480px space, which is the same bug wearing a hat. */
+    <div className="panel flex h-[calc(100dvh-10rem)] flex-col overflow-hidden sm:h-[calc(100dvh-13rem)] sm:min-h-[560px]">
       {/* ── header ── */}
       <div className="flex items-center gap-3 border-b border-[var(--hairline)] px-4 py-3">
         <span
           className="flex size-9 shrink-0 items-center justify-center rounded-xl"
-          style={{ background: "rgb(var(--accent-1-rgb) / 0.14)", border: "1px solid rgb(var(--accent-1-rgb) / 0.3)" }}
+          style={{ background: "rgb(var(--accent-1-rgb) / 0.14)" }}
         >
           <Sparkles className="size-4" style={{ color: "var(--accent-1)" }} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold">سُرى</p>
-          <p className="truncate text-[11px] text-[var(--text-3)]">
-            متّصلة ببيانات عيادتك · تحجز وتؤجّل وتكتب الخطط · تقرأ الصور و PDF · تُصدر التقارير
+          <p className="text-[15px] font-bold leading-tight">سُرى</p>
+          {/* The capability list used to live here, four clauses long, on
+              every screen forever. It belongs where it helps — the empty
+              state, once, when you are deciding what to ask. */}
+          <p className="flex items-center gap-1.5 text-[11px] text-[var(--text-3)]">
+            <span className="size-1.5 rounded-full" style={{ background: "var(--accent-1)" }} />
+            متّصلة ببيانات عيادتك
           </p>
         </div>
 
@@ -311,46 +345,77 @@ export function SuraConsole() {
       </div>
 
       {/* ── thread ── */}
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
-        {loadingConv && (
-          <p className="py-10 text-center text-[12px] text-[var(--text-3)]">
-            <Loader2 className="mx-auto mb-2 size-4 animate-spin" />
-            أفتح المحادثة…
-          </p>
-        )}
-
-        {!loadingConv && messages.length === 0 && (
-          <div className="mx-auto max-w-lg py-6 text-center">
-            <p className="text-sm text-[var(--text-2)]">
-              اسألني عن أي رقم في عيادتك، أو اطلب مني أن أحجز أو أؤجّل أو أكتب
-              خطة علاج أو أُصدر تقريراً. وتقدر ترفق صورة أو ملف PDF وأقرأه لك.
+      <div className="relative min-h-0 flex-1">
+        <div
+          ref={threadRef}
+          onScroll={onScroll}
+          /* overscroll-contain stops a flick at the end of the thread from
+             carrying on into the page behind it. */
+          className="h-full space-y-4 overflow-y-auto overscroll-contain px-3 py-5 sm:px-5"
+        >
+          {loadingConv && (
+            <p className="py-10 text-center text-[12px] text-[var(--text-3)]">
+              <Loader2 className="mx-auto mb-2 size-4 animate-spin" />
+              أفتح المحادثة…
             </p>
-            <div className="mt-5 grid gap-2 text-start">
-              {STARTERS.map((q) => (
-                <button
-                  key={q}
-                  type="button"
-                  onClick={() => void send(q)}
-                  className="rounded-xl border px-3.5 py-2.5 text-[13px] text-[var(--text-2)] transition-colors hover:text-white"
-                  style={{ borderColor: "var(--hairline)" }}
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+          )}
 
-        {messages.map((m, i) => (
-          <Bubble
-            key={i}
-            m={m}
-            thinking={busy && i === messages.length - 1 && !m.content}
-            phase={PHASES[phase]}
-            onRetry={() => lastAsk.current && void send(undefined, lastAsk.current)}
-          />
-        ))}
-        <div ref={endRef} />
+          {!loadingConv && messages.length === 0 && (
+            <div className="mx-auto flex max-w-xl flex-col justify-center px-1 py-8 sm:py-12">
+              <span
+                className="mb-4 flex size-11 items-center justify-center rounded-2xl"
+                style={{ background: "rgb(var(--accent-1-rgb) / 0.12)" }}
+              >
+                <Sparkles className="size-5" style={{ color: "var(--accent-1)" }} />
+              </span>
+              <p className="text-[19px] font-bold leading-snug text-white">
+                مساء الخير — وش تحتاج؟
+              </p>
+              <p className="mt-2 text-[13.5px] leading-relaxed text-[var(--text-3)]">
+                اسألني عن أي رقم في عيادتك، أو اطلب مني أحجز أو أؤجّل أو أكتب
+                خطة علاج أو أُصدر تقريراً. وتقدر ترفق صورة أو PDF وأقرأه لك.
+              </p>
+
+              <div className="mt-6 grid gap-2 sm:grid-cols-2">
+                {STARTERS.map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => void send(q)}
+                    className="group/s rounded-2xl px-4 py-3 text-start text-[13px] leading-relaxed text-[var(--text-2)] transition-colors hover:text-white"
+                    style={{ background: "var(--surface-2)" }}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {messages.map((m, i) => (
+            <Bubble
+              key={i}
+              m={m}
+              thinking={busy && i === messages.length - 1 && !m.content}
+              phase={PHASES[phase]}
+              onRetry={() => lastAsk.current && void send(undefined, lastAsk.current)}
+            />
+          ))}
+        </div>
+
+        {/* Only offered when you are actually somewhere else. A jump
+            button that is always present is just clutter. */}
+        {!atBottom && messages.length > 0 && (
+          <button
+            type="button"
+            onClick={() => { setAtBottom(true); toBottom(); }}
+            className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full px-3 py-1.5 text-[11.5px] font-bold text-white shadow-lg"
+            style={{ background: "var(--accent-2)" }}
+          >
+            <ArrowDown className="size-3.5" />
+            أحدث الرسائل
+          </button>
+        )}
       </div>
 
       {err && (
@@ -375,7 +440,11 @@ export function SuraConsole() {
 
 /* ── one turn ─────────────────────────────────────────────────────── */
 
-function Bubble({
+/* Memoised because RichText re-parses markdown on every render, and every
+   render used to touch every turn in the thread — a phase tick three
+   times a request, times twenty answers, is a lot of markdown parsed to
+   change one spinner's caption. This is most of the "heavy" feeling. */
+const Bubble = memo(function Bubble({
   m, thinking, phase, onRetry,
 }: { m: Msg; thinking: boolean; phase: string; onRetry: () => void }) {
   const [copied, setCopied] = useState(false);
@@ -384,13 +453,20 @@ function Bubble({
   return (
     <div className={m.role === "user" ? "flex justify-start" : "flex justify-end"}>
       <div
-        className="group max-w-[min(46rem,88%)] rounded-2xl px-4 py-2.5 text-[13.5px]"
+        /* The assistant's turn carries reports and tables, so it gets the
+           room; the question above it does not need any. Borders came off
+           both — on a dark ground a slightly lifted surface separates them
+           perfectly well, and three outlined boxes per exchange was most
+           of what read as "cluttered". */
+        className={`group rounded-2xl px-4 py-3 text-[14px] leading-[1.85] ${
+          m.role === "user" ? "max-w-[min(34rem,86%)]" : "max-w-[min(48rem,94%)]"
+        }`}
         style={
           m.role === "user"
-            ? { background: "rgb(var(--accent-2-rgb) / 0.22)", border: "1px solid rgb(var(--accent-2-rgb) / 0.28)", color: "#E2E8F0" }
+            ? { background: "rgb(var(--accent-2-rgb) / 0.16)", color: "#E9EEF7" }
             : failed
-              ? { background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.24)", color: "rgba(254,226,226,0.95)" }
-              : { background: "rgba(255,255,255,0.05)", color: "rgba(226,232,240,0.94)" }
+              ? { background: "rgba(239,68,68,0.07)", color: "rgba(254,226,226,0.95)" }
+              : { background: "rgba(255,255,255,0.045)", color: "rgba(232,238,247,0.95)" }
         }
       >
         {m.files && m.files.length > 0 && (
@@ -460,7 +536,7 @@ function Bubble({
       </div>
     </div>
   );
-}
+});
 
 function IconBtn({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
