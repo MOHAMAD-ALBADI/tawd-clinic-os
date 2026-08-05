@@ -1517,18 +1517,33 @@ ${catalogFor(role)}
          * it. One extra call, only on the suspicious shape. */
         if (round === 0 && !offTopicChecked && answer.length > 400) {
           offTopicChecked = true;
-          contents.push({ role: "model", parts: [{ text: answer }] });
-          contents.push({
-            role: "user",
-            parts: [{
-              text:
-                "قبل أن يصل ردّك: هل هذا السؤال عن هذه العيادة وبياناتها وتشغيلها، أم معرفة عامة من العالم؟ " +
-                "إن كان معرفةً عامة فاحذفي ما كتبتِ وأجيبي بالسطر الواحد المحدَّد في نطاقك، بلا شرح ولا معلومة. " +
-                "وإن كان عن العيادة أو عن قدراتك فأعيدي جوابك كما هو.",
-            }],
-          });
-          const scoped = await geminiTurn(geminiKey, persona, contents, [], usage);
-          if (scoped.text) answer = scoped.text;
+          /* Classify the question, not the answer, and off the main
+             transcript.
+             *
+             * The first version asked her, in-thread, to re-emit her
+             * answer if it was in scope — and she replied "the question
+             * is about my capabilities, and my previous answer reflects
+             * my scope", handing the user a comment on an answer instead
+             * of the answer. An internal check that speaks to the user
+             * is the same fault as the document guard reciting its own
+             * rejection.
+             *
+             * So the check returns one word, in isolation, and the code
+             * decides. The redirect text lives here rather than in the
+             * prompt, where it cannot be paraphrased away. */
+          const verdict = await geminiTurn(
+            geminiKey,
+            "صنّفي سؤال المستخدم بكلمة واحدة فقط، بلا شرح ولا علامات:\n" +
+              "CLINIC — إن كان عن عيادة أو مرضى أو مواعيد أو علاج أو مال أو تأمين أو مخزون أو طاقم أو تقارير، " +
+              "أو عن قدرات المساعِدة نفسها، أو تحية.\n" +
+              "WORLD — إن كان معرفة عامة عن العالم لا علاقة لها بتشغيل عيادة.",
+            [{ role: "user", parts: [{ text: question }] }],
+            [],
+            usage,
+          );
+          if (/\bWORLD\b/i.test(verdict.text)) {
+            answer = `هذا خارج نطاقي — أنا وكيلة ${clinicName}. اسألني عن مرضاك أو مواعيدك أو أرقام عيادتك.`;
+          }
         }
 
         /* Two things an answer may not be. Both were measured, both were
