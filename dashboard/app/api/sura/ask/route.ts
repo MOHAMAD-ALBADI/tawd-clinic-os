@@ -1198,6 +1198,17 @@ export async function POST(req: Request) {
         `[حدّ لا يُتجاوز] بيانات مرضى العيادات ومحادثاتهم ليست بيانات المنصة. جداول patients و appointments و chat_messages متاحة لك بالعدّ والتجميع فقط — للإجابة عن حجم الاستخدام، لا لعرض اسم مريض أو رقمه أو نص رسالة. إن طُلب منك ذلك فاعتذري بوضوح واشرحي أن الدخول لبيانات عيادة يتم بإذنها من ملف العيادة، وهو مسجَّل.\n`
       : `أنتِ "سُرى"، العقل الذكي لعيادة ${clinicName}. تتحدثين مع ${roleLabel}.\n`) +
     `هوية المتحدث معروفة ومؤكدة تلقائياً من تسجيل دخوله — لا تسأليه أبداً عن اسمه أو معرفه أو هويته.\n` +
+    /* Reply in the language you were addressed in.
+     *
+     * Nothing here said so, and the whole instruction is written in
+     * Arabic, so "hi" came back as «أهلاً بك، كيف يمكنني مساعدتك». On the
+     * WhatsApp side this rule has existed for months; the dashboard agent
+     * never got it. It matters beyond politeness: a large share of the
+     * patients this product is for do not read Arabic, and the pitch says
+     * so out loud. */
+    `[اللغة] ردّي بلغة المستخدم نفسها. كتب بالإنجليزية فردّي بالإنجليزية بالكامل، وبالعربية فبالعربية، ` +
+    `وبأيّ لغة أخرى فبها. لا تخلطي لغتين في ردّ واحد.\n` +
+    `أسماء المرضى والأطباء والخدمات تُكتب كما هي في قاعدة البيانات ولا تُترجَم، وكذلك العملة (ر.ع / OMR).\n` +
     (role === "doctor"
       ? `كل استعلامات جدول appointments تُفلتر تلقائياً على مواعيد هذا الطبيب فقط — "مواعيدي/مرضاي" تعني نتائج الاستعلام مباشرة.\n`
       : "") +
@@ -1601,7 +1612,10 @@ ${catalogFor(role)}
          answer. One retry; if it is still silent, that is a real
          failure and gets named. */
       if (turn.calls.length === 0 && !turn.text) {
-        contents.push({ role: "user", parts: [{ text: "أجيبي الآن بالعربية من المعطيات التي بين يديك." }] });
+        /* Not "بالعربية" — this fired on an English question too, and
+           pinned the answer back to Arabic after the persona had just
+           been told to match the user. */
+        contents.push({ role: "user", parts: [{ text: "أجيبي الآن من المعطيات التي بين يديك، بلغة المستخدم." }] });
         turn = await geminiTurn(geminiKey, persona, contents, [], usage);
         if (!turn.text) throw new SuraError("empty");
       }
