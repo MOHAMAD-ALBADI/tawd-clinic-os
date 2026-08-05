@@ -1277,6 +1277,20 @@ ${catalogFor(role)}
     let pushedBack = false;
     let offTopicChecked = false;
 
+    /* Where the seconds actually go.
+     *
+     * A request is one model call per round plus the tools in between,
+     * and "it is slow" is not a number anyone can act on. Measured per
+     * request so the next change is aimed rather than guessed: if the
+     * model calls dominate, the lever is fewer rounds; if the tools do,
+     * it is the queries. */
+    const began = Date.now();
+    const timing = { rounds: 0, model_calls: 0, model_ms: 0, tool_calls: 0, tool_ms: 0, persona_chars: persona.length };
+    const timed = async <T>(bucket: "model_ms" | "tool_ms", fn: () => Promise<T>): Promise<T> => {
+      const t0 = Date.now();
+      try { return await fn(); } finally { timing[bucket] += Date.now() - t0; }
+    };
+
     /* One request, one write of any given thing.
      *
      * Asked once to file an insurance card, she wrote two clinical notes
@@ -1488,7 +1502,9 @@ ${catalogFor(role)}
      * three seconds, so twenty of them still finish inside the time
      * budget, and the time budget is the honest limit. */
     for (let round = 0; round < 20; round++) {
-      let turn = await geminiTurn(geminiKey, persona, contents, tools, usage);
+      timing.rounds++;
+      timing.model_calls++;
+      let turn = await timed("model_ms", () => geminiTurn(geminiKey, persona, contents, tools, usage));
 
       /* Spent the turn thinking and said nothing. Ask again for words
          only — no tools to reach for, so there is nothing to do but
@@ -1595,7 +1611,8 @@ ${catalogFor(role)}
 
       const responses = [];
       for (const c of turn.calls.slice(0, 10)) {
-        responses.push({ functionResponse: { name: c.name, response: await execute(c) } });
+        timing.tool_calls++;
+        responses.push({ functionResponse: { name: c.name, response: await timed("tool_ms", () => execute(c)) } });
       }
       contents.push({ role: "user", parts: responses });
 
@@ -1631,9 +1648,14 @@ ${catalogFor(role)}
     }
 
     await logUsage(sb, cid, usage);
+    const total = Date.now() - began;
+    console.info(
+      `[sura/ask] ${total}ms · rounds=${timing.rounds} · model ${timing.model_calls}×=${timing.model_ms}ms ` +
+      `· tools ${timing.tool_calls}×=${timing.tool_ms}ms · persona=${timing.persona_chars}ch · q="${question.slice(0, 40)}"`,
+    );
     return reply(
       answer || "نفّذتُ ما طلبت، ولم أصل إلى صياغة نهائية. اسألني «وش سويتِ؟» وسأسرد ما تمّ.",
-      doc ? { doc } : {},
+      { ...(doc ? { doc } : {}), timing: { ...timing, total_ms: total } },
     );
 
   } catch (e) {
