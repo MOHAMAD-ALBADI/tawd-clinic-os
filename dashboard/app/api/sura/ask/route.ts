@@ -673,7 +673,7 @@ async function resolveIds(
 }
 
 /* running token counters for platform usage monitoring */
-type Usage = { input: number; output: number };
+type Usage = { input: number; output: number; cached: number };
 
 /* An attachment the user dropped into the conversation.
 
@@ -766,6 +766,11 @@ async function gemini(
   if (usage && j?.usageMetadata) {
     usage.input += Number(j.usageMetadata.promptTokenCount ?? 0);
     usage.output += Number(j.usageMetadata.candidatesTokenCount ?? 0);
+    /* Cached prefix tokens are billed at a fraction of fresh ones, so
+       this is the second number the cost question needs: how much of the
+       6,300-token fixed preamble Google is charging us for again on each
+       round, and how much it is reusing. */
+    usage.cached += Number(j.usageMetadata.cachedContentTokenCount ?? 0);
   }
   const why = j?.candidates?.[0]?.finishReason;
 
@@ -921,6 +926,11 @@ async function geminiTurn(
   if (j?.usageMetadata) {
     usage.input += Number(j.usageMetadata.promptTokenCount ?? 0);
     usage.output += Number(j.usageMetadata.candidatesTokenCount ?? 0);
+    /* Cached prefix tokens are billed at a fraction of fresh ones, so
+       this is the second number the cost question needs: how much of the
+       6,300-token fixed preamble Google is charging us for again on each
+       round, and how much it is reusing. */
+    usage.cached += Number(j.usageMetadata.cachedContentTokenCount ?? 0);
   }
 
   const parts = (j?.candidates?.[0]?.content?.parts ?? []) as {
@@ -1386,7 +1396,7 @@ ${catalogFor(role)}
        field rather than a URL inside the prose, so the interface can
        show a button and she never has to describe one. */
     let doc: { url: string; label: string } | null = null;
-    const usage: Usage = { input: 0, output: 0 };
+    const usage: Usage = { input: 0, output: 0, cached: 0 };
 
     /* ── the conversation, as the API models it ───────────────────
      *
@@ -1711,14 +1721,17 @@ ${catalogFor(role)}
     console.info(
       `[sura/ask] ${total}ms · prep=${timing.prep_ms}ms · rounds=${timing.rounds} ` +
       `· model ${timing.model_calls}×=${timing.model_ms}ms · tools ${timing.tool_calls}×=${timing.tool_ms}ms ` +
-      `· tokens in=${usage.input} out=${usage.output} · persona=${timing.persona_chars}ch ` +
+      `· tokens in=${usage.input} (cached ${usage.cached}) out=${usage.output} · persona=${timing.persona_chars}ch ` +
       `· q="${question.slice(0, 40)}"`,
     );
     return reply(
       answer || "نفّذتُ ما طلبت، ولم أصل إلى صياغة نهائية. اسألني «وش سويتِ؟» وسأسرد ما تمّ.",
       {
         ...(doc ? { doc } : {}),
-        timing: { ...timing, total_ms: total, tokens_in: usage.input, tokens_out: usage.output },
+        timing: {
+          ...timing, total_ms: total,
+          tokens_in: usage.input, tokens_cached: usage.cached, tokens_out: usage.output,
+        },
       },
     );
 
