@@ -67,7 +67,12 @@ export async function saveClinicLogo(formData: FormData) {
 
   const { error: upErr } = await sb.storage.from("avatars")
     .upload(key, file, { upsert: true, contentType: file.type, cacheControl: "3600" });
-  if (upErr) return { ok: false as const, reason: "تعذّر رفع الشعار" };
+  /* Same swallowed-error trap as the staff avatar, and the same fix:
+     replacing a logo hit an RLS denial that never reached a log. */
+  if (upErr) {
+    console.error("[clinic-settings] logo upload failed:", key, upErr.message);
+    return { ok: false as const, reason: "تعذّر رفع الشعار" };
+  }
 
   const { data: pub } = sb.storage.from("avatars").getPublicUrl(key);
   const url = `${pub.publicUrl}?v=${Date.now()}`;

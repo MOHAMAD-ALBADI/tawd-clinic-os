@@ -80,7 +80,16 @@ export async function saveMyAvatar(formData: FormData) {
 
   const { error: upErr } = await sb.storage.from("avatars")
     .upload(key, file, { upsert: true, contentType: file.type, cacheControl: "3600" });
-  if (upErr) return { ok: false as const, reason: "تعذّر رفع الصورة" };
+  /* The user gets a sentence they can act on; the log gets the reason.
+     This line said only "تعذّر رفع الصورة" for weeks while storage was
+     returning "new row violates row-level security policy" — the bucket
+     had no SELECT policy, so upsert's ON CONFLICT DO UPDATE could never
+     read the row it was replacing. A swallowed provider error turns a
+     one-query diagnosis into an afternoon. */
+  if (upErr) {
+    console.error("[profile] avatar upload failed:", key, upErr.message);
+    return { ok: false as const, reason: "تعذّر رفع الصورة" };
+  }
 
   const { data: pub } = sb.storage.from("avatars").getPublicUrl(key);
   /* A cache-buster: the object path is stable across replacements, so without
