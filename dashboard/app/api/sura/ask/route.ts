@@ -995,6 +995,10 @@ async function logUsage(
 }
 
 export async function POST(req: Request) {
+  /* From the first line of the request, not from just before the loop.
+     The earlier placement left five to nine seconds outside the numbers
+     and made the prep work look free. */
+  const began = Date.now();
   const claims = await getUserClaims();
   /* The platform owner has NO clinic_id by design (they're untied from any clinic
      so their dashboard stays isolated) and runs Sura in unscoped cross-clinic
@@ -1068,12 +1072,29 @@ export async function POST(req: Request) {
   const cid = isPlatform ? "" : claims.clinic_id; // '' = unscoped platform mode
 
   /* The platform owner's questions are about the platform and are not
-     kept as a clinic's conversation. */
-  const conv = isPlatform ? null : await ensureConversation(sb, convId, claims.sub, cid, question);
+     kept as a clinic's conversation.
+   *
+   * Started, not awaited. Creating the conversation row and writing the
+   * user's turn are two sequential round trips to Supabase, and the
+   * model needs neither of them — but they sat on the critical path, so
+   * every question paid for them before the first token was requested.
+   * Measured at about a second of the five that vanished before any
+   * model call began. The promise is awaited where the id is actually
+   * needed, which is when the answer is written back. */
   const fileMeta: StoredFile[] = files.map((f) => ({ name: f.name ?? "ملف", mime: f.mime }));
-  if (conv) await saveTurn(sb, conv, cid, { role: "user", content: question, files: fileMeta });
+  const convP: Promise<string | null> = isPlatform
+    ? Promise.resolve(null)
+    : (async () => {
+        const c = await ensureConversation(sb, convId, claims.sub, cid, question);
+        if (c) await saveTurn(sb, c, cid, { role: "user", content: question, files: fileMeta });
+        return c;
+      })().catch((e) => {
+        console.error("[sura/ask] conversation write failed:", e instanceof Error ? e.message : e);
+        return null;
+      });
 
   const reply = async (answer: string, extra: Record<string, unknown> = {}, error?: string) => {
+    const conv = await convP;
     if (conv) {
       await saveTurn(sb, conv, cid, {
         role: "assistant",
@@ -1085,7 +1106,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ answer, ...(conv ? { conv_id: conv } : {}), ...extra });
   };
 
-  const [cfgRes, clinicRes, meRes] = await Promise.all([
+  /* Everything the first model call depends on, fetched at once.
+   *
+   * The spend ceiling and the notification bell used to run after this
+   * block and after each other — three sequential Supabase round trips
+   * where one would do. None of them depends on another, and Vercel is
+   * not next door to the database, so the ordering was costing whole
+   * seconds on every question before a single token was requested. */
+  const [cfgRes, clinicRes, meRes, spendRes, bellRes] = await Promise.all([
     /* The platform key, from the platform table — this used to read whichever
        clinic channel row came back first. */
     platformSecrets(),
@@ -1094,6 +1122,14 @@ export async function POST(req: Request) {
       ? Promise.resolve({ data: null })
       : sb.from("tawd_clinics").select("name, name_ar, clinic_type").eq("id", claims.clinic_id).maybeSingle(),
     sb.from("tawd_staff_users").select("name, name_ar").eq("id", claims.sub).maybeSingle(),
+    isPlatform
+      ? Promise.resolve({ data: null })
+      : sb.from("ai_usage_metrics").select("tokens_total").eq("clinic_id", cid)
+          .gte("recorded_at", new Date(Date.now() - 86_400_000).toISOString()),
+    notificationsFor(claims).catch((e) => {
+      console.error("[sura/ask] notifications failed:", e instanceof Error ? e.message : e);
+      return [];
+    }),
   ]);
   const geminiKey = cfgRes.geminiKey;
   if (!geminiKey) {
@@ -1203,13 +1239,9 @@ ${catalogFor(role)}
   /* Checked before the first model call, not after — a cap that only
      notices once the money is gone is a report, not a cap. */
   if (cid) {
-    const since = new Date(Date.now() - 86_400_000).toISOString();
-    const { data: spend } = await sb
-      .from("ai_usage_metrics")
-      .select("tokens_total")
-      .eq("clinic_id", cid)
-      .gte("recorded_at", since);
-
+    /* Read in the batch above rather than here — the gate still closes
+       before the first model call, it just no longer waits its turn. */
+    const spend = (spendRes as { data: { tokens_total: number | null }[] | null }).data;
     const used = (spend ?? []).reduce((s, r) => s + Number(r.tokens_total || 0), 0);
     if (used >= DAILY_TOKEN_CEILING) {
       console.warn(`[sura/ask] clinic ${cid} hit the daily ceiling: ${used}`);
@@ -1239,25 +1271,24 @@ ${catalogFor(role)}
      * genuinely empty — and answered that there were no alerts at all.
      * The number on the screen was computed in a route she had no way to
      * reach. Now every turn starts with exactly what the bell shows. */
+    /* Fetched in the batch above, alongside the key and the clinic — it
+       used to be its own awaited round trip here, after the spend check
+       had already had its own. */
     let bellNote = "";
-    try {
-      const bell = await notificationsFor(claims);
-      if (bell.length) {
-        context.push({ screen_notifications: bell });
-        /* Into the system instruction, not into context.
-         *
-         * context is what the document writer reads; the model reads the
-         * transcript. Pushing the bell into context meant she still
-         * answered «لا توجد أي تنبيهات» to a screen showing sixteen —
-         * the same bug as before, moved one layer down. */
-        bellNote =
-          `\n\n[التنبيهات المعروضة للمستخدم على شاشته الآن]\n` +
-          bell.map((n) => `- ${n.title}${n.sub ? ` (${n.sub})` : ""}`).join("\n") +
-          `\nإن سأل عن التنبيهات أو الإشعارات فهذه هي — لا تقولي إنها فارغة ولا تبحثي في sura_alerts وحده، ` +
-          `فأكثرها محسوب من الفواتير والمواعيد لا من جدول تنبيهات.`;
-      }
-    } catch (e) {
-      console.error("[sura/ask] notifications failed:", e instanceof Error ? e.message : e);
+    const bell = bellRes;
+    if (bell.length) {
+      context.push({ screen_notifications: bell });
+      /* Into the system instruction, not into context.
+       *
+       * context is what the document writer reads; the model reads the
+       * transcript. Pushing the bell into context meant she still
+       * answered «لا توجد أي تنبيهات» to a screen showing sixteen —
+       * the same bug as before, moved one layer down. */
+      bellNote =
+        `\n\n[التنبيهات المعروضة للمستخدم على شاشته الآن]\n` +
+        bell.map((n) => `- ${n.title}${n.sub ? ` (${n.sub})` : ""}`).join("\n") +
+        `\nإن سأل عن التنبيهات أو الإشعارات فهذه هي — لا تقولي إنها فارغة ولا تبحثي في sura_alerts وحده، ` +
+        `فأكثرها محسوب من الفواتير والمواعيد لا من جدول تنبيهات.`;
     }
 
     /* The attachment is in this message, not described by it.
@@ -1283,9 +1314,13 @@ ${catalogFor(role)}
      * and "it is slow" is not a number anyone can act on. Measured per
      * request so the next change is aimed rather than guessed: if the
      * model calls dominate, the lever is fewer rounds; if the tools do,
-     * it is the queries. */
-    const began = Date.now();
-    const timing = { rounds: 0, model_calls: 0, model_ms: 0, tool_calls: 0, tool_ms: 0, persona_chars: persona.length };
+     * it is the queries; and prep_ms catches everything that happens
+     * before either — which is where the first surprise was. */
+    const timing = {
+      prep_ms: Date.now() - began,
+      rounds: 0, model_calls: 0, model_ms: 0, tool_calls: 0, tool_ms: 0,
+      persona_chars: persona.length,
+    };
     const timed = async <T>(bucket: "model_ms" | "tool_ms", fn: () => Promise<T>): Promise<T> => {
       const t0 = Date.now();
       try { return await fn(); } finally { timing[bucket] += Date.now() - t0; }
@@ -1362,7 +1397,7 @@ ${catalogFor(role)}
         await sb.from("sura_tool_calls").insert({
           clinic_id: cid || null,
           user_id: actorId,
-          conv_id: conv,
+          conv_id: await convP,
           tool,
           args: args as Record<string, unknown>,
           result: JSON.parse(JSON.stringify(result ?? {})),
@@ -1650,8 +1685,9 @@ ${catalogFor(role)}
     await logUsage(sb, cid, usage);
     const total = Date.now() - began;
     console.info(
-      `[sura/ask] ${total}ms · rounds=${timing.rounds} · model ${timing.model_calls}×=${timing.model_ms}ms ` +
-      `· tools ${timing.tool_calls}×=${timing.tool_ms}ms · persona=${timing.persona_chars}ch · q="${question.slice(0, 40)}"`,
+      `[sura/ask] ${total}ms · prep=${timing.prep_ms}ms · rounds=${timing.rounds} ` +
+      `· model ${timing.model_calls}×=${timing.model_ms}ms · tools ${timing.tool_calls}×=${timing.tool_ms}ms ` +
+      `· persona=${timing.persona_chars}ch · q="${question.slice(0, 40)}"`,
     );
     return reply(
       answer || "نفّذتُ ما طلبت، ولم أصل إلى صياغة نهائية. اسألني «وش سويتِ؟» وسأسرد ما تمّ.",
