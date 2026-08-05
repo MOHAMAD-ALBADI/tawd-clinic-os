@@ -978,20 +978,31 @@ async function logUsage(
   usage: Usage
 ) {
   if (usage.input + usage.output <= 0) return;
-  try {
-    await sb.from("ai_usage_metrics").insert({
-      clinic_id: clinicId,
-      workflow_id: "dashboard-ask",
-      /* Was hardcoded, and stayed hardcoded through a model change —
-         so the spend report would have attributed Pro tokens to flash
-         and quietly understated the bill. */
-      model: `${MODEL}+${WRITER}`,
-      channel: "web_chat",
-      tokens_input: usage.input,
-      tokens_output: usage.output,
-      tokens_total: usage.input + usage.output,
-    });
-  } catch { /* observability must never break the product */ }
+  const { error } = await sb.from("ai_usage_metrics").insert({
+    clinic_id: clinicId,
+    workflow_id: "dashboard-ask",
+    /* One model, and one that exists in the enum.
+     *
+     * This was `${MODEL}+${WRITER}` — a concatenation of two names, in a
+     * column whose type is an enum. No such member could ever exist, so
+     * every insert failed, and the swallowed error meant the table simply
+     * stayed empty for this route. The daily spending ceiling reads that
+     * table before each request, so the cap on the main path was reading
+     * nothing and capping nothing.
+     *
+     * The planner is what runs on every round and dominates the bill; the
+     * writer appears on documents only. Recording the planner keeps the
+     * column a single valid value and the total honest, since the token
+     * counts are summed across both. */
+    model: MODEL,
+    channel: "web_chat",
+    tokens_input: usage.input,
+    tokens_output: usage.output,
+    tokens_total: usage.input + usage.output,
+  });
+  /* Logged, not swallowed. Observability must not break the product —
+     but silence is how this went unnoticed for the life of the route. */
+  if (error) console.error("[sura/ask] usage write failed:", error.message);
 }
 
 export async function POST(req: Request) {
@@ -1700,11 +1711,15 @@ ${catalogFor(role)}
     console.info(
       `[sura/ask] ${total}ms · prep=${timing.prep_ms}ms · rounds=${timing.rounds} ` +
       `· model ${timing.model_calls}×=${timing.model_ms}ms · tools ${timing.tool_calls}×=${timing.tool_ms}ms ` +
-      `· persona=${timing.persona_chars}ch · q="${question.slice(0, 40)}"`,
+      `· tokens in=${usage.input} out=${usage.output} · persona=${timing.persona_chars}ch ` +
+      `· q="${question.slice(0, 40)}"`,
     );
     return reply(
       answer || "نفّذتُ ما طلبت، ولم أصل إلى صياغة نهائية. اسألني «وش سويتِ؟» وسأسرد ما تمّ.",
-      { ...(doc ? { doc } : {}), timing: { ...timing, total_ms: total } },
+      {
+        ...(doc ? { doc } : {}),
+        timing: { ...timing, total_ms: total, tokens_in: usage.input, tokens_out: usage.output },
+      },
     );
 
   } catch (e) {
