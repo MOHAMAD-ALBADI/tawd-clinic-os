@@ -315,7 +315,23 @@ const tablesFor = (role: Role) => (role === "platform_admin" ? PLATFORM_TABLES :
  * started this were never about which model: probed against this key,
  * flash and Pro both refused a bare persona and both agreed once told
  * what they had. */
-const MODEL = "gemini-3.6-flash";
+/* The planner runs on every round, so its price is the whole bill.
+ *
+ * Measured on this clinic's real questions: 82,000 input tokens across
+ * five questions, and input is 99% of the cost because the 6,300-token
+ * preamble is re-sent each round — Gemini's implicit caching does not
+ * engage when tools are declared, which is a known limitation and not
+ * something this code can fix.
+ *
+ * gemini-3.6-flash bills $1.50 per million input. flash-lite bills
+ * $0.25. That is the same architecture at a sixth of the cost, and with
+ * $0.58 left on the key it is the difference between twenty-one
+ * questions and a hundred and thirty.
+ *
+ * Probed against the live key before switching, because "listed" is not
+ * "available": 3.1-flash-lite answers and calls tools; 2.5-flash-lite,
+ * which is cheaper still, returns 404 here. */
+const MODEL = "gemini-3.1-flash-lite";
 const WRITER = "gemini-3.1-pro-preview";
 
 /* Because the strong one is a preview.

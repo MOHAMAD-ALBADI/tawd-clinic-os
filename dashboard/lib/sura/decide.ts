@@ -19,8 +19,12 @@ import type { Decision, GapCandidate, Goal } from "./types";
    and makes one narrow choice from a list the scanner already built —
    the reasoning is cheap and the volume is not. 3.6 is a large step up
    from 2.5 at the same tier of cost. */
+/* Same tier change as the planner, and for the same reason: 3.6-flash
+   bills $1.50 per million input against flash-lite's $0.25, and this
+   runs once per goal per tick. Nothing here needs the stronger model —
+   it picks one of five labelled choices against a fixed schema. */
 const ENDPOINT =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent";
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent";
 
 const SCHEMA = {
   type: "object",
